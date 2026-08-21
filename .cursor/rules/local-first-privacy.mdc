@@ -1,0 +1,23 @@
+---
+description: Local-first privacy — on-device data, minimal permissions
+alwaysApply: true
+---
+
+# Local-first privacy
+
+## Default
+
+- All tasks, schedules, completion history, and settings live **on device**
+- No account gate for core features
+- No analytics, crash reporters, or ad SDKs unless `docs/` explicitly accepts them
+
+## Permissions
+
+- Request only what reminders and (optional) exact alarms need
+- Do not add `INTERNET` until a documented sync/export-to-cloud feature exists
+- Prefer storage Access that matches sideload/backup story (user-initiated export/import files)
+
+## Data
+
+- Schema should support export/import (JSON or similar) early so tablet↔phone moves are possible without cloud
+- Never log task titles to third parties

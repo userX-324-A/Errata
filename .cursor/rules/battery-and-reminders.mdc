@@ -1,0 +1,28 @@
+---
+description: Battery and reminder discipline for old Android devices
+alwaysApply: true
+---
+
+# Battery and reminders
+
+Battery life on older devices is a **feature**, not an afterthought.
+
+## Do
+
+- Schedule notifications with platform-appropriate APIs; reschedule after boot (`RECEIVE_BOOT_COMPLETED` only if needed)
+- Use **exact alarms** only when the user expects a precise reminder; gate behind the system permission UX on modern Android
+- Collapse / debounce bursts so one morning doesn’t fire ten separate wakes if tasks can share a digest (product may choose per-task vs digest — document choice in `docs/`)
+- Test reminder behavior under Doze / battery optimization; document OEM gotchas
+- Prefer one short-lived wake to do work, then release
+
+## Do not
+
+- Run a sticky foreground service for “better engagement”
+- Poll in a loop or use high-frequency `WorkManager` periods
+- Hold wake locks across UI sessions
+- Sync or network in the background by default
+
+## Reminder UX
+
+- Notification actions: at least **Done** and **Snooze** when practical
+- Missing a reminder must not corrupt cadence math — define behavior in architecture docs

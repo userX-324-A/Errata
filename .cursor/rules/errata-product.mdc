@@ -1,0 +1,23 @@
+---
+description: Errata product vision — personal mundane upkeep, not hustle apps
+alwaysApply: true
+---
+
+# Errata product
+
+Errata = personal corrections on a cadence. Pin recurring mundane tasks, schedule them, estimate minutes, remind, clear a focused pending list.
+
+## Do
+
+- Optimize for “what’s due now?” and “how long will this take?”
+- Treat late completion as normal; reschedule from completion time or fixed cadence per task settings
+- Keep copy calm and adult — no shame, no fire emojis required
+- Prefer fewer features done reliably over a dashboard
+
+## Do not
+
+- Build streak/XP/social/coaching surfaces
+- Turn Errata into a generic todo mega-app (projects, tags sprawl, kanban)
+- Add cloud or accounts by default
+- Port to Windows before Android MVP is usable on a real device
+- Reuse the name UpKeep (taken CMMS) or collide with Borrowed / Drift products

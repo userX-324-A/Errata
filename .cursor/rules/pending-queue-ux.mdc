@@ -1,0 +1,38 @@
+---
+description: Pending queue UX — due list, duration, complete/snooze
+globs: "**/*.{kt,kts,xml}"
+alwaysApply: false
+---
+
+# Pending queue UX
+
+## Primary surface
+
+Home = **pending / due / overdue / soon**. Not a calendar-first or stats-first shell.
+
+## Task fields (MVP intent)
+
+- Title
+- Cadence (interval days and/or weekly/monthly rules)
+- Estimated duration (minutes)
+- Optional notes
+- Next due / last completed
+- Reminder time preference (global and/or per task)
+
+## Actions
+
+- **Done** — records completion, computes next due from rules
+- **Snooze** — delays reminder/due without marking complete
+- Optional later: skip, pause task, archive
+
+## Do
+
+- Show duration on the pending row so planning is visible
+- Keep the list short and scannable on a phone/tablet
+- Prefer plain language (“Due today · ~15 min”) over jargon
+
+## Do not
+
+- Bury due items under habit heatmaps
+- Require projects/tags to create a simple recurring chore
+- Animate for its own sake on low-end devices

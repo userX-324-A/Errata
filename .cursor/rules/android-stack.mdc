@@ -1,0 +1,28 @@
+---
+description: Android / Kotlin stack conventions for Errata
+globs: "**/*.{kt,kts,gradle,toml,xml},**/AndroidManifest.xml,gradle/**"
+alwaysApply: false
+---
+
+# Android stack
+
+## Defaults (until docs say otherwise)
+
+- Language: **Kotlin**
+- UI: **Jetpack Compose** + Material 3 unless prototyping proves Views faster for MVP
+- Persistence: **Room** (or equally boring local DB)
+- Min SDK: choose for **older tablets** (document exact `minSdk` in `docs/01-architecture.md` when set — bias compatible, not trendy)
+- Architecture: simple layered (UI → domain/use cases → data). Avoid mega frameworks
+
+## Do
+
+- Keep Gradle deps minimal; justify each library in PR notes if non-obvious
+- Version catalog or clear dependency block — one style, consistent
+- Package by feature or by layer; pick one and stick to it
+- Ship installable **debug APK** path for sideload (no USB required on the broken phone)
+
+## Do not
+
+- Add multiplatform / Compose Multiplatform / Windows targets yet
+- Add Hilt/Koin/etc. until DI pain is real
+- Commit `local.properties`, keystores, or signing passwords

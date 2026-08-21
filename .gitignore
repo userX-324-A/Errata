@@ -1,0 +1,45 @@
+# Built artifacts
+*.apk
+*.aar
+*.ap_
+*.aab
+*.dex
+*.class
+
+# Gradle
+.gradle/
+build/
+**/build/
+local.properties
+captures/
+.externalNativeBuild/
+.cxx/
+
+# Android Studio / IDEA
+.idea/
+*.iml
+*.iws
+*.ipr
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Keystores (never commit)
+*.jks
+*.keystore
+!debug.keystore
+
+# Kotlin / misc
+*.log
+*.tmp
+*.swp
+.kotlin/
+
+# OS / editor
+.vscode/
+*.code-workspace
+
+# Secrets
+.env
+.env.*
+secrets/
