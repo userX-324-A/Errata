@@ -6,11 +6,13 @@ import androidx.lifecycle.viewModelScope
 import com.errata.app.data.TaskCommands
 import com.errata.app.data.local.SettingsEntity
 import com.errata.app.data.local.TaskEntity
+import com.errata.app.domain.area.TaskAreas
 import com.errata.app.domain.due.DueBucket
 import com.errata.app.domain.due.PendingClassifier
 import com.errata.app.domain.estimate.EstimateAdjuster
 import com.errata.app.domain.estimate.EstimateHonesty
 import com.errata.app.domain.freewindow.FreeWindowRanker
+import com.errata.app.domain.starter.StarterSpec
 import com.errata.app.ui.snooze.SnoozePreset
 import com.errata.app.ui.snooze.SnoozePresets
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -43,6 +45,13 @@ data class PendingQueueUiState(
     val leftoverAfterBestMinutes: Int? = null,
     val untilWorkMinutes: Int? = null,
     val honesty: PendingHonestyPrompt? = null,
+    val availableAreas: List<String> = emptyList(),
+    /** Null = All. */
+    val activeArea: String? = null,
+    /** True when there are zero active (non-archived) tasks. */
+    val hasNoPinnedTasks: Boolean = true,
+    /** Show after pinning starters if the due queue is still empty. */
+    val startersPinnedHint: Boolean = false,
 )
 
 class PendingQueueViewModel(
@@ -52,15 +61,20 @@ class PendingQueueViewModel(
     private val nowTick = MutableStateFlow(System.currentTimeMillis())
     private val activeWindowMinutes = MutableStateFlow<Int?>(null)
     private val honestyPrompt = MutableStateFlow<PendingHonestyPrompt?>(null)
+    private val activeArea = MutableStateFlow<String?>(null)
+    private val startersPinnedHint = MutableStateFlow(false)
 
     val uiState: StateFlow<PendingQueueUiState> = combine(
         commands.observeActiveTasks,
         commands.observeSettings,
         nowTick,
         activeWindowMinutes,
-        honestyPrompt,
-    ) { tasks, settings, now, window, honesty ->
-        buildState(tasks, settings ?: SettingsEntity(), now, window, honesty)
+        combine(honestyPrompt, activeArea, startersPinnedHint) { honesty, area, hint ->
+            Triple(honesty, area, hint)
+        },
+    ) { tasks, settings, now, window, extras ->
+        val (honesty, area, hint) = extras
+        buildState(tasks, settings ?: SettingsEntity(), now, window, honesty, area, hint)
     }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5_000),
@@ -80,6 +94,10 @@ class PendingQueueViewModel(
 
     fun clearWindow() {
         activeWindowMinutes.value = null
+    }
+
+    fun setActiveArea(area: String?) {
+        activeArea.value = area
     }
 
     fun complete(taskId: Long) {
@@ -134,12 +152,27 @@ class PendingQueueViewModel(
         }
     }
 
+    fun pinStarters(specs: List<StarterSpec>) {
+        viewModelScope.launch {
+            if (commands.pinStarters(specs) > 0) {
+                startersPinnedHint.value = true
+                refreshNow()
+            }
+        }
+    }
+
+    fun rescheduleReminders() {
+        viewModelScope.launch { commands.rescheduleReminders() }
+    }
+
     private fun buildState(
         tasks: List<TaskEntity>,
         settings: SettingsEntity,
         now: Long,
         windowMinutes: Int?,
         honesty: PendingHonestyPrompt?,
+        requestedArea: String?,
+        hint: Boolean,
     ): PendingQueueUiState {
         val items = tasks.mapNotNull { task ->
             val bucket = PendingClassifier.classify(
@@ -184,10 +217,18 @@ class PendingQueueViewModel(
                 ),
             )
 
-        val overdue = items.filter { it.bucket == DueBucket.OVERDUE }.sortedPending()
-        val dueToday = items.filter { it.bucket == DueBucket.DUE_TODAY }.sortedPending()
-        val soon = items.filter { it.bucket == DueBucket.SOON }.sortedPending()
-        val isEmpty = overdue.isEmpty() && dueToday.isEmpty() && soon.isEmpty()
+        val availableAreas = TaskAreas.usedAreas(items.map { it.task.area })
+        val selectedArea = requestedArea.takeIf { it != null && it in availableAreas }
+        val visible = if (selectedArea == null) {
+            items
+        } else {
+            items.filter { it.task.area == selectedArea }
+        }
+
+        val overdue = visible.filter { it.bucket == DueBucket.OVERDUE }.sortedPending()
+        val dueToday = visible.filter { it.bucket == DueBucket.DUE_TODAY }.sortedPending()
+        val soon = visible.filter { it.bucket == DueBucket.SOON }.sortedPending()
+        val isEmpty = items.isEmpty()
 
         val untilWork = FreeWindowRanker.minutesUntilWorkStart(
             workStartMinutesOfDay = settings.defaultWorkStartMinutesOfDay,
@@ -196,10 +237,10 @@ class PendingQueueViewModel(
 
         var fits: List<PendingItem> = emptyList()
         var leftover: Int? = null
-        if (windowMinutes != null && !isEmpty) {
-            val byId = items.associateBy { it.task.id }
+        if (windowMinutes != null && visible.isNotEmpty()) {
+            val byId = visible.associateBy { it.task.id }
             val ranked = FreeWindowRanker.rank(
-                candidates = items.map {
+                candidates = visible.map {
                     FreeWindowRanker.Candidate(
                         id = it.task.id,
                         title = it.task.title,
@@ -225,6 +266,10 @@ class PendingQueueViewModel(
             leftoverAfterBestMinutes = leftover,
             untilWorkMinutes = untilWork,
             honesty = honesty,
+            availableAreas = availableAreas,
+            activeArea = selectedArea,
+            hasNoPinnedTasks = tasks.isEmpty(),
+            startersPinnedHint = hint && items.isEmpty() && tasks.isNotEmpty(),
         )
     }
 

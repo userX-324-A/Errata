@@ -23,7 +23,7 @@ Home = **pending / due / overdue / soon**. Not a calendar-first or stats-first s
 
 - **Done** — records completion, computes next due from rules
 - **Snooze** — delays reminder/due without marking complete
-- Optional later: skip, pause task, archive
+- **Skip** this cycle (no reason field), pause, archive — in tree; skip-with-reason is not a goal
 
 ## Do
 

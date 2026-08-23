@@ -16,7 +16,7 @@ Authority for **what** we build and **why**. Roadmap order lives in [`02-roadmap
 | **0** | Trust the list — MVP daily driver |
 | **1** | Fit real life — free-window + lifecycle without shame |
 | **2** | Calm power — less friction, still personal |
-| **3** | Earn it later — only if Tier 0–2 are solid |
+| **3** | Earn it — core in tree; leftovers in Later |
 
 ---
 
@@ -39,7 +39,7 @@ Authority for **what** we build and **why**. Roadmap order lives in [`02-roadmap
 | **Helps** | People whose chores aren’t daily habits |
 | **When** | On create and after every Done |
 | **Pain removed** | Habit apps force daily; calendars ignore “from when I last did it” |
-| **Does** | Interval every N days; modes: **from-completion**, **fixed-anchor**, **from-completion + catch-up** (global default + per-task override) |
+| **Does** | Interval every N days; weekly weekday sets; monthly day-of-month (clamp missing days). Interval after-Done modes: **from-completion**, **fixed-anchor**, **from-completion + catch-up** (global default + per-task override). Weekly/monthly ignore those modes and stay on the calendar. |
 | **Does not** | Punish missed intervals; invent streaks |
 
 **Default global mode:** from-completion + catch-up (see [Cadence policy](#cadence-policy) below).
@@ -95,7 +95,7 @@ Authority for **what** we build and **why**. Roadmap order lives in [`02-roadmap
 | **Helps** | Tablet ↔ phone / backup before wipe |
 | **When** | Before second-device pain or OS reset |
 | **Pain removed** | Data trapped on one install; cloud-account tax |
-| **Does** | User-initiated SAF file export/import of tasks, completions, settings (`schemaVersion` 1). **Import replaces** all local data after confirm. |
+| **Does** | User-initiated SAF file export/import of tasks, completions, settings (`schemaVersion` 1). **Import replaces** all local data after confirm. Reached from **Settings**. |
 | **Does not** | Require an account or INTERNET; merge/diff import (v1) |
 
 ---
@@ -109,7 +109,7 @@ Authority for **what** we build and **why**. Roadmap order lives in [`02-roadmap
 | **Helps** | Finding a task that isn’t on the pending home (completed cycle, later due, paused) |
 | **When** | “Where did that chore go?” after Done, or editing cadence off-queue |
 | **Pain removed** | Pending-only home hides everything that isn’t due soon |
-| **Does** | Browse/edit all pinned tasks; open editor; later pause/archive from here |
+| **Does** | Browse/edit all pinned tasks; open editor; pause/archive from here |
 | **Does not** | Replace pending as the morning home; become a mega project list |
 
 ### Free-window / “fit my time”
@@ -167,9 +167,7 @@ Authority for **what** we build and **why**. Roadmap order lives in [`02-roadmap
 | **Does** | Advances/postpones per cadence mode without a completion record; confirm copy so it isn’t a trash can |
 | **Does not** | Replace Snooze (temporary) or Pause (indefinite) |
 
-**Boundary:** Snooze = later still this obligation; Skip = abandon this cycle; Pause = freeze the task; Done = you did it.
-
-*Roadmap:* ship after Done/Snooze feel solid (Phase 1 late or Phase 2) so Skip doesn’t muddy the primary actions.
+**Boundary:** Snooze = later still this obligation; Skip = abandon this cycle; Pause = freeze the task; Done = you did it. Skip ships **without** a reason field; skip-with-reason is not a goal.
 
 ---
 
@@ -227,16 +225,24 @@ Authority for **what** we build and **why**. Roadmap order lives in [`02-roadmap
 
 ---
 
-## Tier 3 — Earn it later
+## Tier 3 — Earn it (core in tree)
 
 | Feature | Purpose |
 |---|---|
-| Richer cadence | Weekly weekday sets, monthly day-of-month, “first Saturday,” seasonal anchors |
-| Templates / starters | Editable seed pack for empty-state onboarding |
-| Multi-device via file | Same export/import; optional user-chosen folder later — still no account |
-| Play Store packaging | Listing + privacy text matching local-first |
+| Richer cadence | Weekly weekday sets and monthly day-of-month |
+| Templates / starters | Editable seed pack on true empty state; user-chosen pin, not auto-seed |
+| Multi-device via file | Export/import plus optional user-chosen folder (`errata-backup.json`, last write wins). Drive via the system picker |
+| Play Store packaging | Privacy policy + listing/Data safety copy |
 
 Windows / desktop remains **out** until Android is boringly solid (see vision).
+
+## Later
+
+| Feature | Purpose |
+|---|---|
+| nth-weekday / seasonal | “First Saturday,” seasonal anchors |
+| Play Console submit | Host privacy URL, screenshots, AAB — not a hole in the sideload app |
+| Drive SDK | Only if the system picker is not enough; still no Errata account by default |
 
 ---
 
@@ -254,7 +260,15 @@ Windows / desktop remains **out** until Android is boringly solid (see vision).
 
 ## Cadence policy
 
-### Modes (per task; global default in Settings)
+Schedule **kind** is orthogonal to after-Done **mode**.
+
+| Kind | Next due after Done or Skip |
+|---|---|
+| **Every N days** (default) | After-Done mode below |
+| **Weekly** | Next selected weekday (Mon–Sun set) strictly after the event, same clock time as the due that was open |
+| **Monthly** | Next occurrence of day-of-month 1–31; if that day does not exist, clamp to the last day of the month. Same keep-time rule |
+
+### Modes (per task; global default in Settings; interval tasks only)
 
 | Mode | Next due after Done |
 |---|---|

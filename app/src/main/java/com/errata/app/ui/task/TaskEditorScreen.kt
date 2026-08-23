@@ -1,5 +1,7 @@
 package com.errata.app.ui.task
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
@@ -39,18 +41,31 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.errata.app.R
+import com.errata.app.domain.area.TaskAreas
 import com.errata.app.domain.cadence.CadenceMode
+import com.errata.app.domain.cadence.ScheduleKind
+import com.errata.app.domain.cadence.Weekdays
+import com.errata.app.domain.history.TypicalLateness
+import com.errata.app.reminders.ExactAlarmAccess
+import com.errata.app.ui.theme.ErrataScreenInsets
+import com.errata.app.ui.theme.ErrataTopInsets
+import java.time.DayOfWeek
 import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalTime
+import java.time.ZoneId
 import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
+import java.time.format.TextStyle
+import java.util.Locale
 
 private enum class TimePickerTarget { DUE, REMINDER }
 
@@ -63,9 +78,24 @@ fun TaskEditorScreen(
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     var showDatePicker by remember { mutableStateOf(false) }
     var timePickerTarget by remember { mutableStateOf<TimePickerTarget?>(null) }
+    var showCustomArea by remember { mutableStateOf(false) }
+    var customAreaText by remember { mutableStateOf("") }
+    var showExactPrompt by remember { mutableStateOf(false) }
+    val context = LocalContext.current
+    val exactLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.StartActivityForResult(),
+    ) {
+        viewModel.rescheduleReminders()
+        onDone()
+    }
 
     LaunchedEffect(state.saved) {
-        if (state.saved) onDone()
+        if (!state.saved) return@LaunchedEffect
+        if (ExactAlarmAccess.shouldPrompt(context)) {
+            showExactPrompt = true
+        } else {
+            onDone()
+        }
     }
 
     Scaffold(
@@ -94,9 +124,11 @@ fun TaskEditorScreen(
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.background,
                 ),
+                windowInsets = ErrataTopInsets,
             )
         },
         containerColor = MaterialTheme.colorScheme.background,
+        contentWindowInsets = ErrataScreenInsets,
     ) { innerPadding ->
         if (!state.loaded) {
             Spacer(modifier = Modifier.padding(innerPadding))
@@ -133,6 +165,53 @@ fun TaskEditorScreen(
                 modifier = Modifier.fillMaxWidth(),
                 minLines = 2,
             )
+
+            Text(
+                text = stringResource(R.string.field_area),
+                style = MaterialTheme.typography.labelLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            Text(
+                text = stringResource(R.string.area_hint),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                FilterChip(
+                    selected = state.area == null,
+                    onClick = { viewModel.updateArea(null) },
+                    label = { Text(stringResource(R.string.area_none)) },
+                )
+                TaskAreas.PRESETS.forEach { preset ->
+                    FilterChip(
+                        selected = state.area == preset,
+                        onClick = { viewModel.updateArea(preset) },
+                        label = { Text(preset) },
+                    )
+                }
+                val currentArea = state.area
+                val customSelected = currentArea != null && currentArea !in TaskAreas.PRESETS
+                FilterChip(
+                    selected = customSelected,
+                    onClick = {
+                        customAreaText = currentArea.orEmpty()
+                        showCustomArea = true
+                    },
+                    label = {
+                        Text(
+                            if (customSelected) {
+                                currentArea.orEmpty()
+                            } else {
+                                stringResource(R.string.area_custom)
+                            },
+                        )
+                    },
+                )
+            }
+
             OutlinedTextField(
                 value = state.estimateMinutes,
                 onValueChange = viewModel::updateEstimate,
@@ -142,21 +221,9 @@ fun TaskEditorScreen(
                 modifier = Modifier.fillMaxWidth(),
                 isError = state.errorMessage == "estimate",
             )
-            OutlinedTextField(
-                value = state.intervalDays,
-                onValueChange = viewModel::updateInterval,
-                label = { Text(stringResource(R.string.field_interval)) },
-                singleLine = true,
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                modifier = Modifier.fillMaxWidth(),
-                isError = state.errorMessage == "interval",
-                supportingText = {
-                    Text(stringResource(R.string.cadence_applies_after_done))
-                },
-            )
 
             Text(
-                text = stringResource(R.string.field_cadence_mode),
+                text = stringResource(R.string.field_schedule),
                 style = MaterialTheme.typography.labelLarge,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -165,20 +232,114 @@ fun TaskEditorScreen(
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 CadenceChip(
-                    label = stringResource(R.string.cadence_from_completion),
-                    selected = state.cadenceMode == CadenceMode.FROM_COMPLETION,
-                    onClick = { viewModel.updateCadenceMode(CadenceMode.FROM_COMPLETION) },
+                    label = stringResource(R.string.schedule_interval),
+                    selected = state.scheduleKind == ScheduleKind.INTERVAL,
+                    onClick = { viewModel.updateScheduleKind(ScheduleKind.INTERVAL) },
                 )
                 CadenceChip(
-                    label = stringResource(R.string.cadence_fixed),
-                    selected = state.cadenceMode == CadenceMode.FIXED_ANCHOR,
-                    onClick = { viewModel.updateCadenceMode(CadenceMode.FIXED_ANCHOR) },
+                    label = stringResource(R.string.schedule_weekly),
+                    selected = state.scheduleKind == ScheduleKind.WEEKLY,
+                    onClick = { viewModel.updateScheduleKind(ScheduleKind.WEEKLY) },
                 )
                 CadenceChip(
-                    label = stringResource(R.string.cadence_catch_up),
-                    selected = state.cadenceMode == CadenceMode.FROM_COMPLETION_CATCH_UP,
-                    onClick = { viewModel.updateCadenceMode(CadenceMode.FROM_COMPLETION_CATCH_UP) },
+                    label = stringResource(R.string.schedule_monthly),
+                    selected = state.scheduleKind == ScheduleKind.MONTHLY,
+                    onClick = { viewModel.updateScheduleKind(ScheduleKind.MONTHLY) },
                 )
+            }
+
+            when (state.scheduleKind) {
+                ScheduleKind.INTERVAL -> {
+                    OutlinedTextField(
+                        value = state.intervalDays,
+                        onValueChange = viewModel::updateInterval,
+                        label = { Text(stringResource(R.string.field_interval)) },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        modifier = Modifier.fillMaxWidth(),
+                        isError = state.errorMessage == "interval",
+                        supportingText = {
+                            Text(stringResource(R.string.cadence_applies_after_done))
+                        },
+                    )
+                    Text(
+                        text = stringResource(R.string.field_cadence_mode),
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        CadenceChip(
+                            label = stringResource(R.string.cadence_from_completion),
+                            selected = state.cadenceMode == CadenceMode.FROM_COMPLETION,
+                            onClick = { viewModel.updateCadenceMode(CadenceMode.FROM_COMPLETION) },
+                        )
+                        CadenceChip(
+                            label = stringResource(R.string.cadence_fixed),
+                            selected = state.cadenceMode == CadenceMode.FIXED_ANCHOR,
+                            onClick = { viewModel.updateCadenceMode(CadenceMode.FIXED_ANCHOR) },
+                        )
+                        CadenceChip(
+                            label = stringResource(R.string.cadence_catch_up),
+                            selected = state.cadenceMode == CadenceMode.FROM_COMPLETION_CATCH_UP,
+                            onClick = { viewModel.updateCadenceMode(CadenceMode.FROM_COMPLETION_CATCH_UP) },
+                        )
+                    }
+                }
+                ScheduleKind.WEEKLY -> {
+                    Text(
+                        text = stringResource(R.string.field_weekdays),
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        DayOfWeek.entries.forEach { day ->
+                            CadenceChip(
+                                label = day.getDisplayName(TextStyle.SHORT, Locale.getDefault()),
+                                selected = Weekdays.contains(state.weekdaysMask, day),
+                                onClick = { viewModel.toggleWeekday(day) },
+                            )
+                        }
+                    }
+                    Text(
+                        text = stringResource(R.string.schedule_grid_note),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                ScheduleKind.MONTHLY -> {
+                    OutlinedTextField(
+                        value = state.monthDay,
+                        onValueChange = viewModel::updateMonthDay,
+                        label = { Text(stringResource(R.string.field_month_day)) },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        modifier = Modifier.fillMaxWidth(),
+                        isError = state.errorMessage == "monthDay",
+                    )
+                    FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        listOf(1, 15, 28).forEach { day ->
+                            CadenceChip(
+                                label = day.toString(),
+                                selected = state.monthDay.toIntOrNull() == day,
+                                onClick = { viewModel.updateMonthDay(day.toString()) },
+                            )
+                        }
+                    }
+                    Text(
+                        text = stringResource(R.string.schedule_grid_note),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
             }
 
             Text(
@@ -249,10 +410,35 @@ fun TaskEditorScreen(
                 }
             }
 
+            state.history?.let { glance ->
+                Text(
+                    text = stringResource(R.string.history_heading),
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Text(
+                    text = stringResource(
+                        R.string.history_last_done,
+                        formatHistoryDate(glance.lastCompletedEpochMs),
+                    ),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                glance.typical?.let { typical ->
+                    Text(
+                        text = typicalCopy(typical),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+
             when (state.errorMessage) {
                 "title" -> ErrorText(stringResource(R.string.error_title))
                 "estimate" -> ErrorText(stringResource(R.string.error_estimate))
                 "interval" -> ErrorText(stringResource(R.string.error_interval))
+                "weekdays" -> ErrorText(stringResource(R.string.error_weekdays))
+                "monthDay" -> ErrorText(stringResource(R.string.error_month_day))
                 "missing" -> ErrorText(stringResource(R.string.error_missing_task))
             }
 
@@ -333,6 +519,63 @@ fun TaskEditorScreen(
             text = { TimePicker(state = timeState) },
         )
     }
+
+    if (showCustomArea) {
+        AlertDialog(
+            onDismissRequest = { showCustomArea = false },
+            title = { Text(stringResource(R.string.area_custom_title)) },
+            text = {
+                OutlinedTextField(
+                    value = customAreaText,
+                    onValueChange = { customAreaText = it.take(TaskAreas.MAX_LENGTH) },
+                    label = { Text(stringResource(R.string.area_custom_label)) },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        viewModel.updateArea(customAreaText)
+                        showCustomArea = false
+                    },
+                ) { Text(stringResource(R.string.action_ok)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { showCustomArea = false }) {
+                    Text(stringResource(R.string.action_cancel))
+                }
+            },
+        )
+    }
+
+    if (showExactPrompt) {
+        AlertDialog(
+            onDismissRequest = {
+                ExactAlarmAccess.markPrompted(context)
+                onDone()
+            },
+            title = { Text(stringResource(R.string.exact_prompt_title)) },
+            text = { Text(stringResource(R.string.exact_prompt_body)) },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        ExactAlarmAccess.markPrompted(context)
+                        showExactPrompt = false
+                        exactLauncher.launch(ExactAlarmAccess.requestIntent(context))
+                    },
+                ) { Text(stringResource(R.string.exact_prompt_allow)) }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = {
+                        ExactAlarmAccess.markPrompted(context)
+                        onDone()
+                    },
+                ) { Text(stringResource(R.string.exact_prompt_not_now)) }
+            },
+        )
+    }
 }
 
 @Composable
@@ -347,6 +590,20 @@ private fun CadenceChip(label: String, selected: Boolean, onClick: () -> Unit) {
 private fun formatMinutes(minutesOfDay: Int): String {
     val time = LocalTime.of(minutesOfDay / 60, minutesOfDay % 60)
     return DateTimeFormatter.ofLocalizedTime(FormatStyle.SHORT).format(time)
+}
+
+private fun formatHistoryDate(epochMs: Long): String {
+    val date = Instant.ofEpochMilli(epochMs).atZone(ZoneId.systemDefault()).toLocalDate()
+    return DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM).format(date)
+}
+
+@Composable
+private fun typicalCopy(typical: TypicalLateness): String = when (typical) {
+    TypicalLateness.OnDueDay -> stringResource(R.string.history_on_due_day)
+    is TypicalLateness.DaysAfter ->
+        pluralStringResource(R.plurals.history_after, typical.days, typical.days)
+    is TypicalLateness.DaysBefore ->
+        pluralStringResource(R.plurals.history_before, typical.days, typical.days)
 }
 
 @Composable

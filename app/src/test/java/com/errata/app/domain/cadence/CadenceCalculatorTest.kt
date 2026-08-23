@@ -1,5 +1,6 @@
 package com.errata.app.domain.cadence
 
+import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.ZoneOffset
 import org.junit.Assert.assertEquals
@@ -186,5 +187,151 @@ class CadenceCalculatorTest {
             zone = zone,
         )
         assertEquals(day(2026, 1, 29), next)
+    }
+
+    @Test
+    fun weekly_nextTuesdayAfterWednesdayDone() {
+        val scheduled = noon(2026, 1, 7) // Wednesday
+        val completed = noon(2026, 1, 7)
+        val next = CadenceCalculator.nextDueAfterCompletion(
+            mode = CadenceMode.FROM_COMPLETION_CATCH_UP,
+            intervalDays = CadenceCalculator.GRID_INTERVAL_DAYS,
+            completedAtEpochMs = completed,
+            scheduledDueAtEpochMs = scheduled,
+            anchorEpochDay = LocalDate.of(2026, 1, 7).toEpochDay(),
+            zone = zone,
+            scheduleKind = ScheduleKind.WEEKLY,
+            weekdaysMask = Weekdays.bit(DayOfWeek.TUESDAY),
+        )
+        assertEquals(noon(2026, 1, 13), next)
+    }
+
+    @Test
+    fun weekly_twoWeekdaysWrapToNextWeek() {
+        val mask = Weekdays.bit(DayOfWeek.MONDAY) or
+            Weekdays.bit(DayOfWeek.WEDNESDAY)
+        val scheduled = noon(2026, 1, 7) // Wednesday
+        val completed = noon(2026, 1, 8) // Thursday
+        val next = CadenceCalculator.nextDueAfterCompletion(
+            mode = CadenceMode.FROM_COMPLETION,
+            intervalDays = CadenceCalculator.GRID_INTERVAL_DAYS,
+            completedAtEpochMs = completed,
+            scheduledDueAtEpochMs = scheduled,
+            anchorEpochDay = LocalDate.of(2026, 1, 7).toEpochDay(),
+            zone = zone,
+            scheduleKind = ScheduleKind.WEEKLY,
+            weekdaysMask = mask,
+        )
+        assertEquals(noon(2026, 1, 12), next)
+    }
+
+    @Test
+    fun weekly_sameDayAfterDueTime_movesToNextSelected() {
+        val mask = Weekdays.bit(DayOfWeek.TUESDAY) or
+            Weekdays.bit(DayOfWeek.FRIDAY)
+        val scheduled = LocalDate.of(2026, 1, 9).atTime(12, 0).toInstant(zone).toEpochMilli()
+        val completed = LocalDate.of(2026, 1, 9).atTime(16, 0).toInstant(zone).toEpochMilli()
+        val next = CadenceCalculator.nextDueAfterCompletion(
+            mode = CadenceMode.FIXED_ANCHOR,
+            intervalDays = CadenceCalculator.GRID_INTERVAL_DAYS,
+            completedAtEpochMs = completed,
+            scheduledDueAtEpochMs = scheduled,
+            anchorEpochDay = LocalDate.of(2026, 1, 9).toEpochDay(),
+            zone = zone,
+            scheduleKind = ScheduleKind.WEEKLY,
+            weekdaysMask = mask,
+        )
+        assertEquals(noon(2026, 1, 13), next)
+    }
+
+    @Test
+    fun monthly_day31_clampsToFebruary() {
+        val scheduled = noon(2026, 1, 31)
+        val completed = noon(2026, 1, 31)
+        val next = CadenceCalculator.nextDueAfterCompletion(
+            mode = CadenceMode.FROM_COMPLETION,
+            intervalDays = CadenceCalculator.GRID_INTERVAL_DAYS,
+            completedAtEpochMs = completed,
+            scheduledDueAtEpochMs = scheduled,
+            anchorEpochDay = LocalDate.of(2026, 1, 31).toEpochDay(),
+            zone = zone,
+            scheduleKind = ScheduleKind.MONTHLY,
+            monthDay = 31,
+        )
+        assertEquals(noon(2026, 2, 28), next)
+    }
+
+    @Test
+    fun monthly_day31_leapFebruary() {
+        val scheduled = noon(2024, 1, 31)
+        val completed = noon(2024, 1, 31)
+        val next = CadenceCalculator.nextDueAfterCompletion(
+            mode = CadenceMode.FROM_COMPLETION,
+            intervalDays = CadenceCalculator.GRID_INTERVAL_DAYS,
+            completedAtEpochMs = completed,
+            scheduledDueAtEpochMs = scheduled,
+            anchorEpochDay = LocalDate.of(2024, 1, 31).toEpochDay(),
+            zone = zone,
+            scheduleKind = ScheduleKind.MONTHLY,
+            monthDay = 31,
+        )
+        assertEquals(noon(2024, 2, 29), next)
+    }
+
+    @Test
+    fun monthly_skip_matchesDone() {
+        val scheduled = noon(2026, 3, 15)
+        val now = noon(2026, 3, 15)
+        val afterDone = CadenceCalculator.nextDueAfterCompletion(
+            mode = CadenceMode.FIXED_ANCHOR,
+            intervalDays = CadenceCalculator.GRID_INTERVAL_DAYS,
+            completedAtEpochMs = now,
+            scheduledDueAtEpochMs = scheduled,
+            anchorEpochDay = LocalDate.of(2026, 3, 15).toEpochDay(),
+            zone = zone,
+            scheduleKind = ScheduleKind.MONTHLY,
+            monthDay = 15,
+        )
+        val afterSkip = CadenceCalculator.nextDueAfterSkip(
+            mode = CadenceMode.FIXED_ANCHOR,
+            intervalDays = CadenceCalculator.GRID_INTERVAL_DAYS,
+            scheduledDueAtEpochMs = scheduled,
+            anchorEpochDay = LocalDate.of(2026, 3, 15).toEpochDay(),
+            nowEpochMs = now,
+            zone = zone,
+            scheduleKind = ScheduleKind.MONTHLY,
+            monthDay = 15,
+        )
+        assertEquals(noon(2026, 4, 15), afterDone)
+        assertEquals(afterDone, afterSkip)
+    }
+
+    @Test
+    fun weekly_skip_matchesDone() {
+        val mask = Weekdays.bit(DayOfWeek.TUESDAY)
+        val scheduled = noon(2026, 1, 7)
+        val now = noon(2026, 1, 7)
+        val afterDone = CadenceCalculator.nextDueAfterCompletion(
+            mode = CadenceMode.FROM_COMPLETION_CATCH_UP,
+            intervalDays = CadenceCalculator.GRID_INTERVAL_DAYS,
+            completedAtEpochMs = now,
+            scheduledDueAtEpochMs = scheduled,
+            anchorEpochDay = LocalDate.of(2026, 1, 7).toEpochDay(),
+            zone = zone,
+            scheduleKind = ScheduleKind.WEEKLY,
+            weekdaysMask = mask,
+        )
+        val afterSkip = CadenceCalculator.nextDueAfterSkip(
+            mode = CadenceMode.FROM_COMPLETION_CATCH_UP,
+            intervalDays = CadenceCalculator.GRID_INTERVAL_DAYS,
+            scheduledDueAtEpochMs = scheduled,
+            anchorEpochDay = LocalDate.of(2026, 1, 7).toEpochDay(),
+            nowEpochMs = now,
+            zone = zone,
+            scheduleKind = ScheduleKind.WEEKLY,
+            weekdaysMask = mask,
+        )
+        assertEquals(noon(2026, 1, 13), afterDone)
+        assertEquals(afterDone, afterSkip)
     }
 }

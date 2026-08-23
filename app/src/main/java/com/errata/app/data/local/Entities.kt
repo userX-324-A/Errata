@@ -5,6 +5,8 @@ import androidx.room.ForeignKey
 import androidx.room.Index
 import androidx.room.PrimaryKey
 import com.errata.app.domain.cadence.CadenceMode
+import com.errata.app.domain.cadence.ScheduleKind
+import com.errata.app.domain.settings.AppearanceMode
 
 @Entity(tableName = "tasks")
 data class TaskEntity(
@@ -13,6 +15,11 @@ data class TaskEntity(
     val notes: String? = null,
     val estimateMinutes: Int,
     val intervalDays: Int,
+    val scheduleKind: ScheduleKind = ScheduleKind.INTERVAL,
+    /** Bit 0 = Monday … bit 6 = Sunday. Unused unless [scheduleKind] is WEEKLY. */
+    val weekdaysMask: Int = 0,
+    /** 1–31 when monthly; otherwise 0. */
+    val monthDay: Int = 0,
     val cadenceMode: CadenceMode,
     val anchorEpochDay: Long,
     val nextDueAtEpochMs: Long,
@@ -53,4 +60,6 @@ data class SettingsEntity(
     val defaultReminderMinutesOfDay: Int = 9 * 60,
     val defaultWorkStartMinutesOfDay: Int? = null,
     val soonHorizonDays: Int = 7,
+    val appearanceMode: AppearanceMode = AppearanceMode.SYSTEM,
+    val digestEnabled: Boolean = false,
 )

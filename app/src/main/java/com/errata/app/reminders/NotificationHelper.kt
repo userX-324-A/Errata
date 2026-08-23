@@ -74,6 +74,28 @@ object NotificationHelper {
         NotificationManagerCompat.from(context).notify(notificationId(task.id), notification)
     }
 
+    fun showDigest(context: Context, count: Int, totalMinutes: Int) {
+        ensureChannel(context)
+        val contentIntent = PendingIntent.getActivity(
+            context,
+            ReminderScheduler.DIGEST_REQUEST_CODE,
+            Intent(context, MainActivity::class.java).apply {
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            },
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+        )
+        val notification = NotificationCompat.Builder(context, CHANNEL_ID)
+            .setSmallIcon(R.drawable.ic_notification)
+            .setContentTitle(context.getString(R.string.digest_title, count))
+            .setContentText(context.getString(R.string.digest_body, totalMinutes))
+            .setContentIntent(contentIntent)
+            .setAutoCancel(true)
+            .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+            .build()
+        NotificationManagerCompat.from(context)
+            .notify(ReminderScheduler.DIGEST_NOTIFICATION_ID, notification)
+    }
+
     fun dismiss(context: Context, taskId: Long) {
         NotificationManagerCompat.from(context).cancel(notificationId(taskId))
     }

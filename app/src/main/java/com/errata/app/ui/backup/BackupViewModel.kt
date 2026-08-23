@@ -1,11 +1,14 @@
 package com.errata.app.ui.backup
 
 import android.content.ContentResolver
+import android.content.Context
 import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.errata.app.data.TaskCommands
+import com.errata.app.data.backup.BackupFolderException
+import com.errata.app.data.backup.BackupFolderStore
 import com.errata.app.data.backup.BackupFormatException
 import java.nio.charset.StandardCharsets
 import java.time.LocalDate
@@ -23,6 +26,8 @@ data class BackupUiState(
     val isError: Boolean = false,
     val busy: Boolean = false,
     val pendingImportJson: String? = null,
+    val hasFolder: Boolean = false,
+    val folderLabel: String? = null,
 )
 
 class BackupViewModel(
@@ -35,6 +40,77 @@ class BackupViewModel(
     fun suggestedExportFileName(): String {
         val day = LocalDate.now().format(DateTimeFormatter.BASIC_ISO_DATE)
         return "errata-backup-$day.json"
+    }
+
+    fun refreshFolder(context: Context) {
+        viewModelScope.launch { applyFolderState(context) }
+    }
+
+    fun setFolder(uri: Uri, context: Context) {
+        viewModelScope.launch {
+            try {
+                withContext(Dispatchers.IO) {
+                    BackupFolderStore(context).setTreeUri(uri)
+                }
+                applyFolderState(context)
+                _uiState.update { it.copy(message = null, isError = false) }
+            } catch (e: BackupFolderException) {
+                _uiState.update { it.copy(message = e.code, isError = true) }
+            } catch (_: Exception) {
+                _uiState.update { it.copy(message = "folder_unavailable", isError = true) }
+            }
+        }
+    }
+
+    fun clearFolder(context: Context) {
+        viewModelScope.launch {
+            withContext(Dispatchers.IO) {
+                BackupFolderStore(context).clear()
+            }
+            applyFolderState(context)
+            _uiState.update { it.copy(message = "folder_cleared", isError = false) }
+        }
+    }
+
+    fun writeToFolder(context: Context) {
+        viewModelScope.launch {
+            _uiState.update { it.copy(busy = true, message = null, isError = false) }
+            try {
+                val json = commands.exportJson()
+                withContext(Dispatchers.IO) {
+                    BackupFolderStore(context).writeJson(json)
+                }
+                _uiState.update {
+                    it.copy(busy = false, message = "folder_written", isError = false)
+                }
+            } catch (e: BackupFolderException) {
+                _uiState.update { it.copy(busy = false, message = e.code, isError = true) }
+            } catch (e: Exception) {
+                _uiState.update {
+                    it.copy(busy = false, message = e.message ?: "export_failed", isError = true)
+                }
+            }
+        }
+    }
+
+    fun readFromFolder(context: Context) {
+        viewModelScope.launch {
+            _uiState.update { it.copy(busy = true, message = null, isError = false) }
+            try {
+                val json = withContext(Dispatchers.IO) {
+                    BackupFolderStore(context).readJson()
+                }
+                _uiState.update {
+                    it.copy(busy = false, pendingImportJson = json, isError = false)
+                }
+            } catch (e: BackupFolderException) {
+                _uiState.update { it.copy(busy = false, message = e.code, isError = true) }
+            } catch (e: Exception) {
+                _uiState.update {
+                    it.copy(busy = false, message = e.message ?: "import_failed", isError = true)
+                }
+            }
+        }
     }
 
     fun writeExport(uri: Uri, resolver: ContentResolver) {
@@ -89,6 +165,14 @@ class BackupViewModel(
                 }
             }
         }
+    }
+
+    private suspend fun applyFolderState(context: Context) {
+        val (hasFolder, label) = withContext(Dispatchers.IO) {
+            val store = BackupFolderStore(context)
+            (store.uri() != null) to store.displayName()
+        }
+        _uiState.update { it.copy(hasFolder = hasFolder, folderLabel = label) }
     }
 
     companion object {

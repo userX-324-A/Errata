@@ -1,33 +1,29 @@
 package com.errata.app.ui.pending
 
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.Button
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
@@ -44,15 +40,25 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.errata.app.R
+import com.errata.app.domain.due.DueBucket
+import com.errata.app.ui.common.AreaFilterChips
+import com.errata.app.ui.common.TaskAreaLabel
 import com.errata.app.domain.estimate.EstimateHonesty
 import com.errata.app.domain.freewindow.FreeWindowRanker
 import com.errata.app.ui.snooze.SnoozeSheet
+import com.errata.app.ui.starter.StarterPackEmpty
+import com.errata.app.ui.theme.ErrataTopInsets
+import com.errata.app.ui.theme.ErrataWordmark
 import java.time.LocalTime
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -61,14 +67,10 @@ fun PendingQueueScreen(
     viewModel: PendingQueueViewModel,
     onAddTask: () -> Unit,
     onOpenTask: (Long) -> Unit,
-    onOpenLibrary: () -> Unit,
-    onOpenSettings: () -> Unit,
-    onOpenBackup: () -> Unit,
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     var snoozeTaskId by remember { mutableStateOf<Long?>(null) }
     var skipConfirmTaskId by remember { mutableStateOf<Long?>(null) }
-    var menuExpanded by remember { mutableStateOf(false) }
     var showCustomWindow by remember { mutableStateOf(false) }
     var showStopByPicker by remember { mutableStateOf(false) }
     var customMinutesText by remember { mutableStateOf("") }
@@ -77,46 +79,8 @@ fun PendingQueueScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = {
-                    Text(
-                        text = stringResource(R.string.app_name),
-                        style = MaterialTheme.typography.headlineMedium,
-                    )
-                },
-                actions = {
-                    IconButton(onClick = { menuExpanded = true }) {
-                        Icon(
-                            imageVector = Icons.Filled.MoreVert,
-                            contentDescription = stringResource(R.string.menu_more),
-                        )
-                    }
-                    DropdownMenu(
-                        expanded = menuExpanded,
-                        onDismissRequest = { menuExpanded = false },
-                    ) {
-                        DropdownMenuItem(
-                            text = { Text(stringResource(R.string.menu_all_tasks)) },
-                            onClick = {
-                                menuExpanded = false
-                                onOpenLibrary()
-                            },
-                        )
-                        DropdownMenuItem(
-                            text = { Text(stringResource(R.string.menu_settings)) },
-                            onClick = {
-                                menuExpanded = false
-                                onOpenSettings()
-                            },
-                        )
-                        DropdownMenuItem(
-                            text = { Text(stringResource(R.string.menu_backup)) },
-                            onClick = {
-                                menuExpanded = false
-                                onOpenBackup()
-                            },
-                        )
-                    }
-                },
+                title = { ErrataWordmark() },
+                windowInsets = ErrataTopInsets,
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.background,
                     titleContentColor = MaterialTheme.colorScheme.onBackground,
@@ -128,6 +92,7 @@ fun PendingQueueScreen(
                 onClick = onAddTask,
                 containerColor = MaterialTheme.colorScheme.primary,
                 contentColor = MaterialTheme.colorScheme.onPrimary,
+                shape = RoundedCornerShape(16.dp),
             ) {
                 Icon(
                     imageVector = Icons.Filled.Add,
@@ -136,19 +101,30 @@ fun PendingQueueScreen(
             }
         },
         containerColor = MaterialTheme.colorScheme.background,
+        contentWindowInsets = ErrataTopInsets,
     ) { innerPadding ->
-        if (state.isEmpty) {
+        if (state.hasNoPinnedTasks) {
+            StarterPackEmpty(
+                title = stringResource(R.string.pending_empty_title),
+                body = stringResource(R.string.starters_body),
+                onAddTask = onAddTask,
+                onPin = viewModel::pinStarters,
+                onRescheduleReminders = viewModel::rescheduleReminders,
+                modifier = Modifier.padding(innerPadding),
+            )
+        } else if (state.isEmpty) {
             PendingEmptyState(
                 modifier = Modifier.padding(innerPadding),
                 onAddTask = onAddTask,
+                pinnedHint = state.startersPinnedHint,
             )
         } else {
             LazyColumn(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(innerPadding),
-                contentPadding = PaddingValues(horizontal = 20.dp, vertical = 12.dp),
-                verticalArrangement = Arrangement.spacedBy(4.dp),
+                contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 8.dp, bottom = 88.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
                 item {
                     FreeWindowChips(
@@ -159,8 +135,16 @@ fun PendingQueueScreen(
                             customError = null
                             showCustomWindow = true
                         },
-                        onClear = viewModel::clearWindow,
                     )
+                }
+                if (state.availableAreas.isNotEmpty()) {
+                    item {
+                        AreaFilterChips(
+                            usedAreas = state.availableAreas,
+                            activeArea = state.activeArea,
+                            onSelect = viewModel::setActiveArea,
+                        )
+                    }
                 }
 
                 val windowActive = state.activeWindowMinutes != null
@@ -174,7 +158,7 @@ fun PendingQueueScreen(
                                 text = stringResource(R.string.free_window_empty),
                                 style = MaterialTheme.typography.bodyLarge,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.padding(vertical = 16.dp),
+                                modifier = Modifier.padding(vertical = 8.dp),
                             )
                         }
                     } else {
@@ -190,9 +174,7 @@ fun PendingQueueScreen(
                     }
                 } else {
                     if (state.overdue.isNotEmpty()) {
-                        item {
-                            SectionHeader(stringResource(R.string.section_overdue))
-                        }
+                        item { SectionHeader(stringResource(R.string.section_overdue)) }
                         items(state.overdue, key = { it.task.id }) { item ->
                             PendingRow(
                                 item = item,
@@ -204,9 +186,7 @@ fun PendingQueueScreen(
                         }
                     }
                     if (state.dueToday.isNotEmpty()) {
-                        item {
-                            SectionHeader(stringResource(R.string.section_due_today))
-                        }
+                        item { SectionHeader(stringResource(R.string.section_due_today)) }
                         items(state.dueToday, key = { it.task.id }) { item ->
                             PendingRow(
                                 item = item,
@@ -218,9 +198,7 @@ fun PendingQueueScreen(
                         }
                     }
                     if (state.soon.isNotEmpty()) {
-                        item {
-                            SectionHeader(stringResource(R.string.section_soon))
-                        }
+                        item { SectionHeader(stringResource(R.string.section_soon)) }
                         items(state.soon, key = { it.task.id }) { item ->
                             PendingRow(
                                 item = item,
@@ -232,7 +210,6 @@ fun PendingQueueScreen(
                         }
                     }
                 }
-                item { Spacer(modifier = Modifier.height(72.dp)) }
             }
         }
     }
@@ -407,26 +384,25 @@ fun PendingQueueScreen(
     }
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun FreeWindowChips(
     state: PendingQueueUiState,
     onMinutes: (Int) -> Unit,
     onCustom: () -> Unit,
-    onClear: () -> Unit,
 ) {
-    Column(modifier = Modifier.padding(bottom = 8.dp)) {
+    Column(modifier = Modifier.padding(bottom = 4.dp)) {
         Text(
             text = stringResource(R.string.free_window_label),
             style = MaterialTheme.typography.labelLarge,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
-        Row(
+        FlowRow(
             modifier = Modifier
                 .fillMaxWidth()
-                .horizontalScroll(rememberScrollState())
                 .padding(top = 8.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalAlignment = Alignment.CenterVertically,
+            verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             listOf(15, 30, 45).forEach { minutes ->
                 FilterChip(
@@ -447,11 +423,6 @@ private fun FreeWindowChips(
                 onClick = onCustom,
                 label = { Text(stringResource(R.string.free_window_custom)) },
             )
-            if (state.activeWindowMinutes != null) {
-                TextButton(onClick = onClear) {
-                    Text(stringResource(R.string.free_window_show_all))
-                }
-            }
         }
     }
 }
@@ -462,7 +433,13 @@ private fun FreeWindowHeader(
     onClear: () -> Unit,
 ) {
     val window = state.activeWindowMinutes ?: return
-    Column(modifier = Modifier.padding(top = 8.dp, bottom = 4.dp)) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(top = 4.dp, bottom = 4.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween,
+    ) {
         Text(
             text = if (state.fits.isEmpty()) {
                 stringResource(R.string.free_window_header_empty, window)
@@ -472,11 +449,9 @@ private fun FreeWindowHeader(
             },
             style = MaterialTheme.typography.titleMedium,
             color = MaterialTheme.colorScheme.onBackground,
+            modifier = Modifier.weight(1f),
         )
-        TextButton(
-            onClick = onClear,
-            contentPadding = PaddingValues(0.dp),
-        ) {
+        TextButton(onClick = onClear) {
             Text(stringResource(R.string.free_window_show_all))
         }
     }
@@ -488,10 +463,11 @@ private fun SectionHeader(title: String) {
         text = title,
         style = MaterialTheme.typography.titleLarge,
         color = MaterialTheme.colorScheme.onBackground,
-        modifier = Modifier.padding(top = 16.dp, bottom = 8.dp),
+        modifier = Modifier.padding(top = 8.dp, bottom = 2.dp),
     )
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun PendingRow(
     item: PendingItem,
@@ -500,36 +476,59 @@ private fun PendingRow(
     onSnooze: () -> Unit,
     onSkip: () -> Unit,
 ) {
-    Column(
+    val overdue = item.bucket == DueBucket.OVERDUE
+    val mark = MaterialTheme.colorScheme.primary
+    Card(
         modifier = Modifier
             .fillMaxWidth()
+            .clip(RoundedCornerShape(16.dp))
             .clickable(onClick = onOpen)
-            .padding(vertical = 10.dp),
+            .then(
+                if (overdue) {
+                    Modifier.drawBehind {
+                        drawRect(
+                            color = mark,
+                            topLeft = Offset.Zero,
+                            size = Size(4.dp.toPx(), size.height),
+                        )
+                    }
+                } else {
+                    Modifier
+                },
+            ),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainer,
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+        shape = RoundedCornerShape(16.dp),
     ) {
-        Text(
-            text = item.task.title,
-            style = MaterialTheme.typography.titleLarge,
-            color = MaterialTheme.colorScheme.onBackground,
-        )
-        Text(
-            text = item.subtitle,
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        Row(
-            modifier = Modifier.padding(top = 8.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            FilledTonalButton(onClick = onDone) {
-                Text(stringResource(R.string.action_done))
-            }
-            Spacer(modifier = Modifier.width(8.dp))
-            TextButton(onClick = onSnooze) {
-                Text(stringResource(R.string.action_snooze))
-            }
-            Spacer(modifier = Modifier.width(8.dp))
-            TextButton(onClick = onSkip) {
-                Text(stringResource(R.string.action_skip))
+        Column(modifier = Modifier.padding(16.dp)) {
+            TaskAreaLabel(area = item.task.area)
+            Text(
+                text = item.task.title,
+                style = MaterialTheme.typography.titleLarge,
+                color = MaterialTheme.colorScheme.onSurface,
+            )
+            Text(
+                text = item.subtitle,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 4.dp),
+            )
+            FlowRow(
+                modifier = Modifier.padding(top = 12.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                Button(onClick = onDone) {
+                    Text(stringResource(R.string.action_done))
+                }
+                TextButton(onClick = onSnooze) {
+                    Text(stringResource(R.string.action_snooze))
+                }
+                TextButton(onClick = onSkip) {
+                    Text(stringResource(R.string.action_skip))
+                }
             }
         }
     }
@@ -539,6 +538,7 @@ private fun PendingRow(
 private fun PendingEmptyState(
     modifier: Modifier = Modifier,
     onAddTask: () -> Unit,
+    pinnedHint: Boolean = false,
 ) {
     Column(
         modifier = modifier
@@ -549,7 +549,7 @@ private fun PendingEmptyState(
     ) {
         Text(
             text = stringResource(R.string.pending_empty_title),
-            style = MaterialTheme.typography.titleLarge,
+            style = MaterialTheme.typography.headlineSmall,
             color = MaterialTheme.colorScheme.onBackground,
             textAlign = TextAlign.Center,
         )
@@ -559,6 +559,14 @@ private fun PendingEmptyState(
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             textAlign = TextAlign.Center,
         )
+        if (pinnedHint) {
+            Text(
+                text = stringResource(R.string.starters_pinned_hint),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center,
+            )
+        }
         TextButton(onClick = onAddTask) {
             Text(stringResource(R.string.add_task))
         }

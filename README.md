@@ -6,7 +6,7 @@ Android-first. Offline and battery-conscious. No streak guilt, no social feed, n
 
 ## Status
 
-Phase 1 complete (including Skip). Sideload: [docs/04-sideload.md](docs/04-sideload.md). Next: Phase 2 calm power.
+Android daily driver is usable (pending queue, weekly/monthly cadence, starters, folder backup, offline privacy). Sideload: [docs/04-sideload.md](docs/04-sideload.md). Later: nth-weekday, Play Console submit, Drive SDK.
 
 ## Start here
 
@@ -17,12 +17,13 @@ Phase 1 complete (including Skip). Sideload: [docs/04-sideload.md](docs/04-sidel
 | [docs/00-vision.md](docs/00-vision.md) | What we are building and why |
 | [docs/01-architecture.md](docs/01-architecture.md) | Planned shape (Android, data, reminders) |
 | [docs/04-sideload.md](docs/04-sideload.md) | Build and install the APK |
+| [docs/05-privacy.md](docs/05-privacy.md) | Privacy policy |
 
 ## Principles
 
 1. **Corrections, not hustle** — Errata is life’s small fixes on a cadence, not a gamified habit streak machine.
 2. **Pending-first** — The primary screen is what is due / overdue / soon, not a wall of statistics.
-3. **Local-first** — Data stays on device. Sync/export is optional and explicit later.
+3. **Local-first** — Data stays on this device. Export/folder copy is optional and user-initiated.
 4. **Battery is a feature** — No always-on services for vanity. Prefer scheduled exact alarms / WorkManager only when needed; survive Doze.
 5. **Ancient-device friendly** — Target and test for older Android (tablet sideload first while the phone USB port is dead).
 6. **One concern per change** — Reminder reliability ≠ UI polish ≠ schema.

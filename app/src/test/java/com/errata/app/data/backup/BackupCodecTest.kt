@@ -1,6 +1,7 @@
 package com.errata.app.data.backup
 
 import com.errata.app.domain.cadence.CadenceMode
+import com.errata.app.domain.cadence.ScheduleKind
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -50,6 +51,11 @@ class BackupCodecTest {
             original.settings.defaultReminderMinutesOfDay,
             decoded.settings.defaultReminderMinutesOfDay,
         )
+        assertEquals("SYSTEM", decoded.settings.appearanceMode)
+        assertEquals(false, decoded.settings.digestEnabled)
+        assertEquals(ScheduleKind.INTERVAL.name, decoded.tasks.single().scheduleKind)
+        assertEquals(0, decoded.tasks.single().weekdaysMask)
+        assertEquals(0, decoded.tasks.single().monthDay)
     }
 
     @Test
@@ -66,6 +72,67 @@ class BackupCodecTest {
         } catch (e: BackupFormatException) {
             assertTrue(e.message!!.contains("99"))
         }
+    }
+
+    @Test
+    fun decode_missingAppearance_defaultsToSystem() {
+        val json = BackupCodec.encode(sample()).replace(
+            Regex(""",\s*"appearanceMode"\s*:\s*"SYSTEM""""),
+            "",
+        )
+        val decoded = BackupCodec.decode(json)
+        assertEquals("SYSTEM", decoded.settings.appearanceMode)
+    }
+
+    @Test
+    fun decode_missingDigest_defaultsToOff() {
+        val json = BackupCodec.encode(sample()).replace(
+            Regex(""",\s*"digestEnabled"\s*:\s*false"""),
+            "",
+        )
+        val decoded = BackupCodec.decode(json)
+        assertEquals(false, decoded.settings.digestEnabled)
+    }
+
+    @Test
+    fun roundTrip_preservesDigestEnabled() {
+        val original = sample().copy(
+            settings = sample().settings.copy(digestEnabled = true),
+        )
+        val decoded = BackupCodec.decode(BackupCodec.encode(original))
+        assertEquals(true, decoded.settings.digestEnabled)
+    }
+
+    @Test
+    fun roundTrip_preservesWeeklySchedule() {
+        val original = sample().copy(
+            tasks = listOf(
+                sample().tasks.single().copy(
+                    scheduleKind = ScheduleKind.WEEKLY.name,
+                    weekdaysMask = 5,
+                    monthDay = 0,
+                    intervalDays = 7,
+                ),
+            ),
+        )
+        val decoded = BackupCodec.decode(BackupCodec.encode(original))
+        val task = decoded.tasks.single()
+        assertEquals(ScheduleKind.WEEKLY.name, task.scheduleKind)
+        assertEquals(5, task.weekdaysMask)
+        assertEquals(0, task.monthDay)
+    }
+
+    @Test
+    fun decode_missingScheduleFields_defaultsToInterval() {
+        val json = BackupCodec.encode(sample())
+            .replace(Regex(""",\s*"scheduleKind"\s*:\s*"INTERVAL""""), "")
+            .replace(Regex(""",\s*"weekdaysMask"\s*:\s*0"""), "")
+            .replace(Regex(""",\s*"monthDay"\s*:\s*0"""), "")
+        val decoded = BackupCodec.decode(json)
+        val task = decoded.tasks.single()
+        assertEquals(ScheduleKind.INTERVAL.name, task.scheduleKind)
+        assertEquals(0, task.weekdaysMask)
+        assertEquals(0, task.monthDay)
     }
 
     @Test

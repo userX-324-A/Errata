@@ -7,7 +7,9 @@ import com.errata.app.data.backup.CompletionBackup
 import com.errata.app.data.backup.ErrataBackup
 import com.errata.app.data.backup.SettingsBackup
 import com.errata.app.data.backup.TaskBackup
+import com.errata.app.data.backup.parseAppearanceMode
 import com.errata.app.data.backup.parseCadenceMode
+import com.errata.app.data.backup.parseScheduleKind
 import com.errata.app.data.local.CompletionEntity
 import com.errata.app.data.local.ErrataDatabase
 import com.errata.app.data.local.SettingsEntity
@@ -15,6 +17,8 @@ import com.errata.app.data.local.TaskEntity
 import com.errata.app.domain.cadence.CadenceCalculator
 import com.errata.app.domain.cadence.CadenceMode
 import com.errata.app.domain.estimate.EstimateAdjuster
+import com.errata.app.domain.starter.StarterCatalog
+import com.errata.app.domain.starter.StarterSpec
 import java.time.ZoneId
 import kotlinx.coroutines.flow.Flow
 
@@ -31,6 +35,8 @@ class TaskRepository(
     fun observeSettings(): Flow<SettingsEntity?> = settings.observe()
 
     suspend fun getTask(id: Long): TaskEntity? = tasks.getById(id)
+
+    suspend fun completionsFor(taskId: Long): List<CompletionEntity> = completions.forTask(taskId)
 
     suspend fun listSchedulableTasks(): List<TaskEntity> = tasks.listSchedulable()
 
@@ -60,6 +66,38 @@ class TaskRepository(
         }
     }
 
+    /**
+     * Insert new tasks from the empty-state starter pack. Empty [specs] is a no-op.
+     * Caller should reschedule reminders once after a non-empty pin.
+     */
+    suspend fun pinStarters(
+        specs: List<StarterSpec>,
+        nowEpochMs: Long = System.currentTimeMillis(),
+    ): Int {
+        if (specs.isEmpty()) return 0
+        val settings = getSettings()
+        val now = nowEpochMs
+        val entities = specs.map { spec ->
+            val drafted = StarterCatalog.materialize(
+                spec = spec,
+                cadenceMode = settings.defaultCadenceMode,
+                reminderMinutesOfDay = settings.defaultReminderMinutesOfDay,
+                nowEpochMs = now,
+                zone = zone,
+            )
+            val anchor = drafted.anchorEpochDay.takeIf { it != 0L }
+                ?: CadenceCalculator.epochDayOf(drafted.nextDueAtEpochMs, zone)
+            drafted.copy(
+                id = 0,
+                anchorEpochDay = anchor,
+                createdAtEpochMs = drafted.createdAtEpochMs.takeIf { it != 0L } ?: now,
+                updatedAtEpochMs = now,
+            )
+        }
+        tasks.upsertAll(entities)
+        return entities.size
+    }
+
     suspend fun complete(taskId: Long, completedAtEpochMs: Long = System.currentTimeMillis()) {
         val task = tasks.getById(taskId) ?: return
         val scheduledDue = task.nextDueAtEpochMs
@@ -80,6 +118,9 @@ class TaskRepository(
             scheduledDueAtEpochMs = scheduledDue,
             anchorEpochDay = task.anchorEpochDay,
             zone = zone,
+            scheduleKind = task.scheduleKind,
+            weekdaysMask = task.weekdaysMask,
+            monthDay = task.monthDay,
         )
 
         tasks.update(
@@ -125,6 +166,9 @@ class TaskRepository(
             anchorEpochDay = task.anchorEpochDay,
             nowEpochMs = nowEpochMs,
             zone = zone,
+            scheduleKind = task.scheduleKind,
+            weekdaysMask = task.weekdaysMask,
+            monthDay = task.monthDay,
         )
         tasks.update(
             task.copy(
@@ -206,6 +250,8 @@ private fun SettingsEntity.toBackup() = SettingsBackup(
     defaultReminderMinutesOfDay = defaultReminderMinutesOfDay,
     defaultWorkStartMinutesOfDay = defaultWorkStartMinutesOfDay,
     soonHorizonDays = soonHorizonDays,
+    appearanceMode = appearanceMode.name,
+    digestEnabled = digestEnabled,
 )
 
 private fun SettingsBackup.toEntity() = SettingsEntity(
@@ -214,6 +260,8 @@ private fun SettingsBackup.toEntity() = SettingsEntity(
     defaultReminderMinutesOfDay = defaultReminderMinutesOfDay,
     defaultWorkStartMinutesOfDay = defaultWorkStartMinutesOfDay,
     soonHorizonDays = soonHorizonDays,
+    appearanceMode = parseAppearanceMode(appearanceMode),
+    digestEnabled = digestEnabled,
 )
 
 private fun TaskEntity.toBackup() = TaskBackup(
@@ -222,6 +270,9 @@ private fun TaskEntity.toBackup() = TaskBackup(
     notes = notes,
     estimateMinutes = estimateMinutes,
     intervalDays = intervalDays,
+    scheduleKind = scheduleKind.name,
+    weekdaysMask = weekdaysMask,
+    monthDay = monthDay,
     cadenceMode = cadenceMode.name,
     anchorEpochDay = anchorEpochDay,
     nextDueAtEpochMs = nextDueAtEpochMs,
@@ -241,6 +292,9 @@ private fun TaskBackup.toEntity() = TaskEntity(
     notes = notes,
     estimateMinutes = estimateMinutes,
     intervalDays = intervalDays,
+    scheduleKind = parseScheduleKind(scheduleKind),
+    weekdaysMask = weekdaysMask,
+    monthDay = monthDay,
     cadenceMode = parseCadenceMode(cadenceMode),
     anchorEpochDay = anchorEpochDay,
     nextDueAtEpochMs = nextDueAtEpochMs,

@@ -15,9 +15,15 @@ import kotlin.math.min
  * **Due** is a local datetime (`nextDueAtEpochMs`). Pending buckets use the local **calendar day**.
  * After Done, the next due keeps the **time-of-day** from the due that was open (`scheduledDueAt`).
  *
+ * Schedule kind is orthogonal to after-Done mode: weekly and monthly pick the next matching
+ * local calendar day strictly after Done or Skip and ignore [CadenceMode].
+ *
  * Catch-up constants match docs/03-product-map.md.
  */
 object CadenceCalculator {
+
+    /** Dummy interval stored on weekly/monthly rows so [intervalDays] stays ≥ 1. */
+    const val GRID_INTERVAL_DAYS = 7
 
     fun startOfDayEpochMs(epochDay: Long, zone: ZoneId = ZoneId.systemDefault()): Long =
         LocalDate.ofEpochDay(epochDay).atStartOfDay(zone).toInstant().toEpochMilli()
@@ -60,8 +66,19 @@ object CadenceCalculator {
         scheduledDueAtEpochMs: Long,
         anchorEpochDay: Long,
         zone: ZoneId = ZoneId.systemDefault(),
+        scheduleKind: ScheduleKind = ScheduleKind.INTERVAL,
+        weekdaysMask: Int = 0,
+        monthDay: Int = 0,
     ): Long {
         require(intervalDays >= 1) { "intervalDays must be >= 1" }
+        nextGridDueAfter(
+            afterEpochMs = completedAtEpochMs,
+            scheduledDueAtEpochMs = scheduledDueAtEpochMs,
+            scheduleKind = scheduleKind,
+            weekdaysMask = weekdaysMask,
+            monthDay = monthDay,
+            zone = zone,
+        )?.let { return it }
 
         return when (mode) {
             CadenceMode.FROM_COMPLETION ->
@@ -93,6 +110,7 @@ object CadenceCalculator {
      * intervals while the candidate is ≤ [nowEpochMs].
      * Catch-up mode uses the same path (catch-up is Done-only).
      * Fixed anchor: next grid slot strictly after [nowEpochMs].
+     * Weekly/monthly: next matching local day strictly after [nowEpochMs] (same as Done).
      */
     fun nextDueAfterSkip(
         mode: CadenceMode,
@@ -101,8 +119,19 @@ object CadenceCalculator {
         anchorEpochDay: Long,
         nowEpochMs: Long,
         zone: ZoneId = ZoneId.systemDefault(),
+        scheduleKind: ScheduleKind = ScheduleKind.INTERVAL,
+        weekdaysMask: Int = 0,
+        monthDay: Int = 0,
     ): Long {
         require(intervalDays >= 1) { "intervalDays must be >= 1" }
+        nextGridDueAfter(
+            afterEpochMs = nowEpochMs,
+            scheduledDueAtEpochMs = scheduledDueAtEpochMs,
+            scheduleKind = scheduleKind,
+            weekdaysMask = weekdaysMask,
+            monthDay = monthDay,
+            zone = zone,
+        )?.let { return it }
 
         return when (mode) {
             CadenceMode.FROM_COMPLETION,
@@ -123,6 +152,43 @@ object CadenceCalculator {
                     zone = zone,
                 )
         }
+    }
+
+    /**
+     * Next matching calendar-grid slot strictly after [afterEpochMs], or null for interval tasks.
+     */
+    private fun nextGridDueAfter(
+        afterEpochMs: Long,
+        scheduledDueAtEpochMs: Long,
+        scheduleKind: ScheduleKind,
+        weekdaysMask: Int,
+        monthDay: Int,
+        zone: ZoneId,
+    ): Long? {
+        val matches: (LocalDate) -> Boolean = when (scheduleKind) {
+            ScheduleKind.INTERVAL -> return null
+            ScheduleKind.WEEKLY -> {
+                require(Weekdays.hasAny(weekdaysMask)) { "weekdaysMask must include at least one day" }
+                val selected: (LocalDate) -> Boolean =
+                    { date -> Weekdays.contains(weekdaysMask, date.dayOfWeek) }
+                selected
+            }
+            ScheduleKind.MONTHLY -> {
+                require(monthDay in 1..31) { "monthDay must be 1–31" }
+                val onMonthDay: (LocalDate) -> Boolean =
+                    { date -> date.dayOfMonth == monthDay.coerceAtMost(date.lengthOfMonth()) }
+                onMonthDay
+            }
+        }
+        var date = Instant.ofEpochMilli(afterEpochMs).atZone(zone).toLocalDate()
+        repeat(400) {
+            val candidate = atLocalDateKeepingTime(date.toEpochDay(), scheduledDueAtEpochMs, zone)
+            if (matches(date) && candidate > afterEpochMs) {
+                return candidate
+            }
+            date = date.plusDays(1)
+        }
+        error("no matching cadence slot within a year")
     }
 
     private fun skipFromScheduled(

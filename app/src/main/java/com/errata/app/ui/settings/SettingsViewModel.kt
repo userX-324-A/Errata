@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.errata.app.data.TaskCommands
 import com.errata.app.data.local.SettingsEntity
 import com.errata.app.domain.cadence.CadenceMode
+import com.errata.app.domain.settings.AppearanceMode
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.map
@@ -17,6 +18,8 @@ data class SettingsUiState(
     val defaultCadenceMode: CadenceMode = CadenceMode.FROM_COMPLETION_CATCH_UP,
     val defaultReminderMinutesOfDay: Int = 9 * 60,
     val defaultWorkStartMinutesOfDay: Int? = null,
+    val appearanceMode: AppearanceMode = AppearanceMode.SYSTEM,
+    val digestEnabled: Boolean = false,
 )
 
 class SettingsViewModel(
@@ -31,6 +34,8 @@ class SettingsViewModel(
                 defaultCadenceMode = s.defaultCadenceMode,
                 defaultReminderMinutesOfDay = s.defaultReminderMinutesOfDay,
                 defaultWorkStartMinutesOfDay = s.defaultWorkStartMinutesOfDay,
+                appearanceMode = s.appearanceMode,
+                digestEnabled = s.digestEnabled,
             )
         }
         .stateIn(
@@ -49,6 +54,18 @@ class SettingsViewModel(
 
     fun setWorkStartMinutes(minutes: Int?) {
         persist { it.copy(defaultWorkStartMinutesOfDay = minutes) }
+    }
+
+    fun setAppearanceMode(mode: AppearanceMode) {
+        persist { it.copy(appearanceMode = mode) }
+    }
+
+    fun setDigestEnabled(enabled: Boolean) {
+        persist { it.copy(digestEnabled = enabled) }
+    }
+
+    fun rescheduleReminders() {
+        viewModelScope.launch { commands.rescheduleReminders() }
     }
 
     private fun persist(transform: (SettingsEntity) -> SettingsEntity) {

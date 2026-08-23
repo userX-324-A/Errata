@@ -13,13 +13,17 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -36,16 +40,18 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.errata.app.R
+import com.errata.app.ui.common.AreaFilterChips
+import com.errata.app.ui.common.TaskAreaLabel
+import com.errata.app.ui.starter.StarterPackEmpty
+import com.errata.app.ui.theme.ErrataTopInsets
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AllTasksScreen(
     viewModel: AllTasksViewModel,
-    onBack: () -> Unit,
     onOpenTask: (Long) -> Unit,
     onAddTask: () -> Unit,
 ) {
@@ -56,53 +62,54 @@ fun AllTasksScreen(
         topBar = {
             TopAppBar(
                 title = { Text(stringResource(R.string.library_title)) },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = stringResource(R.string.action_back),
-                        )
-                    }
-                },
+                windowInsets = ErrataTopInsets,
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.background,
                 ),
             )
         },
+        floatingActionButton = {
+            FloatingActionButton(
+                onClick = onAddTask,
+                containerColor = MaterialTheme.colorScheme.primary,
+                contentColor = MaterialTheme.colorScheme.onPrimary,
+                shape = RoundedCornerShape(16.dp),
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.Add,
+                    contentDescription = stringResource(R.string.add_task),
+                )
+            }
+        },
         containerColor = MaterialTheme.colorScheme.background,
+        contentWindowInsets = ErrataTopInsets,
     ) { innerPadding ->
         if (state.isEmpty) {
-            Column(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(innerPadding)
-                    .padding(horizontal = 24.dp, vertical = 48.dp),
-                horizontalAlignment = Alignment.CenterHorizontally,
-                verticalArrangement = Arrangement.spacedBy(12.dp),
-            ) {
-                Text(
-                    text = stringResource(R.string.library_empty_title),
-                    style = MaterialTheme.typography.titleLarge,
-                    textAlign = TextAlign.Center,
-                )
-                Text(
-                    text = stringResource(R.string.library_empty_body),
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    textAlign = TextAlign.Center,
-                )
-                TextButton(onClick = onAddTask) {
-                    Text(stringResource(R.string.add_task))
-                }
-            }
+            StarterPackEmpty(
+                title = stringResource(R.string.library_empty_title),
+                body = stringResource(R.string.starters_body),
+                onAddTask = onAddTask,
+                onPin = viewModel::pinStarters,
+                onRescheduleReminders = viewModel::rescheduleReminders,
+                modifier = Modifier.padding(innerPadding),
+            )
         } else {
             LazyColumn(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(innerPadding),
-                contentPadding = PaddingValues(horizontal = 20.dp, vertical = 12.dp),
-                verticalArrangement = Arrangement.spacedBy(4.dp),
+                contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 12.dp, bottom = 88.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
+                if (state.availableAreas.isNotEmpty()) {
+                    item {
+                        AreaFilterChips(
+                            usedAreas = state.availableAreas,
+                            activeArea = state.activeArea,
+                            onSelect = viewModel::setActiveArea,
+                        )
+                    }
+                }
                 items(state.items, key = { it.task.id }) { item ->
                     LibraryRow(
                         item = item,
@@ -112,7 +119,7 @@ fun AllTasksScreen(
                         onArchive = { archiveTargetId = item.task.id },
                     )
                 }
-                item { Spacer(modifier = Modifier.height(24.dp)) }
+                item { Spacer(modifier = Modifier.height(8.dp)) }
             }
         }
     }
@@ -151,60 +158,74 @@ private fun LibraryRow(
 ) {
     var menuExpanded by remember { mutableStateOf(false) }
 
-    Row(
+    Card(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(onClick = onOpen)
-            .padding(vertical = 10.dp),
-        verticalAlignment = Alignment.Top,
+            .clickable(onClick = onOpen),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainer,
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+        shape = RoundedCornerShape(16.dp),
     ) {
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = item.task.title,
-                style = MaterialTheme.typography.titleLarge,
-                color = MaterialTheme.colorScheme.onBackground,
-            )
-            Text(
-                text = item.subtitle,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
-        Box {
-            IconButton(onClick = { menuExpanded = true }) {
-                Icon(
-                    imageVector = Icons.Filled.MoreVert,
-                    contentDescription = stringResource(R.string.menu_more),
+        Row(
+            modifier = Modifier.padding(start = 16.dp, top = 8.dp, bottom = 8.dp, end = 4.dp),
+            verticalAlignment = Alignment.Top,
+        ) {
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .padding(vertical = 8.dp),
+            ) {
+                TaskAreaLabel(area = item.task.area)
+                Text(
+                    text = item.task.title,
+                    style = MaterialTheme.typography.titleLarge,
+                    color = MaterialTheme.colorScheme.onSurface,
+                )
+                Text(
+                    text = item.subtitle,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 4.dp),
                 )
             }
-            DropdownMenu(
-                expanded = menuExpanded,
-                onDismissRequest = { menuExpanded = false },
-            ) {
-                if (item.task.isPaused) {
-                    DropdownMenuItem(
-                        text = { Text(stringResource(R.string.action_resume)) },
-                        onClick = {
-                            menuExpanded = false
-                            onResume()
-                        },
+            Box {
+                IconButton(onClick = { menuExpanded = true }) {
+                    Icon(
+                        imageVector = Icons.Filled.MoreVert,
+                        contentDescription = stringResource(R.string.menu_more),
                     )
-                } else {
+                }
+                DropdownMenu(
+                    expanded = menuExpanded,
+                    onDismissRequest = { menuExpanded = false },
+                ) {
+                    if (item.task.isPaused) {
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.action_resume)) },
+                            onClick = {
+                                menuExpanded = false
+                                onResume()
+                            },
+                        )
+                    } else {
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.action_pause)) },
+                            onClick = {
+                                menuExpanded = false
+                                onPause()
+                            },
+                        )
+                    }
                     DropdownMenuItem(
-                        text = { Text(stringResource(R.string.action_pause)) },
+                        text = { Text(stringResource(R.string.action_archive)) },
                         onClick = {
                             menuExpanded = false
-                            onPause()
+                            onArchive()
                         },
                     )
                 }
-                DropdownMenuItem(
-                    text = { Text(stringResource(R.string.action_archive)) },
-                    onClick = {
-                        menuExpanded = false
-                        onArchive()
-                    },
-                )
             }
         }
     }

@@ -12,8 +12,10 @@ Cursor rules under `.cursor/rules/` are day-to-day coding guardrails. This folde
 | [00-vision.md](./00-vision.md) | What and why; non-goals |
 | [03-product-map.md](./03-product-map.md) | **Feature catalog + cadence/free-window policy** |
 | [01-architecture.md](./01-architecture.md) | Android shape, data, reminders |
-| [02-roadmap.md](./02-roadmap.md) | Build order (remaining work only) |
+| [02-roadmap.md](./02-roadmap.md) | Shipped phases + later items |
 | [04-sideload.md](./04-sideload.md) | Build + install APK without Play |
+| [05-privacy.md](./05-privacy.md) | Privacy policy (Play URL when hosted) |
+| [06-play.md](./06-play.md) | Listing draft + Data safety answers |
 
 ## Principles (do not violate)
 

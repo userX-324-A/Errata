@@ -16,7 +16,7 @@ This file is the session contract. Cursor rules under `.cursor/rules/` are day-t
 | **Schedule** | Interval / weekly / monthly / custom cadence — not only “daily habit” |
 | **Duration** | Estimated minutes so the pending list can be planned against free time |
 | **Reminders** | Reliable enough on old Android; never at the cost of wrecking battery |
-| **Pending queue** | Small focused list of due / overdue / upcoming — complete, snooze, skip-with-reason optional later |
+| **Pending queue** | Small focused list of due / overdue / upcoming — complete, snooze, skip this cycle |
 | **Platform** | Android first; Windows/desktop is a **non-goal until** Android is solid |
 
 Open **this folder** (`Errata`) as the Cursor workspace so `.cursor/rules/` apply.

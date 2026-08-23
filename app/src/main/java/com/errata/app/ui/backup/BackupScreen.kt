@@ -10,6 +10,8 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.AlertDialog
@@ -25,6 +27,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
@@ -33,6 +36,8 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.errata.app.R
+import com.errata.app.ui.theme.ErrataScreenInsets
+import com.errata.app.ui.theme.ErrataTopInsets
 import java.io.BufferedReader
 import java.io.InputStreamReader
 import java.nio.charset.StandardCharsets
@@ -49,6 +54,10 @@ fun BackupScreen(
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+
+    LaunchedEffect(Unit) {
+        viewModel.refreshFolder(context)
+    }
 
     val exportLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.CreateDocument("application/json"),
@@ -74,6 +83,14 @@ fun BackupScreen(
         }
     }
 
+    val folderLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.OpenDocumentTree(),
+    ) { uri: Uri? ->
+        if (uri != null) {
+            viewModel.setFolder(uri, context)
+        }
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -89,14 +106,17 @@ fun BackupScreen(
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.background,
                 ),
+                windowInsets = ErrataTopInsets,
             )
         },
         containerColor = MaterialTheme.colorScheme.background,
+        contentWindowInsets = ErrataScreenInsets,
     ) { innerPadding ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
+                .verticalScroll(rememberScrollState())
                 .padding(horizontal = 24.dp, vertical = 16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
         ) {
@@ -119,17 +139,58 @@ fun BackupScreen(
             ) {
                 Text(stringResource(R.string.backup_import))
             }
-            when {
-                state.message == "exported" -> StatusText(
-                    stringResource(R.string.backup_export_ok),
-                    error = false,
+
+            Text(
+                text = stringResource(R.string.backup_folder_heading),
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onBackground,
+                modifier = Modifier.padding(top = 8.dp),
+            )
+            Text(
+                text = stringResource(R.string.backup_folder_body),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            if (state.hasFolder) {
+                Text(
+                    text = state.folderLabel
+                        ?: stringResource(R.string.backup_folder_chosen),
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onBackground,
                 )
-                state.message == "imported" -> StatusText(
-                    stringResource(R.string.backup_import_ok),
-                    error = false,
-                )
-                state.isError && state.message != null -> StatusText(state.message!!, error = true)
             }
+            OutlinedButton(
+                onClick = { folderLauncher.launch(null) },
+                enabled = !state.busy,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text(stringResource(R.string.backup_choose_folder))
+            }
+            if (state.hasFolder) {
+                Button(
+                    onClick = { viewModel.writeToFolder(context) },
+                    enabled = !state.busy,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text(stringResource(R.string.backup_write_folder))
+                }
+                OutlinedButton(
+                    onClick = { viewModel.readFromFolder(context) },
+                    enabled = !state.busy,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text(stringResource(R.string.backup_read_folder))
+                }
+                TextButton(
+                    onClick = { viewModel.clearFolder(context) },
+                    enabled = !state.busy,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text(stringResource(R.string.backup_clear_folder))
+                }
+            }
+
+            StatusFor(state)
             Spacer(modifier = Modifier.height(8.dp))
         }
     }
@@ -151,6 +212,22 @@ fun BackupScreen(
             },
         )
     }
+}
+
+@Composable
+private fun StatusFor(state: BackupUiState) {
+    val text = when {
+        state.message == "exported" -> stringResource(R.string.backup_export_ok)
+        state.message == "imported" -> stringResource(R.string.backup_import_ok)
+        state.message == "folder_written" -> stringResource(R.string.backup_folder_written)
+        state.message == "folder_cleared" -> stringResource(R.string.backup_folder_cleared)
+        state.message == "no_folder" -> stringResource(R.string.backup_no_folder)
+        state.message == "folder_unavailable" -> stringResource(R.string.backup_folder_unavailable)
+        state.message == "file_missing" -> stringResource(R.string.backup_folder_missing_file)
+        state.isError && state.message != null -> state.message
+        else -> null
+    } ?: return
+    StatusText(text, error = state.isError)
 }
 
 @Composable

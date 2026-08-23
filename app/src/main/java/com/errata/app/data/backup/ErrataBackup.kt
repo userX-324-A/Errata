@@ -1,6 +1,8 @@
 package com.errata.app.data.backup
 
 import com.errata.app.domain.cadence.CadenceMode
+import com.errata.app.domain.cadence.ScheduleKind
+import com.errata.app.domain.settings.AppearanceMode
 import kotlinx.serialization.Serializable
 
 const val BACKUP_SCHEMA_VERSION = 1
@@ -20,6 +22,8 @@ data class SettingsBackup(
     val defaultReminderMinutesOfDay: Int,
     val defaultWorkStartMinutesOfDay: Int? = null,
     val soonHorizonDays: Int,
+    val appearanceMode: String = AppearanceMode.SYSTEM.name,
+    val digestEnabled: Boolean = false,
 )
 
 @Serializable
@@ -29,6 +33,9 @@ data class TaskBackup(
     val notes: String? = null,
     val estimateMinutes: Int,
     val intervalDays: Int,
+    val scheduleKind: String = ScheduleKind.INTERVAL.name,
+    val weekdaysMask: Int = 0,
+    val monthDay: Int = 0,
     val cadenceMode: String,
     val anchorEpochDay: Long,
     val nextDueAtEpochMs: Long,
@@ -58,4 +65,18 @@ fun parseCadenceMode(value: String): CadenceMode =
         CadenceMode.valueOf(value)
     } catch (_: IllegalArgumentException) {
         throw BackupFormatException("Unknown cadence mode: $value")
+    }
+
+fun parseAppearanceMode(value: String): AppearanceMode =
+    try {
+        AppearanceMode.valueOf(value)
+    } catch (_: IllegalArgumentException) {
+        AppearanceMode.SYSTEM
+    }
+
+fun parseScheduleKind(value: String): ScheduleKind =
+    try {
+        ScheduleKind.valueOf(value)
+    } catch (_: IllegalArgumentException) {
+        ScheduleKind.INTERVAL
     }
