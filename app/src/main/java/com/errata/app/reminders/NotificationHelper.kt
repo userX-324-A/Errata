@@ -1,0 +1,82 @@
+package com.errata.app.reminders
+
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.app.PendingIntent
+import android.content.Context
+import android.content.Intent
+import android.os.Build
+import androidx.core.app.NotificationCompat
+import androidx.core.app.NotificationManagerCompat
+import com.errata.app.MainActivity
+import com.errata.app.R
+import com.errata.app.data.local.TaskEntity
+
+object NotificationHelper {
+    const val CHANNEL_ID = "due_reminders"
+    private const val CHANNEL_NAME = "Due reminders"
+
+    fun ensureChannel(context: Context) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
+        val manager = context.getSystemService(NotificationManager::class.java) ?: return
+        val channel = NotificationChannel(
+            CHANNEL_ID,
+            CHANNEL_NAME,
+            NotificationManager.IMPORTANCE_DEFAULT,
+        ).apply {
+            description = "Reminders for tasks that are due"
+        }
+        manager.createNotificationChannel(channel)
+    }
+
+    fun showDueReminder(context: Context, task: TaskEntity) {
+        ensureChannel(context)
+        val contentIntent = PendingIntent.getActivity(
+            context,
+            ReminderScheduler.requestCode(task.id),
+            Intent(context, MainActivity::class.java).apply {
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+            },
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+        )
+
+        val doneIntent = PendingIntent.getBroadcast(
+            context,
+            ReminderScheduler.requestCode(task.id) + 100_000,
+            Intent(context, ReminderActionReceiver::class.java).apply {
+                action = ReminderActionReceiver.ACTION_DONE
+                putExtra(ReminderScheduler.EXTRA_TASK_ID, task.id)
+            },
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+        )
+
+        val snoozeIntent = PendingIntent.getBroadcast(
+            context,
+            ReminderScheduler.requestCode(task.id) + 200_000,
+            Intent(context, ReminderActionReceiver::class.java).apply {
+                action = ReminderActionReceiver.ACTION_SNOOZE
+                putExtra(ReminderScheduler.EXTRA_TASK_ID, task.id)
+            },
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+        )
+
+        val notification = NotificationCompat.Builder(context, CHANNEL_ID)
+            .setSmallIcon(R.drawable.ic_notification)
+            .setContentTitle(task.title)
+            .setContentText(context.getString(R.string.notification_duration, task.estimateMinutes))
+            .setContentIntent(contentIntent)
+            .setAutoCancel(true)
+            .addAction(0, context.getString(R.string.action_done), doneIntent)
+            .addAction(0, context.getString(R.string.action_snooze), snoozeIntent)
+            .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+            .build()
+
+        NotificationManagerCompat.from(context).notify(notificationId(task.id), notification)
+    }
+
+    fun dismiss(context: Context, taskId: Long) {
+        NotificationManagerCompat.from(context).cancel(notificationId(taskId))
+    }
+
+    fun notificationId(taskId: Long): Int = taskId.toInt()
+}

@@ -6,7 +6,7 @@ Android-first. Offline and battery-conscious. No streak guilt, no social feed, n
 
 ## Status
 
-Greenfield scaffold — product intent and agent guardrails first; app implementation follows in this repo.
+Phase 1 complete (including Skip). Sideload: [docs/04-sideload.md](docs/04-sideload.md). Next: Phase 2 calm power.
 
 ## Start here
 
@@ -16,6 +16,7 @@ Greenfield scaffold — product intent and agent guardrails first; app implement
 | [docs/README.md](docs/README.md) | Design authority index |
 | [docs/00-vision.md](docs/00-vision.md) | What we are building and why |
 | [docs/01-architecture.md](docs/01-architecture.md) | Planned shape (Android, data, reminders) |
+| [docs/04-sideload.md](docs/04-sideload.md) | Build and install the APK |
 
 ## Principles
 

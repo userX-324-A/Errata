@@ -1,0 +1,566 @@
+package com.errata.app.ui.pending
+
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilledTonalButton
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.TimePicker
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.rememberTimePickerState
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.errata.app.R
+import com.errata.app.domain.estimate.EstimateHonesty
+import com.errata.app.domain.freewindow.FreeWindowRanker
+import com.errata.app.ui.snooze.SnoozeSheet
+import java.time.LocalTime
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun PendingQueueScreen(
+    viewModel: PendingQueueViewModel,
+    onAddTask: () -> Unit,
+    onOpenTask: (Long) -> Unit,
+    onOpenLibrary: () -> Unit,
+    onOpenSettings: () -> Unit,
+    onOpenBackup: () -> Unit,
+) {
+    val state by viewModel.uiState.collectAsStateWithLifecycle()
+    var snoozeTaskId by remember { mutableStateOf<Long?>(null) }
+    var skipConfirmTaskId by remember { mutableStateOf<Long?>(null) }
+    var menuExpanded by remember { mutableStateOf(false) }
+    var showCustomWindow by remember { mutableStateOf(false) }
+    var showStopByPicker by remember { mutableStateOf(false) }
+    var customMinutesText by remember { mutableStateOf("") }
+    var customError by remember { mutableStateOf<String?>(null) }
+
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = {
+                    Text(
+                        text = stringResource(R.string.app_name),
+                        style = MaterialTheme.typography.headlineMedium,
+                    )
+                },
+                actions = {
+                    IconButton(onClick = { menuExpanded = true }) {
+                        Icon(
+                            imageVector = Icons.Filled.MoreVert,
+                            contentDescription = stringResource(R.string.menu_more),
+                        )
+                    }
+                    DropdownMenu(
+                        expanded = menuExpanded,
+                        onDismissRequest = { menuExpanded = false },
+                    ) {
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.menu_all_tasks)) },
+                            onClick = {
+                                menuExpanded = false
+                                onOpenLibrary()
+                            },
+                        )
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.menu_settings)) },
+                            onClick = {
+                                menuExpanded = false
+                                onOpenSettings()
+                            },
+                        )
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.menu_backup)) },
+                            onClick = {
+                                menuExpanded = false
+                                onOpenBackup()
+                            },
+                        )
+                    }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.background,
+                    titleContentColor = MaterialTheme.colorScheme.onBackground,
+                ),
+            )
+        },
+        floatingActionButton = {
+            FloatingActionButton(
+                onClick = onAddTask,
+                containerColor = MaterialTheme.colorScheme.primary,
+                contentColor = MaterialTheme.colorScheme.onPrimary,
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.Add,
+                    contentDescription = stringResource(R.string.add_task),
+                )
+            }
+        },
+        containerColor = MaterialTheme.colorScheme.background,
+    ) { innerPadding ->
+        if (state.isEmpty) {
+            PendingEmptyState(
+                modifier = Modifier.padding(innerPadding),
+                onAddTask = onAddTask,
+            )
+        } else {
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(innerPadding),
+                contentPadding = PaddingValues(horizontal = 20.dp, vertical = 12.dp),
+                verticalArrangement = Arrangement.spacedBy(4.dp),
+            ) {
+                item {
+                    FreeWindowChips(
+                        state = state,
+                        onMinutes = viewModel::setWindowMinutes,
+                        onCustom = {
+                            customMinutesText = ""
+                            customError = null
+                            showCustomWindow = true
+                        },
+                        onClear = viewModel::clearWindow,
+                    )
+                }
+
+                val windowActive = state.activeWindowMinutes != null
+                if (windowActive) {
+                    item {
+                        FreeWindowHeader(state = state, onClear = viewModel::clearWindow)
+                    }
+                    if (state.fits.isEmpty()) {
+                        item {
+                            Text(
+                                text = stringResource(R.string.free_window_empty),
+                                style = MaterialTheme.typography.bodyLarge,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(vertical = 16.dp),
+                            )
+                        }
+                    } else {
+                        items(state.fits, key = { "fit-${it.task.id}" }) { item ->
+                            PendingRow(
+                                item = item,
+                                onOpen = { onOpenTask(item.task.id) },
+                                onDone = { viewModel.complete(item.task.id) },
+                                onSnooze = { snoozeTaskId = item.task.id },
+                                onSkip = { skipConfirmTaskId = item.task.id },
+                            )
+                        }
+                    }
+                } else {
+                    if (state.overdue.isNotEmpty()) {
+                        item {
+                            SectionHeader(stringResource(R.string.section_overdue))
+                        }
+                        items(state.overdue, key = { it.task.id }) { item ->
+                            PendingRow(
+                                item = item,
+                                onOpen = { onOpenTask(item.task.id) },
+                                onDone = { viewModel.complete(item.task.id) },
+                                onSnooze = { snoozeTaskId = item.task.id },
+                                onSkip = { skipConfirmTaskId = item.task.id },
+                            )
+                        }
+                    }
+                    if (state.dueToday.isNotEmpty()) {
+                        item {
+                            SectionHeader(stringResource(R.string.section_due_today))
+                        }
+                        items(state.dueToday, key = { it.task.id }) { item ->
+                            PendingRow(
+                                item = item,
+                                onOpen = { onOpenTask(item.task.id) },
+                                onDone = { viewModel.complete(item.task.id) },
+                                onSnooze = { snoozeTaskId = item.task.id },
+                                onSkip = { skipConfirmTaskId = item.task.id },
+                            )
+                        }
+                    }
+                    if (state.soon.isNotEmpty()) {
+                        item {
+                            SectionHeader(stringResource(R.string.section_soon))
+                        }
+                        items(state.soon, key = { it.task.id }) { item ->
+                            PendingRow(
+                                item = item,
+                                onOpen = { onOpenTask(item.task.id) },
+                                onDone = { viewModel.complete(item.task.id) },
+                                onSnooze = { snoozeTaskId = item.task.id },
+                                onSkip = { skipConfirmTaskId = item.task.id },
+                            )
+                        }
+                    }
+                }
+                item { Spacer(modifier = Modifier.height(72.dp)) }
+            }
+        }
+    }
+
+    snoozeTaskId?.let { id ->
+        SnoozeSheet(
+            onPreset = { preset ->
+                viewModel.snooze(id, preset)
+                snoozeTaskId = null
+            },
+            onCustomUntil = { until ->
+                viewModel.snoozeUntil(id, until)
+                snoozeTaskId = null
+            },
+            onDismiss = { snoozeTaskId = null },
+        )
+    }
+
+    skipConfirmTaskId?.let { id ->
+        AlertDialog(
+            onDismissRequest = { skipConfirmTaskId = null },
+            title = { Text(stringResource(R.string.skip_confirm_title)) },
+            text = { Text(stringResource(R.string.skip_confirm_body)) },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        viewModel.skip(id)
+                        skipConfirmTaskId = null
+                    },
+                ) {
+                    Text(stringResource(R.string.action_skip))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { skipConfirmTaskId = null }) {
+                    Text(stringResource(R.string.action_cancel))
+                }
+            },
+        )
+    }
+
+    state.honesty?.let { honesty ->
+        AlertDialog(
+            onDismissRequest = viewModel::dismissHonesty,
+            title = { Text(stringResource(R.string.honesty_title)) },
+            text = {
+                Text(
+                    stringResource(
+                        R.string.honesty_body,
+                        honesty.title,
+                        honesty.estimateMinutes,
+                    ),
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = { viewModel.applyHonesty(EstimateHonesty.SAME) }) {
+                    Text(stringResource(R.string.honesty_same))
+                }
+            },
+            dismissButton = {
+                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                    TextButton(onClick = { viewModel.applyHonesty(EstimateHonesty.SHORTER) }) {
+                        Text(stringResource(R.string.honesty_shorter))
+                    }
+                    TextButton(onClick = { viewModel.applyHonesty(EstimateHonesty.LONGER) }) {
+                        Text(stringResource(R.string.honesty_longer))
+                    }
+                }
+            },
+        )
+    }
+
+    if (showCustomWindow) {
+        AlertDialog(
+            onDismissRequest = { showCustomWindow = false },
+            title = { Text(stringResource(R.string.free_window_custom_title)) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    OutlinedTextField(
+                        value = customMinutesText,
+                        onValueChange = {
+                            customMinutesText = it.filter { ch -> ch.isDigit() }.take(4)
+                            customError = null
+                        },
+                        label = { Text(stringResource(R.string.free_window_custom_minutes)) },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    TextButton(onClick = {
+                        showCustomWindow = false
+                        showStopByPicker = true
+                    }) {
+                        Text(stringResource(R.string.free_window_stop_by))
+                    }
+                    customError?.let { key ->
+                        Text(
+                            text = stringResource(
+                                when (key) {
+                                    "past" -> R.string.free_window_error_past
+                                    else -> R.string.free_window_error_minutes
+                                },
+                            ),
+                            color = MaterialTheme.colorScheme.error,
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        val minutes = customMinutesText.toIntOrNull()
+                        if (minutes == null || minutes <= 0) {
+                            customError = "invalid"
+                        } else {
+                            viewModel.setWindowMinutes(minutes)
+                            showCustomWindow = false
+                        }
+                    },
+                ) {
+                    Text(stringResource(R.string.action_ok))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showCustomWindow = false }) {
+                    Text(stringResource(R.string.action_cancel))
+                }
+            },
+        )
+    }
+
+    if (showStopByPicker) {
+        val now = LocalTime.now()
+        val timeState = rememberTimePickerState(
+            initialHour = now.hour,
+            initialMinute = now.minute,
+            is24Hour = false,
+        )
+        AlertDialog(
+            onDismissRequest = { showStopByPicker = false },
+            title = { Text(stringResource(R.string.free_window_stop_by_title)) },
+            text = { TimePicker(state = timeState) },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        val stopMinutes = timeState.hour * 60 + timeState.minute
+                        val available = FreeWindowRanker.minutesUntilStopBy(
+                            stopByMinutesOfDay = stopMinutes,
+                            nowEpochMs = System.currentTimeMillis(),
+                        )
+                        if (available != null && available > 0) {
+                            viewModel.setWindowMinutes(available)
+                            showStopByPicker = false
+                        } else {
+                            showStopByPicker = false
+                            customMinutesText = ""
+                            customError = "past"
+                            showCustomWindow = true
+                        }
+                    },
+                ) {
+                    Text(stringResource(R.string.action_ok))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showStopByPicker = false }) {
+                    Text(stringResource(R.string.action_cancel))
+                }
+            },
+        )
+    }
+}
+
+@Composable
+private fun FreeWindowChips(
+    state: PendingQueueUiState,
+    onMinutes: (Int) -> Unit,
+    onCustom: () -> Unit,
+    onClear: () -> Unit,
+) {
+    Column(modifier = Modifier.padding(bottom = 8.dp)) {
+        Text(
+            text = stringResource(R.string.free_window_label),
+            style = MaterialTheme.typography.labelLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .horizontalScroll(rememberScrollState())
+                .padding(top = 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            listOf(15, 30, 45).forEach { minutes ->
+                FilterChip(
+                    selected = state.activeWindowMinutes == minutes,
+                    onClick = { onMinutes(minutes) },
+                    label = { Text(stringResource(R.string.free_window_minutes, minutes)) },
+                )
+            }
+            state.untilWorkMinutes?.let { until ->
+                FilterChip(
+                    selected = state.activeWindowMinutes == until,
+                    onClick = { onMinutes(until) },
+                    label = { Text(stringResource(R.string.free_window_until_work)) },
+                )
+            }
+            FilterChip(
+                selected = false,
+                onClick = onCustom,
+                label = { Text(stringResource(R.string.free_window_custom)) },
+            )
+            if (state.activeWindowMinutes != null) {
+                TextButton(onClick = onClear) {
+                    Text(stringResource(R.string.free_window_show_all))
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun FreeWindowHeader(
+    state: PendingQueueUiState,
+    onClear: () -> Unit,
+) {
+    val window = state.activeWindowMinutes ?: return
+    Column(modifier = Modifier.padding(top = 8.dp, bottom = 4.dp)) {
+        Text(
+            text = if (state.fits.isEmpty()) {
+                stringResource(R.string.free_window_header_empty, window)
+            } else {
+                val leftover = state.leftoverAfterBestMinutes ?: 0
+                stringResource(R.string.free_window_header_fits, window, leftover)
+            },
+            style = MaterialTheme.typography.titleMedium,
+            color = MaterialTheme.colorScheme.onBackground,
+        )
+        TextButton(
+            onClick = onClear,
+            contentPadding = PaddingValues(0.dp),
+        ) {
+            Text(stringResource(R.string.free_window_show_all))
+        }
+    }
+}
+
+@Composable
+private fun SectionHeader(title: String) {
+    Text(
+        text = title,
+        style = MaterialTheme.typography.titleLarge,
+        color = MaterialTheme.colorScheme.onBackground,
+        modifier = Modifier.padding(top = 16.dp, bottom = 8.dp),
+    )
+}
+
+@Composable
+private fun PendingRow(
+    item: PendingItem,
+    onOpen: () -> Unit,
+    onDone: () -> Unit,
+    onSnooze: () -> Unit,
+    onSkip: () -> Unit,
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onOpen)
+            .padding(vertical = 10.dp),
+    ) {
+        Text(
+            text = item.task.title,
+            style = MaterialTheme.typography.titleLarge,
+            color = MaterialTheme.colorScheme.onBackground,
+        )
+        Text(
+            text = item.subtitle,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+        Row(
+            modifier = Modifier.padding(top = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            FilledTonalButton(onClick = onDone) {
+                Text(stringResource(R.string.action_done))
+            }
+            Spacer(modifier = Modifier.width(8.dp))
+            TextButton(onClick = onSnooze) {
+                Text(stringResource(R.string.action_snooze))
+            }
+            Spacer(modifier = Modifier.width(8.dp))
+            TextButton(onClick = onSkip) {
+                Text(stringResource(R.string.action_skip))
+            }
+        }
+    }
+}
+
+@Composable
+private fun PendingEmptyState(
+    modifier: Modifier = Modifier,
+    onAddTask: () -> Unit,
+) {
+    Column(
+        modifier = modifier
+            .fillMaxSize()
+            .padding(horizontal = 24.dp, vertical = 48.dp),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Text(
+            text = stringResource(R.string.pending_empty_title),
+            style = MaterialTheme.typography.titleLarge,
+            color = MaterialTheme.colorScheme.onBackground,
+            textAlign = TextAlign.Center,
+        )
+        Text(
+            text = stringResource(R.string.pending_empty_body),
+            style = MaterialTheme.typography.bodyLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.Center,
+        )
+        TextButton(onClick = onAddTask) {
+            Text(stringResource(R.string.add_task))
+        }
+    }
+}
