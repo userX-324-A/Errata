@@ -50,8 +50,11 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.errata.app.R
 import com.errata.app.domain.area.TaskAreas
 import com.errata.app.domain.cadence.CadenceMode
+import com.errata.app.domain.cadence.NthWeekday
 import com.errata.app.domain.cadence.ScheduleKind
+import com.errata.app.domain.cadence.Seasons
 import com.errata.app.domain.cadence.Weekdays
+import com.errata.app.domain.cadence.YearMonths
 import com.errata.app.domain.history.TypicalLateness
 import com.errata.app.reminders.ExactAlarmAccess
 import com.errata.app.ui.theme.ErrataScreenInsets
@@ -60,6 +63,7 @@ import java.time.DayOfWeek
 import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalTime
+import java.time.Month
 import java.time.ZoneId
 import java.time.ZoneOffset
 import java.time.format.DateTimeFormatter
@@ -246,6 +250,16 @@ fun TaskEditorScreen(
                     selected = state.scheduleKind == ScheduleKind.MONTHLY,
                     onClick = { viewModel.updateScheduleKind(ScheduleKind.MONTHLY) },
                 )
+                CadenceChip(
+                    label = stringResource(R.string.schedule_nth_weekday),
+                    selected = state.scheduleKind == ScheduleKind.NTH_WEEKDAY,
+                    onClick = { viewModel.updateScheduleKind(ScheduleKind.NTH_WEEKDAY) },
+                )
+                CadenceChip(
+                    label = stringResource(R.string.schedule_yearly),
+                    selected = state.scheduleKind == ScheduleKind.YEARLY,
+                    onClick = { viewModel.updateScheduleKind(ScheduleKind.YEARLY) },
+                )
             }
 
             when (state.scheduleKind) {
@@ -332,6 +346,122 @@ fun TaskEditorScreen(
                                 selected = state.monthDay.toIntOrNull() == day,
                                 onClick = { viewModel.updateMonthDay(day.toString()) },
                             )
+                        }
+                    }
+                    Text(
+                        text = stringResource(R.string.schedule_grid_note),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                ScheduleKind.NTH_WEEKDAY -> {
+                    Text(
+                        text = stringResource(R.string.field_weekday_ordinal),
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        listOf(
+                            1 to R.string.schedule_ordinal_1st,
+                            2 to R.string.schedule_ordinal_2nd,
+                            3 to R.string.schedule_ordinal_3rd,
+                            4 to R.string.schedule_ordinal_4th,
+                            NthWeekday.LAST to R.string.schedule_ordinal_last,
+                        ).forEach { (ordinal, label) ->
+                            CadenceChip(
+                                label = stringResource(label),
+                                selected = state.weekdayOrdinal == ordinal,
+                                onClick = { viewModel.updateWeekdayOrdinal(ordinal) },
+                            )
+                        }
+                    }
+                    Text(
+                        text = stringResource(R.string.field_weekdays),
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        DayOfWeek.entries.forEach { day ->
+                            CadenceChip(
+                                label = day.getDisplayName(TextStyle.SHORT, Locale.getDefault()),
+                                selected = Weekdays.contains(state.weekdaysMask, day),
+                                onClick = { viewModel.selectNthWeekday(day) },
+                            )
+                        }
+                    }
+                    Text(
+                        text = stringResource(R.string.schedule_grid_note),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                ScheduleKind.YEARLY -> {
+                    Text(
+                        text = stringResource(R.string.field_seasons),
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        Seasons.ENTRIES.forEach { season ->
+                            CadenceChip(
+                                label = season.label,
+                                selected = Seasons.contains(state.seasonMask, season.bit),
+                                onClick = { viewModel.toggleSeason(season.bit) },
+                            )
+                        }
+                    }
+                    Text(
+                        text = stringResource(R.string.schedule_seasons_note),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    Text(
+                        text = stringResource(R.string.field_year_months),
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        Month.entries.forEach { month ->
+                            CadenceChip(
+                                label = month.getDisplayName(TextStyle.SHORT, Locale.getDefault()),
+                                selected = YearMonths.contains(state.yearMonthsMask, month),
+                                onClick = { viewModel.toggleYearMonth(month) },
+                            )
+                        }
+                    }
+                    if (YearMonths.hasAny(state.yearMonthsMask)) {
+                        OutlinedTextField(
+                            value = state.monthDay,
+                            onValueChange = viewModel::updateMonthDay,
+                            label = { Text(stringResource(R.string.field_month_day)) },
+                            singleLine = true,
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                            modifier = Modifier.fillMaxWidth(),
+                            isError = state.errorMessage == "yearly",
+                        )
+                        FlowRow(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            listOf(1, 15, 28).forEach { day ->
+                                CadenceChip(
+                                    label = day.toString(),
+                                    selected = state.monthDay.toIntOrNull() == day,
+                                    onClick = { viewModel.updateMonthDay(day.toString()) },
+                                )
+                            }
                         }
                     }
                     Text(
@@ -439,6 +569,8 @@ fun TaskEditorScreen(
                 "interval" -> ErrorText(stringResource(R.string.error_interval))
                 "weekdays" -> ErrorText(stringResource(R.string.error_weekdays))
                 "monthDay" -> ErrorText(stringResource(R.string.error_month_day))
+                "nthWeekday" -> ErrorText(stringResource(R.string.error_nth_weekday))
+                "yearly" -> ErrorText(stringResource(R.string.error_yearly))
                 "missing" -> ErrorText(stringResource(R.string.error_missing_task))
             }
 

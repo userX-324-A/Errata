@@ -2,6 +2,7 @@ package com.errata.app.domain.cadence
 
 import java.time.DayOfWeek
 import java.time.LocalDate
+import java.time.Month
 import java.time.ZoneOffset
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -332,6 +333,260 @@ class CadenceCalculatorTest {
             weekdaysMask = mask,
         )
         assertEquals(noon(2026, 1, 13), afterDone)
+        assertEquals(afterDone, afterSkip)
+    }
+
+    @Test
+    fun nthWeekday_firstSaturday_advancesToNextMonth() {
+        val mask = Weekdays.bit(DayOfWeek.SATURDAY)
+        // 2 May 2026 is the first Saturday
+        val scheduled = noon(2026, 5, 2)
+        val completed = noon(2026, 5, 2)
+        val next = CadenceCalculator.nextDueAfterCompletion(
+            mode = CadenceMode.FROM_COMPLETION_CATCH_UP,
+            intervalDays = CadenceCalculator.GRID_INTERVAL_DAYS,
+            completedAtEpochMs = completed,
+            scheduledDueAtEpochMs = scheduled,
+            anchorEpochDay = LocalDate.of(2026, 5, 2).toEpochDay(),
+            zone = zone,
+            scheduleKind = ScheduleKind.NTH_WEEKDAY,
+            weekdaysMask = mask,
+            weekdayOrdinal = 1,
+        )
+        assertEquals(noon(2026, 6, 6), next)
+    }
+
+    @Test
+    fun nthWeekday_may2026_fourthIsNotLast() {
+        val mask = Weekdays.bit(DayOfWeek.SATURDAY)
+        val fourthDue = noon(2026, 5, 23)
+        val lastDue = noon(2026, 5, 30)
+        val afterFourth = CadenceCalculator.nextDueAfterCompletion(
+            mode = CadenceMode.FROM_COMPLETION,
+            intervalDays = CadenceCalculator.GRID_INTERVAL_DAYS,
+            completedAtEpochMs = fourthDue,
+            scheduledDueAtEpochMs = fourthDue,
+            anchorEpochDay = LocalDate.of(2026, 5, 23).toEpochDay(),
+            zone = zone,
+            scheduleKind = ScheduleKind.NTH_WEEKDAY,
+            weekdaysMask = mask,
+            weekdayOrdinal = 4,
+        )
+        val afterLast = CadenceCalculator.nextDueAfterCompletion(
+            mode = CadenceMode.FROM_COMPLETION,
+            intervalDays = CadenceCalculator.GRID_INTERVAL_DAYS,
+            completedAtEpochMs = lastDue,
+            scheduledDueAtEpochMs = lastDue,
+            anchorEpochDay = LocalDate.of(2026, 5, 30).toEpochDay(),
+            zone = zone,
+            scheduleKind = ScheduleKind.NTH_WEEKDAY,
+            weekdaysMask = mask,
+            weekdayOrdinal = NthWeekday.LAST,
+        )
+        assertEquals(noon(2026, 6, 27), afterFourth)
+        assertEquals(noon(2026, 6, 27), afterLast)
+        assertTrue(fourthDue != lastDue)
+    }
+
+    @Test
+    fun nthWeekday_february2026_fourthEqualsLast_stillAdvancesAMonth() {
+        val mask = Weekdays.bit(DayOfWeek.SATURDAY)
+        val scheduled = noon(2026, 2, 28)
+        val afterFourth = CadenceCalculator.nextDueAfterCompletion(
+            mode = CadenceMode.FIXED_ANCHOR,
+            intervalDays = CadenceCalculator.GRID_INTERVAL_DAYS,
+            completedAtEpochMs = scheduled,
+            scheduledDueAtEpochMs = scheduled,
+            anchorEpochDay = LocalDate.of(2026, 2, 28).toEpochDay(),
+            zone = zone,
+            scheduleKind = ScheduleKind.NTH_WEEKDAY,
+            weekdaysMask = mask,
+            weekdayOrdinal = 4,
+        )
+        val afterLast = CadenceCalculator.nextDueAfterCompletion(
+            mode = CadenceMode.FIXED_ANCHOR,
+            intervalDays = CadenceCalculator.GRID_INTERVAL_DAYS,
+            completedAtEpochMs = scheduled,
+            scheduledDueAtEpochMs = scheduled,
+            anchorEpochDay = LocalDate.of(2026, 2, 28).toEpochDay(),
+            zone = zone,
+            scheduleKind = ScheduleKind.NTH_WEEKDAY,
+            weekdaysMask = mask,
+            weekdayOrdinal = NthWeekday.LAST,
+        )
+        assertEquals(noon(2026, 3, 28), afterFourth)
+        assertEquals(afterFourth, afterLast)
+    }
+
+    @Test
+    fun nthWeekday_skip_matchesDone() {
+        val mask = Weekdays.bit(DayOfWeek.SATURDAY)
+        val scheduled = noon(2026, 5, 2)
+        val now = noon(2026, 5, 2)
+        val afterDone = CadenceCalculator.nextDueAfterCompletion(
+            mode = CadenceMode.FROM_COMPLETION,
+            intervalDays = CadenceCalculator.GRID_INTERVAL_DAYS,
+            completedAtEpochMs = now,
+            scheduledDueAtEpochMs = scheduled,
+            anchorEpochDay = LocalDate.of(2026, 5, 2).toEpochDay(),
+            zone = zone,
+            scheduleKind = ScheduleKind.NTH_WEEKDAY,
+            weekdaysMask = mask,
+            weekdayOrdinal = 1,
+        )
+        val afterSkip = CadenceCalculator.nextDueAfterSkip(
+            mode = CadenceMode.FROM_COMPLETION,
+            intervalDays = CadenceCalculator.GRID_INTERVAL_DAYS,
+            scheduledDueAtEpochMs = scheduled,
+            anchorEpochDay = LocalDate.of(2026, 5, 2).toEpochDay(),
+            nowEpochMs = now,
+            zone = zone,
+            scheduleKind = ScheduleKind.NTH_WEEKDAY,
+            weekdaysMask = mask,
+            weekdayOrdinal = 1,
+        )
+        assertEquals(noon(2026, 6, 6), afterDone)
+        assertEquals(afterDone, afterSkip)
+    }
+
+    @Test
+    fun yearly_march15_advancesToNextYear() {
+        val mask = YearMonths.bit(Month.MARCH)
+        val scheduled = noon(2026, 3, 15)
+        val next = CadenceCalculator.nextDueAfterCompletion(
+            mode = CadenceMode.FROM_COMPLETION,
+            intervalDays = CadenceCalculator.GRID_INTERVAL_DAYS,
+            completedAtEpochMs = scheduled,
+            scheduledDueAtEpochMs = scheduled,
+            anchorEpochDay = LocalDate.of(2026, 3, 15).toEpochDay(),
+            zone = zone,
+            scheduleKind = ScheduleKind.YEARLY,
+            monthDay = 15,
+            yearMonthsMask = mask,
+        )
+        assertEquals(noon(2027, 3, 15), next)
+    }
+
+    @Test
+    fun yearly_marchAndSeptember_day1() {
+        val mask = YearMonths.bit(Month.MARCH) or YearMonths.bit(Month.SEPTEMBER)
+        val afterMarch = CadenceCalculator.nextDueAfterCompletion(
+            mode = CadenceMode.FROM_COMPLETION,
+            intervalDays = CadenceCalculator.GRID_INTERVAL_DAYS,
+            completedAtEpochMs = noon(2026, 3, 1),
+            scheduledDueAtEpochMs = noon(2026, 3, 1),
+            anchorEpochDay = LocalDate.of(2026, 3, 1).toEpochDay(),
+            zone = zone,
+            scheduleKind = ScheduleKind.YEARLY,
+            monthDay = 1,
+            yearMonthsMask = mask,
+        )
+        val afterSeptember = CadenceCalculator.nextDueAfterCompletion(
+            mode = CadenceMode.FROM_COMPLETION,
+            intervalDays = CadenceCalculator.GRID_INTERVAL_DAYS,
+            completedAtEpochMs = noon(2026, 9, 1),
+            scheduledDueAtEpochMs = noon(2026, 9, 1),
+            anchorEpochDay = LocalDate.of(2026, 9, 1).toEpochDay(),
+            zone = zone,
+            scheduleKind = ScheduleKind.YEARLY,
+            monthDay = 1,
+            yearMonthsMask = mask,
+        )
+        assertEquals(noon(2026, 9, 1), afterMarch)
+        assertEquals(noon(2027, 3, 1), afterSeptember)
+    }
+
+    @Test
+    fun yearly_feb29_clampsInNonLeapYear() {
+        val mask = YearMonths.bit(Month.FEBRUARY)
+        val next = CadenceCalculator.nextDueAfterCompletion(
+            mode = CadenceMode.FROM_COMPLETION,
+            intervalDays = CadenceCalculator.GRID_INTERVAL_DAYS,
+            completedAtEpochMs = noon(2026, 1, 31),
+            scheduledDueAtEpochMs = noon(2026, 1, 31),
+            anchorEpochDay = LocalDate.of(2026, 1, 31).toEpochDay(),
+            zone = zone,
+            scheduleKind = ScheduleKind.YEARLY,
+            monthDay = 29,
+            yearMonthsMask = mask,
+        )
+        assertEquals(noon(2026, 2, 28), next)
+    }
+
+    @Test
+    fun yearly_springOnly_nextYear() {
+        val next = CadenceCalculator.nextDueAfterCompletion(
+            mode = CadenceMode.FIXED_ANCHOR,
+            intervalDays = CadenceCalculator.GRID_INTERVAL_DAYS,
+            completedAtEpochMs = noon(2026, 3, 20),
+            scheduledDueAtEpochMs = noon(2026, 3, 20),
+            anchorEpochDay = LocalDate.of(2026, 3, 20).toEpochDay(),
+            zone = zone,
+            scheduleKind = ScheduleKind.YEARLY,
+            seasonMask = Seasons.SPRING,
+        )
+        assertEquals(noon(2027, 3, 20), next)
+    }
+
+    @Test
+    fun yearly_springAndAutumn_sameYear() {
+        val next = CadenceCalculator.nextDueAfterCompletion(
+            mode = CadenceMode.FROM_COMPLETION,
+            intervalDays = CadenceCalculator.GRID_INTERVAL_DAYS,
+            completedAtEpochMs = noon(2026, 3, 20),
+            scheduledDueAtEpochMs = noon(2026, 3, 20),
+            anchorEpochDay = LocalDate.of(2026, 3, 20).toEpochDay(),
+            zone = zone,
+            scheduleKind = ScheduleKind.YEARLY,
+            seasonMask = Seasons.SPRING or Seasons.AUTUMN,
+        )
+        assertEquals(noon(2026, 9, 22), next)
+    }
+
+    @Test
+    fun yearly_marchDay1_andSpring_sameYear() {
+        val next = CadenceCalculator.nextDueAfterCompletion(
+            mode = CadenceMode.FROM_COMPLETION,
+            intervalDays = CadenceCalculator.GRID_INTERVAL_DAYS,
+            completedAtEpochMs = noon(2026, 3, 1),
+            scheduledDueAtEpochMs = noon(2026, 3, 1),
+            anchorEpochDay = LocalDate.of(2026, 3, 1).toEpochDay(),
+            zone = zone,
+            scheduleKind = ScheduleKind.YEARLY,
+            monthDay = 1,
+            yearMonthsMask = YearMonths.bit(Month.MARCH),
+            seasonMask = Seasons.SPRING,
+        )
+        assertEquals(noon(2026, 3, 20), next)
+    }
+
+    @Test
+    fun yearly_skip_matchesDone() {
+        val mask = YearMonths.bit(Month.MARCH)
+        val scheduled = noon(2026, 3, 15)
+        val afterDone = CadenceCalculator.nextDueAfterCompletion(
+            mode = CadenceMode.FROM_COMPLETION,
+            intervalDays = CadenceCalculator.GRID_INTERVAL_DAYS,
+            completedAtEpochMs = scheduled,
+            scheduledDueAtEpochMs = scheduled,
+            anchorEpochDay = LocalDate.of(2026, 3, 15).toEpochDay(),
+            zone = zone,
+            scheduleKind = ScheduleKind.YEARLY,
+            monthDay = 15,
+            yearMonthsMask = mask,
+        )
+        val afterSkip = CadenceCalculator.nextDueAfterSkip(
+            mode = CadenceMode.FROM_COMPLETION,
+            intervalDays = CadenceCalculator.GRID_INTERVAL_DAYS,
+            scheduledDueAtEpochMs = scheduled,
+            anchorEpochDay = LocalDate.of(2026, 3, 15).toEpochDay(),
+            nowEpochMs = scheduled,
+            zone = zone,
+            scheduleKind = ScheduleKind.YEARLY,
+            monthDay = 15,
+            yearMonthsMask = mask,
+        )
+        assertEquals(noon(2027, 3, 15), afterDone)
         assertEquals(afterDone, afterSkip)
     }
 }

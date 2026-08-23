@@ -35,6 +35,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.errata.app.ErrataApp
 import com.errata.app.R
 import com.errata.app.ui.theme.ErrataScreenInsets
 import com.errata.app.ui.theme.ErrataTopInsets
@@ -199,7 +200,17 @@ fun BackupScreen(
         AlertDialog(
             onDismissRequest = viewModel::cancelImport,
             title = { Text(stringResource(R.string.backup_confirm_title)) },
-            text = { Text(stringResource(R.string.backup_confirm_body)) },
+            text = {
+                Text(
+                    stringResource(
+                        if (ErrataApp.instance.syncPreferences.isLinked()) {
+                            R.string.backup_confirm_body_linked
+                        } else {
+                            R.string.backup_confirm_body
+                        },
+                    ),
+                )
+            },
             confirmButton = {
                 TextButton(onClick = viewModel::confirmImport) {
                     Text(stringResource(R.string.backup_confirm_action))

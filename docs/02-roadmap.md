@@ -3,7 +3,7 @@
 Checked history of what shipped, plus **Later** for named leftovers.  
 **Why** for each item: [`03-product-map.md`](./03-product-map.md). Do not add features that lack a map row.
 
-Phase 0–3 **core** is complete: pending daily driver, weekly/monthly cadence, starters, folder backup, privacy/listing text.
+Phase 0–3 **core** is complete: pending daily driver, cadence through yearly/seasons, starters, folder backup, privacy/listing text.
 
 ## Phase 0 — Trust the list (scaffold → MVP)
 
@@ -40,6 +40,7 @@ Tier 2.
 - [x] Opt-in morning digest reminder
 - [x] Home-screen widget (count + minutes; battery-aware)
 - [x] History glance (calm facts, no streaks)
+- [x] History hygiene (retention, purge history, reset tasks)
 - [x] Exact-alarm permission UX + inexact fallback
 
 Phase 2 is complete.
@@ -49,17 +50,18 @@ Phase 2 is complete.
 Tier 3 core is in tree. Ask before starting anything under **Later**.
 
 - [x] Richer cadence (weekly weekday sets + monthly day-of-month)
+- [x] Nth-weekday (“first Saturday”: 1st–4th or last of one weekday)
+- [x] Yearly / seasonal (selected months + northern civil season starts)
 - [x] Templates / starters for empty state
 - [x] Play Store packaging + privacy text (still local-first)
 - [x] Multi-device via file / optional user-chosen folder (no account)
+- [x] Optional Google Drive App Data (opt-in; needs your OAuth client — [`07-google-sync.md`](./07-google-sync.md))
 
 ## Later
 
 Not holes in the daily driver. Implement only if asked.
 
-- [ ] nth-weekday (“first Saturday”) and seasonal anchors
 - [ ] Play Console submit (host privacy URL, screenshots, AAB, paid account) — copy is in [`05-privacy.md`](./05-privacy.md) / [`06-play.md`](./06-play.md)
-- [ ] Drive SDK / Errata account if the system picker is not enough
 
 ## Explicitly not on the roadmap
 

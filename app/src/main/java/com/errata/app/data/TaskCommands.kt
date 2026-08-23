@@ -6,6 +6,7 @@ import com.errata.app.data.local.SettingsEntity
 import com.errata.app.data.local.TaskEntity
 import com.errata.app.domain.starter.StarterSpec
 import com.errata.app.reminders.ReminderScheduler
+import com.errata.app.sync.SyncScheduler
 import com.errata.app.widget.WidgetUpdater
 
 /**
@@ -15,6 +16,7 @@ class TaskCommands(
     private val repository: TaskRepository,
     private val scheduler: ReminderScheduler,
     private val widgetUpdater: WidgetUpdater,
+    private val syncScheduler: SyncScheduler? = null,
 ) {
     val observeActiveTasks get() = repository.observeActiveTasks()
     val observeSettings get() = repository.observeSettings()
@@ -35,6 +37,9 @@ class TaskCommands(
         val digestChanged = previous.digestEnabled != entity.digestEnabled
         if (reminderChanged || digestChanged) {
             scheduler.rescheduleAll()
+        }
+        if (previous.historyRetentionDays != entity.historyRetentionDays) {
+            repository.pruneHistory()
         }
     }
 
@@ -101,11 +106,26 @@ class TaskCommands(
         val backup: ErrataBackup = BackupCodec.decode(json)
         repository.importReplace(backup)
         scheduler.rescheduleAll()
+        afterWrite()
+    }
+
+    suspend fun pruneHistory() = repository.pruneHistory()
+
+    suspend fun purgeHistory() {
+        repository.purgeHistory()
+        afterWrite()
+    }
+
+    suspend fun resetTasks(alsoClearCloud: Boolean = false) {
+        repository.resetTasks(alsoClearCloud)
+        scheduler.rescheduleAll()
+        afterWrite()
     }
 
     suspend fun rescheduleReminders() = scheduler.rescheduleAll()
 
     private suspend fun afterWrite() {
         widgetUpdater.refresh()
+        syncScheduler?.requestDebounced()
     }
 }

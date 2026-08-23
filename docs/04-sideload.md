@@ -36,8 +36,8 @@ Debug APKs are signed with the local debug keystore — good enough for personal
 
 - Grant **notifications** when prompted (reminders).
 - Optional on Android 12+: **Alarms & reminders** special access (Settings → On-time reminders) if you want them at the clock time you picked. Declining is fine — reminders still fire, sometimes a few minutes late.
-- Optional: **Backup** under Settings to export/import JSON between devices, or choose a shared folder and write/read `errata-backup.json`. For Drive, Export and pick Drive in the system sheet.
-- **Privacy** under Settings states what stays on device. Android cloud backup of Errata data is off.
+- Optional: **Backup** under Settings to export/import JSON, or a shared folder. Optional: **Link Google** (hidden Drive app folder) after you add an OAuth client — [docs/07-google-sync.md](./07-google-sync.md).
+- **Privacy** under Settings states what stays on device and what optional Google link sends. Android cloud backup of Errata data is off.
 - Optional: pin the **Errata** widget from the launcher widget picker for due count and minutes. It does not poll; it updates when you change tasks and once around local midnight.
 
 ## Rebuild and update

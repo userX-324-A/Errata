@@ -6,8 +6,10 @@ import androidx.lifecycle.viewModelScope
 import com.errata.app.data.TaskCommands
 import com.errata.app.data.local.TaskEntity
 import com.errata.app.domain.area.TaskAreas
+import com.errata.app.domain.cadence.NthWeekday
 import com.errata.app.domain.cadence.ScheduleKind
 import com.errata.app.domain.cadence.Weekdays
+import com.errata.app.domain.cadence.Yearly
 import com.errata.app.domain.starter.StarterSpec
 import java.time.Instant
 import java.time.ZoneId
@@ -104,6 +106,10 @@ class AllTasksViewModel(
             ScheduleKind.INTERVAL -> null
             ScheduleKind.WEEKLY -> "Weekly · ${Weekdays.shortLabels(task.weekdaysMask)}"
             ScheduleKind.MONTHLY -> "Monthly · day ${task.monthDay}"
+            ScheduleKind.NTH_WEEKDAY ->
+                NthWeekday.summary(task.weekdayOrdinal, task.weekdaysMask)
+            ScheduleKind.YEARLY ->
+                Yearly.summary(task.seasonMask, task.yearMonthsMask, task.monthDay)
         }
         return if (kind == null) due else "$kind · $due"
     }

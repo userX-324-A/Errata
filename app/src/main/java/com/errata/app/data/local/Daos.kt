@@ -21,6 +21,9 @@ interface TaskDao {
     @Query("SELECT * FROM tasks WHERE id = :id LIMIT 1")
     suspend fun getById(id: Long): TaskEntity?
 
+    @Query("SELECT * FROM tasks WHERE uuid = :uuid LIMIT 1")
+    suspend fun getByUuid(uuid: String): TaskEntity?
+
     @Query(
         """
         SELECT * FROM tasks
@@ -44,6 +47,9 @@ interface TaskDao {
     @Query("DELETE FROM tasks WHERE id = :id")
     suspend fun deleteById(id: Long)
 
+    @Query("DELETE FROM tasks WHERE uuid NOT IN (:uuids)")
+    suspend fun deleteWhereUuidNotIn(uuids: List<String>)
+
     @Query("DELETE FROM tasks")
     suspend fun deleteAll()
 }
@@ -61,6 +67,9 @@ interface CompletionDao {
 
     @Query("SELECT * FROM completions ORDER BY id ASC")
     suspend fun listAll(): List<CompletionEntity>
+
+    @Query("DELETE FROM completions WHERE id IN (:ids)")
+    suspend fun deleteByIds(ids: List<Long>)
 
     @Query("DELETE FROM completions")
     suspend fun deleteAll()

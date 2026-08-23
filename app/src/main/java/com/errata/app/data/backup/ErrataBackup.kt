@@ -5,7 +5,7 @@ import com.errata.app.domain.cadence.ScheduleKind
 import com.errata.app.domain.settings.AppearanceMode
 import kotlinx.serialization.Serializable
 
-const val BACKUP_SCHEMA_VERSION = 1
+const val BACKUP_SCHEMA_VERSION = 2
 
 @Serializable
 data class ErrataBackup(
@@ -24,11 +24,18 @@ data class SettingsBackup(
     val soonHorizonDays: Int,
     val appearanceMode: String = AppearanceMode.SYSTEM.name,
     val digestEnabled: Boolean = false,
+    val historyRetentionDays: Int = 730,
+    val updatedAtEpochMs: Long = 0,
+    val historyGeneration: Int = 0,
+    val historyPurgedAtEpochMs: Long = 0,
+    val tasksGeneration: Int = 0,
+    val tasksResetAtEpochMs: Long = 0,
 )
 
 @Serializable
 data class TaskBackup(
     val id: Long,
+    val uuid: String = "",
     val title: String,
     val notes: String? = null,
     val estimateMinutes: Int,
@@ -36,6 +43,9 @@ data class TaskBackup(
     val scheduleKind: String = ScheduleKind.INTERVAL.name,
     val weekdaysMask: Int = 0,
     val monthDay: Int = 0,
+    val weekdayOrdinal: Int = 0,
+    val yearMonthsMask: Int = 0,
+    val seasonMask: Int = 0,
     val cadenceMode: String,
     val anchorEpochDay: Long,
     val nextDueAtEpochMs: Long,
@@ -52,6 +62,7 @@ data class TaskBackup(
 @Serializable
 data class CompletionBackup(
     val id: Long = 0,
+    val uuid: String = "",
     val taskId: Long,
     val completedAtEpochMs: Long,
     val scheduledDueAtEpochMs: Long,

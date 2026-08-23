@@ -8,11 +8,16 @@ import com.errata.app.data.local.TaskEntity
 import com.errata.app.domain.area.TaskAreas
 import com.errata.app.domain.cadence.CadenceCalculator
 import com.errata.app.domain.cadence.CadenceMode
+import com.errata.app.domain.cadence.NthWeekday
 import com.errata.app.domain.cadence.ScheduleKind
+import com.errata.app.domain.cadence.Seasons
 import com.errata.app.domain.cadence.Weekdays
+import com.errata.app.domain.cadence.YearMonths
+import com.errata.app.domain.cadence.Yearly
 import com.errata.app.domain.history.HistoryGlance
 import java.time.DayOfWeek
 import java.time.LocalDate
+import java.time.Month
 import java.time.ZoneId
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -29,12 +34,16 @@ data class TaskEditorUiState(
     val scheduleKind: ScheduleKind = ScheduleKind.INTERVAL,
     val weekdaysMask: Int = 0,
     val monthDay: String = "15",
+    val weekdayOrdinal: Int = 1,
+    val yearMonthsMask: Int = 0,
+    val seasonMask: Int = 0,
     val cadenceMode: CadenceMode = CadenceMode.FROM_COMPLETION_CATCH_UP,
     val dueEpochDay: Long = LocalDate.now().toEpochDay(),
     /** Local minutes since midnight for due datetime. */
     val dueMinuteOfDay: Int = 9 * 60,
     val anchorEpochDay: Long = LocalDate.now().toEpochDay(),
     val existingId: Long = 0L,
+    val existingUuid: String = "",
     val createdAtEpochMs: Long = 0L,
     val lastCompletedAtEpochMs: Long? = null,
     /** null = use app default reminder time */
@@ -86,6 +95,7 @@ class TaskEditorViewModel(
                         it.copy(
                             isNew = false,
                             existingId = task.id,
+                            existingUuid = task.uuid,
                             title = task.title,
                             notes = task.notes.orEmpty(),
                             estimateMinutes = task.estimateMinutes.toString(),
@@ -93,6 +103,10 @@ class TaskEditorViewModel(
                             scheduleKind = task.scheduleKind,
                             weekdaysMask = task.weekdaysMask,
                             monthDay = task.monthDay.takeIf { it in 1..31 }?.toString() ?: "15",
+                            weekdayOrdinal = task.weekdayOrdinal.takeIf { NthWeekday.isValid(it) }
+                                ?: 1,
+                            yearMonthsMask = task.yearMonthsMask,
+                            seasonMask = task.seasonMask,
                             cadenceMode = task.cadenceMode,
                             dueEpochDay = CadenceCalculator.epochDayOf(task.nextDueAtEpochMs, zone),
                             dueMinuteOfDay = CadenceCalculator.minutesOfDay(task.nextDueAtEpochMs, zone),
@@ -151,10 +165,61 @@ class TaskEditorViewModel(
                 }
                 state.copy(scheduleKind = kind, monthDay = day, errorMessage = null)
             }
+            ScheduleKind.NTH_WEEKDAY -> {
+                val mask = if (Weekdays.isSingle(state.weekdaysMask)) {
+                    state.weekdaysMask
+                } else {
+                    Weekdays.bit(DayOfWeek.SATURDAY)
+                }
+                val ordinal = if (NthWeekday.isValid(state.weekdayOrdinal)) {
+                    state.weekdayOrdinal
+                } else {
+                    1
+                }
+                state.copy(
+                    scheduleKind = kind,
+                    weekdaysMask = mask,
+                    weekdayOrdinal = ordinal,
+                    errorMessage = null,
+                )
+            }
+            ScheduleKind.YEARLY -> {
+                val due = LocalDate.ofEpochDay(state.dueEpochDay)
+                val hasAny = YearMonths.hasAny(state.yearMonthsMask) ||
+                    Seasons.hasAny(state.seasonMask)
+                if (hasAny) {
+                    state.copy(scheduleKind = kind, errorMessage = null)
+                } else {
+                    val existing = state.monthDay.toIntOrNull()
+                    val day = if (existing in 1..31) {
+                        state.monthDay
+                    } else {
+                        due.dayOfMonth.toString()
+                    }
+                    state.copy(
+                        scheduleKind = kind,
+                        yearMonthsMask = YearMonths.bit(due.month),
+                        monthDay = day,
+                        errorMessage = null,
+                    )
+                }
+            }
         }
     }
     fun toggleWeekday(day: DayOfWeek) = _uiState.update {
         it.copy(weekdaysMask = Weekdays.toggle(it.weekdaysMask, day), errorMessage = null)
+    }
+    fun selectNthWeekday(day: DayOfWeek) = _uiState.update {
+        it.copy(weekdaysMask = Weekdays.bit(day), errorMessage = null)
+    }
+    fun updateWeekdayOrdinal(ordinal: Int) = _uiState.update {
+        it.copy(weekdayOrdinal = ordinal, errorMessage = null)
+    }
+    fun toggleYearMonth(month: Month) = _uiState.update {
+        it.copy(yearMonthsMask = YearMonths.toggle(it.yearMonthsMask, month), errorMessage = null)
+    }
+    fun toggleSeason(bit: Int) = _uiState.update {
+        it.copy(seasonMask = Seasons.toggle(it.seasonMask, bit), errorMessage = null)
     }
     fun updateMonthDay(value: String) = _uiState.update {
         it.copy(monthDay = value.filter { c -> c.isDigit() }.take(2), errorMessage = null)
@@ -188,6 +253,13 @@ class TaskEditorViewModel(
                     _uiState.update { it.copy(errorMessage = "weekdays") }
                 state.scheduleKind == ScheduleKind.MONTHLY && monthDay !in 1..31 ->
                     _uiState.update { it.copy(errorMessage = "monthDay") }
+                state.scheduleKind == ScheduleKind.NTH_WEEKDAY &&
+                    (!Weekdays.isSingle(state.weekdaysMask) ||
+                        !NthWeekday.isValid(state.weekdayOrdinal)) ->
+                    _uiState.update { it.copy(errorMessage = "nthWeekday") }
+                state.scheduleKind == ScheduleKind.YEARLY &&
+                    !Yearly.isValid(state.yearMonthsMask, state.seasonMask, monthDay) ->
+                    _uiState.update { it.copy(errorMessage = "yearly") }
                 else -> {
                     val nextDue = CadenceCalculator.atLocalDateMinutes(
                         state.dueEpochDay,
@@ -203,17 +275,39 @@ class TaskEditorViewModel(
                     }
                     val entity = TaskEntity(
                         id = state.existingId,
+                        uuid = state.existingUuid,
                         title = title,
                         notes = state.notes.trim().ifEmpty { null },
                         estimateMinutes = estimate,
                         intervalDays = storedInterval,
                         scheduleKind = state.scheduleKind,
-                        weekdaysMask = if (state.scheduleKind == ScheduleKind.WEEKLY) {
-                            state.weekdaysMask
+                        weekdaysMask = when (state.scheduleKind) {
+                            ScheduleKind.WEEKLY,
+                            ScheduleKind.NTH_WEEKDAY,
+                            -> state.weekdaysMask
+                            else -> 0
+                        },
+                        monthDay = when (state.scheduleKind) {
+                            ScheduleKind.MONTHLY -> monthDay
+                            ScheduleKind.YEARLY ->
+                                if (YearMonths.hasAny(state.yearMonthsMask)) monthDay else 0
+                            else -> 0
+                        },
+                        weekdayOrdinal = if (state.scheduleKind == ScheduleKind.NTH_WEEKDAY) {
+                            state.weekdayOrdinal
                         } else {
                             0
                         },
-                        monthDay = if (state.scheduleKind == ScheduleKind.MONTHLY) monthDay else 0,
+                        yearMonthsMask = if (state.scheduleKind == ScheduleKind.YEARLY) {
+                            state.yearMonthsMask
+                        } else {
+                            0
+                        },
+                        seasonMask = if (state.scheduleKind == ScheduleKind.YEARLY) {
+                            state.seasonMask
+                        } else {
+                            0
+                        },
                         cadenceMode = state.cadenceMode,
                         anchorEpochDay = anchor,
                         nextDueAtEpochMs = nextDue,

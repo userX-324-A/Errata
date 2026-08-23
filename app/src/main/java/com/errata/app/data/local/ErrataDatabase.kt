@@ -7,6 +7,7 @@ import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
+import java.util.UUID
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -17,7 +18,7 @@ import kotlinx.coroutines.launch
         CompletionEntity::class,
         SettingsEntity::class,
     ],
-    version = 4,
+    version = 8,
     exportSchema = false,
 )
 @TypeConverters(Converters::class)
@@ -59,9 +60,84 @@ abstract class ErrataDatabase : RoomDatabase() {
             }
         }
 
+        private val MIGRATION_4_5 = object : Migration(4, 5) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "ALTER TABLE tasks ADD COLUMN weekdayOrdinal INTEGER NOT NULL DEFAULT 0",
+                )
+            }
+        }
+
+        private val MIGRATION_5_6 = object : Migration(5, 6) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "ALTER TABLE tasks ADD COLUMN yearMonthsMask INTEGER NOT NULL DEFAULT 0",
+                )
+                db.execSQL(
+                    "ALTER TABLE tasks ADD COLUMN seasonMask INTEGER NOT NULL DEFAULT 0",
+                )
+            }
+        }
+
+        private val MIGRATION_6_7 = object : Migration(6, 7) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "ALTER TABLE settings ADD COLUMN historyRetentionDays INTEGER NOT NULL DEFAULT 730",
+                )
+            }
+        }
+
+        private val MIGRATION_7_8 = object : Migration(7, 8) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE tasks ADD COLUMN uuid TEXT NOT NULL DEFAULT ''")
+                db.execSQL("ALTER TABLE completions ADD COLUMN uuid TEXT NOT NULL DEFAULT ''")
+                db.execSQL(
+                    "ALTER TABLE settings ADD COLUMN updatedAtEpochMs INTEGER NOT NULL DEFAULT 0",
+                )
+                db.execSQL(
+                    "ALTER TABLE settings ADD COLUMN historyGeneration INTEGER NOT NULL DEFAULT 0",
+                )
+                db.execSQL(
+                    "ALTER TABLE settings ADD COLUMN historyPurgedAtEpochMs INTEGER NOT NULL DEFAULT 0",
+                )
+                db.execSQL(
+                    "ALTER TABLE settings ADD COLUMN tasksGeneration INTEGER NOT NULL DEFAULT 0",
+                )
+                db.execSQL(
+                    "ALTER TABLE settings ADD COLUMN tasksResetAtEpochMs INTEGER NOT NULL DEFAULT 0",
+                )
+                fillUuids(db, "tasks")
+                fillUuids(db, "completions")
+                db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS index_tasks_uuid ON tasks(uuid)")
+                db.execSQL(
+                    "CREATE UNIQUE INDEX IF NOT EXISTS index_completions_uuid ON completions(uuid)",
+                )
+            }
+        }
+
+        private fun fillUuids(db: SupportSQLiteDatabase, table: String) {
+            db.query("SELECT id FROM $table").use { cursor ->
+                while (cursor.moveToNext()) {
+                    val id = cursor.getLong(0)
+                    db.execSQL(
+                        "UPDATE $table SET uuid = ? WHERE id = ?",
+                        arrayOf<Any>(UUID.randomUUID().toString(), id),
+                    )
+                }
+            }
+        }
+
         fun create(context: Context): ErrataDatabase =
             Room.databaseBuilder(context.applicationContext, ErrataDatabase::class.java, NAME)
-                .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
+                .addMigrations(
+                    MIGRATION_1_2,
+                    MIGRATION_2_3,
+                    MIGRATION_3_4,
+                    MIGRATION_4_5,
+                    MIGRATION_5_6,
+                    MIGRATION_6_7,
+                    MIGRATION_7_8,
+                )
                 .addCallback(
                     object : Callback() {
                         override fun onCreate(db: SupportSQLiteDatabase) {

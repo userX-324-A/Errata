@@ -13,7 +13,7 @@ Home = **pending / due / overdue / soon**. Not a calendar-first or stats-first s
 ## Task fields (MVP intent)
 
 - Title
-- Cadence (interval days and/or weekly/monthly rules)
+- Cadence (interval days, weekly/monthly, weekday-of-month, or yearly/seasons)
 - Estimated duration (minutes)
 - Optional notes
 - Next due / last completed

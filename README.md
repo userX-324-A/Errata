@@ -6,7 +6,7 @@ Android-first. Offline and battery-conscious. No streak guilt, no social feed, n
 
 ## Status
 
-Android daily driver is usable (pending queue, weekly/monthly cadence, starters, folder backup, offline privacy). Sideload: [docs/04-sideload.md](docs/04-sideload.md). Later: nth-weekday, Play Console submit, Drive SDK.
+Android daily driver is usable (pending queue, cadence including yearly/seasons, starters, folder backup, history retention, optional Google Drive App Data, offline-first privacy). Sideload: [docs/04-sideload.md](docs/04-sideload.md). Google setup: [docs/07-google-sync.md](docs/07-google-sync.md). Later: Play Console submit.
 
 ## Start here
 

@@ -38,21 +38,21 @@ Product intent and feature purpose: [`03-product-map.md`](./03-product-map.md).
 |---|---|---|
 | Kotlin | **In tree** | |
 | Jetpack Compose + M3 | **In tree** | Margin-note shell: bottom nav, light/dark, punch-hole-safe insets |
-| Room | **In tree** | Schema v4: tasks, completions, settings (`appearanceMode`, `digestEnabled`) |
+| Room | **In tree** | Schema v8: tasks and completions have stable `uuid`; settings `updatedAtEpochMs`, `historyGeneration`, `tasksGeneration` |
 | `minSdk` | **26** | Android 8+ — older tablets without cutting off Compose |
 | `compileSdk` / `targetSdk` | **35** | |
 | Application id | `com.errata.app` | |
 | DI framework | Avoid until needed | `ErrataApp` holds DB + repository |
-| Internet permission | **Absent** by default | |
+| Internet permission | **Present** | Used only for opt-in Google Drive app data |
 | Exact alarms | Opt-in per UX | API 31+ special access; inexact fallback; do not demand |
 
-## Schema v4 (Room)
+## Schema v8 (Room)
 
-- **tasks** — title, notes, estimateMinutes, intervalDays, scheduleKind (`INTERVAL` / `WEEKLY` / `MONTHLY`), weekdaysMask (bit 0 = Monday … bit 6 = Sunday), monthDay (1–31 or 0), cadenceMode, anchorEpochDay, nextDueAtEpochMs, lastCompletedAtEpochMs, reminderMinutesOfDay, snoozedUntilEpochMs, area, isPaused, isArchived, timestamps  
-- **completions** — taskId, completedAt, scheduledDueAt (for catch-up audit), estimate snapshot  
-- **settings** (singleton row) — defaultCadenceMode, defaultReminderMinutesOfDay, defaultWorkStartMinutesOfDay, soonHorizonDays, appearanceMode (`SYSTEM` / `LIGHT` / `DARK`), digestEnabled (default off)  
+- **tasks** — uuid (sync identity; local Long id stays the alarm/nav key), title, notes, estimateMinutes, intervalDays, scheduleKind (`INTERVAL` / `WEEKLY` / `MONTHLY` / `NTH_WEEKDAY` / `YEARLY`), weekdaysMask (bit 0 = Monday … bit 6 = Sunday), monthDay (1–31 or 0), weekdayOrdinal (1–4 or 5 = last when nth-weekday; else 0), yearMonthsMask (bit 0 = January … bit 11 = December), seasonMask (bit 0 = Spring … bit 3 = Winter), cadenceMode, anchorEpochDay, nextDueAtEpochMs, lastCompletedAtEpochMs, reminderMinutesOfDay, snoozedUntilEpochMs, area, isPaused, isArchived, timestamps  
+- **completions** — uuid, taskId, completedAt, scheduledDueAt (for catch-up audit), estimate snapshot  
+- **settings** (singleton row) — defaultCadenceMode, defaultReminderMinutesOfDay, defaultWorkStartMinutesOfDay, soonHorizonDays, appearanceMode (`SYSTEM` / `LIGHT` / `DARK`), digestEnabled (default off), historyRetentionDays (0 = keep all; default **730**), updatedAtEpochMs (shared settings LWW), historyGeneration / historyPurgedAtEpochMs, tasksGeneration / tasksResetAtEpochMs  
 
-Existing installs migrate 3→4 with `INTERVAL` / mask `0` / monthDay `0`. Weekly/monthly rows keep a dummy `intervalDays` of 7.  
+Existing installs migrate 7→8 with generated UUIDs. Calendar-grid rows keep a dummy `intervalDays` of 7.  
 
 **UI shell:** bottom bar Pending · All tasks · Settings. Backup lives under Settings. Scaffolds use `WindowInsets.safeDrawing` so punch-holes don’t cover copy. Visual identity: paper/ink/terracotta (bundled Fraunces + Atkinson Hyperlegible).  
 
@@ -64,7 +64,9 @@ Existing installs migrate 3→4 with `INTERVAL` / mask `0` / monthDay `0`. Weekl
   - `INTERVAL` — every N days (default; existing tasks). After-Done modes apply.  
   - `WEEKLY` — one or more weekdays. Next due is the next selected local calendar day **strictly after** Done or Skip, same clock time as the due that was open. After-Done mode is ignored.  
   - `MONTHLY` — day of month 1–31; missing days (31 in February) clamp to the last day of that month. Same “next slot after Done/Skip, keep time.” After-Done mode is ignored.  
-- **nth-weekday** (“first Saturday”) and seasonal anchors are still later.  
+  - `NTH_WEEKDAY` — 1st / 2nd / 3rd / 4th / last of **one** weekday each month (`weekdaysMask` exactly one bit; `weekdayOrdinal` 1–4 or 5 = last). Same keep-time grid. After-Done mode is ignored.  
+  - `YEARLY` — union of selected calendar months (shared `monthDay` 1–31, clamp missing days) and northern **civil** season starts (Spring 20 Mar, Summer 21 Jun, Autumn 22 Sep, Winter 21 Dec). `yearMonthsMask` / `seasonMask`. Same keep-time grid. After-Done mode is ignored.  
+- **Astronomy / southern-hemisphere setting** are still out; southern users pick months.  
 - **Modes** (stored per task; global default in Settings; apply to interval tasks only):  
   - `FROM_COMPLETION`  
   - `FIXED_ANCHOR`  
@@ -86,6 +88,7 @@ Existing installs migrate 3→4 with `INTERVAL` / mask `0` / monthDay `0`. Weekl
 
 - Editor (existing tasks with at least one Done): last completed date + typical lateness  
 - Typical = median calendar-day delta vs scheduled due, last **8** completions, shown only with **3+** samples. Skip is not a completion. No streaks or charts.  
+- **Retention:** Settings 90 days / 1 year / 2 years (default) / keep all. Always keep the last 8 Dones per task. Prune after Done, on cold start, after import, and when the retention setting changes. Purge history deletes completion rows only. Reset tasks deletes tasks + completions, keeps settings.  
 
 ## All tasks library
 
@@ -93,7 +96,7 @@ Existing installs migrate 3→4 with `INTERVAL` / mask `0` / monthDay `0`. Weekl
 - Optional area filter when any library row has an area; same quiet card label as pending  
 - Row → editor; Pause / Resume; Archive (confirm) hides from library; no archived browser yet  
 - Done / Snooze stay on pending only  
-- **Empty state:** in-app starter pack (`StarterCatalog`) when there are zero active tasks. User checks what they actually do and pins; rows become normal tasks. First due is the next slot (interval = tomorrow at the default reminder time; weekly/monthly = next matching local day). Not shown once any task is pinned. Pending “nothing due” with existing later tasks stays the caught-up copy. No download, no new permission.  
+- **Empty state:** in-app starter pack (`StarterCatalog`) when there are zero active tasks. User checks what they actually do and pins; rows become normal tasks. First due is the next slot (interval = tomorrow at the default reminder time; weekly/monthly/nth-weekday/yearly = next matching local day). Not shown once any task is pinned. Pending “nothing due” with existing later tasks stays the caught-up copy. No download, no new permission.  
 
 ## Home widget
 
@@ -103,7 +106,7 @@ Existing installs migrate 3→4 with `INTERVAL` / mask `0` / monthDay `0`. Weekl
 
 ## Settings
 
-- Bottom nav tab: appearance (system/light/dark), default reminder, opt-in morning digest, on-time reminders (API 31+), cadence, work-start  
+- Bottom nav tab: appearance (system/light/dark), default reminder, opt-in morning digest, on-time reminders (API 31+), cadence, work-start, optional Google link, history retention (90 / 1y / 2y / keep all), confirm-gated purge history and reset tasks  
 - Backup is a Settings row (SAF export/import + optional folder), not a pending overflow item  
 - Privacy is a Settings row (offline; same facts as [`05-privacy.md`](./05-privacy.md))  
 - Autosave; local-only footer  
@@ -138,13 +141,14 @@ Existing installs migrate 3→4 with `INTERVAL` / mask `0` / monthDay `0`. Weekl
 
 ## Backup (export / import)
 
-- **In tree:** JSON `schemaVersion` 1 via kotlinx.serialization; SAF CreateDocument / OpenDocument  
+- **In tree:** JSON `schemaVersion` 2 via kotlinx.serialization; SAF CreateDocument / OpenDocument. v1 files import with generated UUIDs.  
 - Contents: settings, all tasks (incl. paused/archived), completions  
-- **Import:** replace-all in a Room transaction after user confirm; then `rescheduleAll`  
-- **Optional folder:** user picks a tree (`OpenDocumentTree`); persistable URI on this device only (SharedPreferences, not in the JSON). Writes/reads `errata-backup.json` on demand. Last write wins; no merge, no folder watch, no `WorkManager`.  
-- **Drive / other clouds:** Export or Import and pick the provider in the system sheet when the OEM offers it. Tree pickers often omit Drive. No `INTERNET`, no Google account, no Drive SDK.  
-- No INTERNET; no account  
+- **Import:** replace-all in a Room transaction after user confirm; then `rescheduleAll`. If Google is linked, the Drive copy is uploaded to follow this device.  
+- **Optional folder:** user picks a tree (`OpenDocumentTree`); persistable URI on this device only (SharedPreferences, not in the JSON). Writes/reads `errata-backup.json` on demand. Last write wins; no merge, no folder watch.  
+- **Drive / other clouds (picker):** Export or Import and pick the provider in the system sheet when the OEM offers it. Tree pickers often omit Drive.  
+- **Optional Google Drive App Data:** Settings → Link Google. Credential Manager + `drive.appdata` only. Hidden `errata-sync.json` in appDataFolder. Merge: tasks by uuid (`updatedAt` wins); completions union; shared settings newer `updatedAt` (not appearance); purge/reset use generations. WorkManager 45s debounce after writes, on foreground, daily catch-up. If-Match etag; retry on 412 (cap 3). No FGS. Unlink keeps local; optional wipe of the Drive file. Play services required. Human OAuth: [`07-google-sync.md`](./07-google-sync.md).  
+- `INTERNET` is in the APK for this opt-in path. No Errata server.  
 
 ## Battery budget
 
-**Reminders:** Each task gets at most one `AlarmManager` RTC wakeup at a time (due-day reminder time, or snooze instant, or next-day nudge while still open), except when **morning digest** is on: then there is one standing wakeup at the default reminder time covering default-time overdue/due-today tasks, plus per-task alarms only for custom times and future snoozes. **Widget:** while pinned, one additional inexact midnight wakeup so “due today” stays honest; no periodic `WorkManager`. No foreground service, no wake lock held across UI. Boot and cold start only reschedule alarms (and refresh the widget), then release. Justification: user-expected due reminders without continuous background work.
+**Reminders:** Each task gets at most one `AlarmManager` RTC wakeup at a time (due-day reminder time, or snooze instant, or next-day nudge while still open), except when **morning digest** is on: then there is one standing wakeup at the default reminder time covering default-time overdue/due-today tasks, plus per-task alarms only for custom times and future snoozes. **Widget:** while pinned, one additional inexact midnight wakeup so “due today” stays honest. **Google sync (linked only):** one unique WorkManager job, 45s debounce after writes, plus a 24h CONNECTED catch-up; also on process start and app foreground. No foreground service, no wake lock held across UI. Boot and cold start only reschedule alarms (and refresh the widget), then release; if linked, enqueue one sync. Justification: user-expected due reminders without continuous background work; opt-in Drive merge without polling.

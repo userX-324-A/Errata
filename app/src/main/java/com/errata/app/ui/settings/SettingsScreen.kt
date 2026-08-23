@@ -1,6 +1,9 @@
 package com.errata.app.ui.settings
 
+import android.app.Activity
+import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.IntentSenderRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -19,6 +22,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
@@ -48,10 +52,13 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.errata.app.R
 import com.errata.app.domain.cadence.CadenceMode
+import com.errata.app.domain.history.HistoryRetention
 import com.errata.app.domain.settings.AppearanceMode
 import com.errata.app.reminders.ExactAlarmAccess
 import com.errata.app.ui.theme.ErrataTopInsets
+import java.time.Instant
 import java.time.LocalTime
+import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
 
@@ -69,7 +76,20 @@ fun SettingsScreen(
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     var timeTarget by remember { mutableStateOf<TimeTarget?>(null) }
+    var confirmPurgeHistory by remember { mutableStateOf(false) }
+    var confirmResetTasks by remember { mutableStateOf(false) }
+    var alsoClearCloud by remember { mutableStateOf(true) }
+    var confirmUnlink by remember { mutableStateOf(false) }
+    var confirmWipeCloud by remember { mutableStateOf(false) }
     val context = LocalContext.current
+    val activity = context as ComponentActivity
+    val consentLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.StartIntentSenderForResult(),
+    ) { result ->
+        if (result.resultCode == Activity.RESULT_OK) {
+            viewModel.completeGoogleConsent(activity, result.data)
+        }
+    }
     val lifecycleOwner = LocalLifecycleOwner.current
     var canExact by remember { mutableStateOf(ExactAlarmAccess.canExact(context)) }
     val exactLauncher = rememberLauncherForActivityResult(
@@ -249,6 +269,67 @@ fun SettingsScreen(
                 style = MaterialTheme.typography.titleMedium,
                 modifier = Modifier.padding(top = 8.dp),
             )
+            Label(stringResource(R.string.settings_google))
+            Text(
+                text = stringResource(R.string.settings_google_hint),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            GoogleSyncBlock(
+                state = state,
+                onLink = {
+                    viewModel.linkGoogle(activity) { sender ->
+                        consentLauncher.launch(IntentSenderRequest.Builder(sender).build())
+                    }
+                },
+                onSyncNow = viewModel::syncNow,
+                onUnlink = { confirmUnlink = true },
+                onWipe = { confirmWipeCloud = true },
+            )
+            Label(stringResource(R.string.settings_history_retention))
+            Text(
+                text = stringResource(R.string.settings_history_retention_hint),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                AppearanceChip(
+                    label = stringResource(R.string.settings_retention_90),
+                    selected = state.historyRetentionDays == HistoryRetention.DAYS_90,
+                    onClick = { viewModel.setHistoryRetentionDays(HistoryRetention.DAYS_90) },
+                )
+                AppearanceChip(
+                    label = stringResource(R.string.settings_retention_1y),
+                    selected = state.historyRetentionDays == HistoryRetention.DAYS_YEAR,
+                    onClick = { viewModel.setHistoryRetentionDays(HistoryRetention.DAYS_YEAR) },
+                )
+                AppearanceChip(
+                    label = stringResource(R.string.settings_retention_2y),
+                    selected = state.historyRetentionDays == HistoryRetention.DAYS_2Y,
+                    onClick = { viewModel.setHistoryRetentionDays(HistoryRetention.DAYS_2Y) },
+                )
+                AppearanceChip(
+                    label = stringResource(R.string.settings_retention_all),
+                    selected = state.historyRetentionDays == HistoryRetention.KEEP_ALL,
+                    onClick = { viewModel.setHistoryRetentionDays(HistoryRetention.KEEP_ALL) },
+                )
+            }
+            TextButton(
+                onClick = { confirmPurgeHistory = true },
+                contentPadding = PaddingValues(0.dp),
+            ) {
+                Text(stringResource(R.string.settings_purge_history))
+            }
+            TextButton(
+                onClick = { confirmResetTasks = true; alsoClearCloud = true },
+                contentPadding = PaddingValues(0.dp),
+            ) {
+                Text(stringResource(R.string.settings_reset_tasks))
+            }
+
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -352,6 +433,196 @@ fun SettingsScreen(
             text = { TimePicker(state = timeState) },
         )
     }
+
+    if (confirmPurgeHistory) {
+        AlertDialog(
+            onDismissRequest = { confirmPurgeHistory = false },
+            title = { Text(stringResource(R.string.settings_purge_history_title)) },
+            text = { Text(stringResource(R.string.settings_purge_history_body)) },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        viewModel.purgeHistory()
+                        confirmPurgeHistory = false
+                    },
+                ) { Text(stringResource(R.string.settings_purge_history_confirm)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmPurgeHistory = false }) {
+                    Text(stringResource(R.string.action_cancel))
+                }
+            },
+        )
+    }
+
+    if (confirmResetTasks) {
+        AlertDialog(
+            onDismissRequest = { confirmResetTasks = false },
+            title = { Text(stringResource(R.string.settings_reset_tasks_title)) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text(stringResource(R.string.settings_reset_tasks_body))
+                    if (state.googleLinked) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Checkbox(
+                                checked = alsoClearCloud,
+                                onCheckedChange = { alsoClearCloud = it },
+                            )
+                            Text(stringResource(R.string.settings_reset_also_cloud))
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        viewModel.resetTasks(alsoClearCloud = state.googleLinked && alsoClearCloud)
+                        confirmResetTasks = false
+                    },
+                ) { Text(stringResource(R.string.settings_reset_tasks_confirm)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmResetTasks = false }) {
+                    Text(stringResource(R.string.action_cancel))
+                }
+            },
+        )
+    }
+
+    if (confirmUnlink) {
+        AlertDialog(
+            onDismissRequest = { confirmUnlink = false },
+            title = { Text(stringResource(R.string.settings_google_unlink_title)) },
+            text = { Text(stringResource(R.string.settings_google_unlink_body)) },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        viewModel.unlink(context, wipeCloud = false)
+                        confirmUnlink = false
+                    },
+                ) { Text(stringResource(R.string.settings_google_unlink_confirm)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmUnlink = false }) {
+                    Text(stringResource(R.string.action_cancel))
+                }
+            },
+        )
+    }
+
+    if (confirmWipeCloud) {
+        AlertDialog(
+            onDismissRequest = { confirmWipeCloud = false },
+            title = { Text(stringResource(R.string.settings_google_wipe_title)) },
+            text = { Text(stringResource(R.string.settings_google_wipe_body)) },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        viewModel.unlink(context, wipeCloud = true)
+                        confirmWipeCloud = false
+                    },
+                ) { Text(stringResource(R.string.settings_google_wipe_confirm)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmWipeCloud = false }) {
+                    Text(stringResource(R.string.action_cancel))
+                }
+            },
+        )
+    }
+}
+
+@Composable
+private fun GoogleSyncBlock(
+    state: SettingsUiState,
+    onLink: () -> Unit,
+    onSyncNow: () -> Unit,
+    onUnlink: () -> Unit,
+    onWipe: () -> Unit,
+) {
+    when {
+        !state.googleConfigured -> {
+            Text(
+                text = stringResource(R.string.settings_google_not_configured),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        !state.playServices -> {
+            Text(
+                text = stringResource(R.string.settings_google_no_play),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        !state.googleLinked -> {
+            TextButton(
+                onClick = onLink,
+                contentPadding = PaddingValues(0.dp),
+            ) {
+                Text(stringResource(R.string.settings_google_link))
+            }
+            if (!state.lastSyncError.isNullOrBlank()) {
+                Text(
+                    text = syncStatusText(state),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+        else -> {
+            Text(
+                text = state.googleEmail.orEmpty(),
+                style = MaterialTheme.typography.bodyLarge,
+            )
+            Text(
+                text = syncStatusText(state),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            TextButton(
+                onClick = onSyncNow,
+                contentPadding = PaddingValues(0.dp),
+            ) {
+                Text(stringResource(R.string.settings_google_sync_now))
+            }
+            TextButton(
+                onClick = onUnlink,
+                contentPadding = PaddingValues(0.dp),
+            ) {
+                Text(stringResource(R.string.settings_google_unlink))
+            }
+            TextButton(
+                onClick = onWipe,
+                contentPadding = PaddingValues(0.dp),
+            ) {
+                Text(stringResource(R.string.settings_google_wipe))
+            }
+        }
+    }
+}
+
+@Composable
+private fun syncStatusText(state: SettingsUiState): String {
+    val error = state.lastSyncError
+    if (!error.isNullOrBlank()) {
+        return stringResource(
+            when (error) {
+                "auth", "sign_in" -> R.string.settings_google_error_sign_in
+                "conflict" -> R.string.settings_google_error_conflict
+                "not_configured" -> R.string.settings_google_not_configured
+                "play_services" -> R.string.settings_google_no_play
+                else -> R.string.settings_google_error_network
+            },
+        )
+    }
+    if (state.lastSyncEpochMs <= 0L) {
+        return stringResource(R.string.settings_google_sync_pending)
+    }
+    val formatted = DateTimeFormatter.ofLocalizedDateTime(FormatStyle.SHORT)
+        .withZone(ZoneId.systemDefault())
+        .format(Instant.ofEpochMilli(state.lastSyncEpochMs))
+    return stringResource(R.string.settings_google_last_sync, formatted)
 }
 
 @Composable

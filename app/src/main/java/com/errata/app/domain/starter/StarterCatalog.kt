@@ -4,8 +4,10 @@ import com.errata.app.data.local.TaskEntity
 import com.errata.app.domain.area.TaskAreas
 import com.errata.app.domain.cadence.CadenceCalculator
 import com.errata.app.domain.cadence.CadenceMode
+import com.errata.app.domain.cadence.NthWeekday
 import com.errata.app.domain.cadence.ScheduleKind
 import com.errata.app.domain.cadence.Weekdays
+import com.errata.app.domain.cadence.Yearly
 import java.time.DayOfWeek
 import java.time.Instant
 import java.time.ZoneId
@@ -18,6 +20,9 @@ data class StarterSpec(
     val intervalDays: Int = CadenceCalculator.GRID_INTERVAL_DAYS,
     val weekdaysMask: Int = 0,
     val monthDay: Int = 0,
+    val weekdayOrdinal: Int = 0,
+    val yearMonthsMask: Int = 0,
+    val seasonMask: Int = 0,
     val area: String? = null,
 )
 
@@ -105,6 +110,8 @@ object StarterCatalog {
         ScheduleKind.INTERVAL -> "Every ${spec.intervalDays} days"
         ScheduleKind.WEEKLY -> "Weekly · ${Weekdays.shortLabels(spec.weekdaysMask)}"
         ScheduleKind.MONTHLY -> "Monthly · day ${spec.monthDay}"
+        ScheduleKind.NTH_WEEKDAY -> NthWeekday.summary(spec.weekdayOrdinal, spec.weekdaysMask)
+        ScheduleKind.YEARLY -> Yearly.summary(spec.seasonMask, spec.yearMonthsMask, spec.monthDay)
     }
 
     fun firstDueEpochMs(
@@ -123,6 +130,8 @@ object StarterCatalog {
             )
             ScheduleKind.WEEKLY,
             ScheduleKind.MONTHLY,
+            ScheduleKind.NTH_WEEKDAY,
+            ScheduleKind.YEARLY,
             -> {
                 val dummyDue = CadenceCalculator.atLocalDateMinutes(
                     today.toEpochDay(),
@@ -139,6 +148,9 @@ object StarterCatalog {
                     scheduleKind = spec.scheduleKind,
                     weekdaysMask = spec.weekdaysMask,
                     monthDay = spec.monthDay,
+                    weekdayOrdinal = spec.weekdayOrdinal,
+                    yearMonthsMask = spec.yearMonthsMask,
+                    seasonMask = spec.seasonMask,
                 )
             }
         }
@@ -163,8 +175,33 @@ object StarterCatalog {
             estimateMinutes = spec.estimateMinutes.coerceAtLeast(1),
             intervalDays = interval,
             scheduleKind = spec.scheduleKind,
-            weekdaysMask = if (spec.scheduleKind == ScheduleKind.WEEKLY) spec.weekdaysMask else 0,
-            monthDay = if (spec.scheduleKind == ScheduleKind.MONTHLY) spec.monthDay else 0,
+            weekdaysMask = if (
+                spec.scheduleKind == ScheduleKind.WEEKLY ||
+                spec.scheduleKind == ScheduleKind.NTH_WEEKDAY
+            ) {
+                spec.weekdaysMask
+            } else {
+                0
+            },
+            monthDay = if (
+                spec.scheduleKind == ScheduleKind.MONTHLY ||
+                spec.scheduleKind == ScheduleKind.YEARLY
+            ) {
+                spec.monthDay
+            } else {
+                0
+            },
+            weekdayOrdinal = if (spec.scheduleKind == ScheduleKind.NTH_WEEKDAY) {
+                spec.weekdayOrdinal
+            } else {
+                0
+            },
+            yearMonthsMask = if (spec.scheduleKind == ScheduleKind.YEARLY) {
+                spec.yearMonthsMask
+            } else {
+                0
+            },
+            seasonMask = if (spec.scheduleKind == ScheduleKind.YEARLY) spec.seasonMask else 0,
             cadenceMode = cadenceMode,
             anchorEpochDay = CadenceCalculator.epochDayOf(nextDue, zone),
             nextDueAtEpochMs = nextDue,

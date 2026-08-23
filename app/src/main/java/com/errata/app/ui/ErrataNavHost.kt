@@ -157,8 +157,15 @@ fun ErrataNavHost(modifier: Modifier = Modifier) {
                 )
             }
             composable(Routes.SETTINGS) {
+                val app = ErrataApp.instance
                 val vm: SettingsViewModel = viewModel(
-                    factory = SettingsViewModel.factory(commands),
+                    factory = SettingsViewModel.factory(
+                        commands,
+                        app.syncPreferences,
+                        app.syncScheduler,
+                        app.syncCoordinator,
+                        com.errata.app.sync.GoogleAuth.playServicesAvailable(app),
+                    ),
                 )
                 SettingsScreen(
                     viewModel = vm,

@@ -36,7 +36,7 @@ Full policy: [`03-product-map.md`](./03-product-map.md).
 
 - Multi-user / family chore assignment  
 - Social, coaching, XP, streaks as core loop  
-- Cloud account  
+- Errata cloud account (optional Google Drive app data is allowed)  
 - Full GTD / project management  
 - Windows / desktop client  
 - Medical device or treatment claims (reminders ≠ clinical care)

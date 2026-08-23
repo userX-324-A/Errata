@@ -15,14 +15,15 @@ import kotlin.math.min
  * **Due** is a local datetime (`nextDueAtEpochMs`). Pending buckets use the local **calendar day**.
  * After Done, the next due keeps the **time-of-day** from the due that was open (`scheduledDueAt`).
  *
- * Schedule kind is orthogonal to after-Done mode: weekly and monthly pick the next matching
- * local calendar day strictly after Done or Skip and ignore [CadenceMode].
+ * Schedule kind is orthogonal to after-Done mode: weekly, monthly, nth-weekday,
+ * and yearly pick the next matching local calendar day strictly after Done or Skip
+ * and ignore [CadenceMode].
  *
  * Catch-up constants match docs/03-product-map.md.
  */
 object CadenceCalculator {
 
-    /** Dummy interval stored on weekly/monthly rows so [intervalDays] stays ≥ 1. */
+    /** Dummy interval stored on calendar-grid rows so [intervalDays] stays ≥ 1. */
     const val GRID_INTERVAL_DAYS = 7
 
     fun startOfDayEpochMs(epochDay: Long, zone: ZoneId = ZoneId.systemDefault()): Long =
@@ -69,6 +70,9 @@ object CadenceCalculator {
         scheduleKind: ScheduleKind = ScheduleKind.INTERVAL,
         weekdaysMask: Int = 0,
         monthDay: Int = 0,
+        weekdayOrdinal: Int = 0,
+        yearMonthsMask: Int = 0,
+        seasonMask: Int = 0,
     ): Long {
         require(intervalDays >= 1) { "intervalDays must be >= 1" }
         nextGridDueAfter(
@@ -77,6 +81,9 @@ object CadenceCalculator {
             scheduleKind = scheduleKind,
             weekdaysMask = weekdaysMask,
             monthDay = monthDay,
+            weekdayOrdinal = weekdayOrdinal,
+            yearMonthsMask = yearMonthsMask,
+            seasonMask = seasonMask,
             zone = zone,
         )?.let { return it }
 
@@ -110,7 +117,8 @@ object CadenceCalculator {
      * intervals while the candidate is ≤ [nowEpochMs].
      * Catch-up mode uses the same path (catch-up is Done-only).
      * Fixed anchor: next grid slot strictly after [nowEpochMs].
-     * Weekly/monthly: next matching local day strictly after [nowEpochMs] (same as Done).
+     * Weekly/monthly/nth-weekday/yearly: next matching local day strictly after
+     * [nowEpochMs] (same as Done).
      */
     fun nextDueAfterSkip(
         mode: CadenceMode,
@@ -122,6 +130,9 @@ object CadenceCalculator {
         scheduleKind: ScheduleKind = ScheduleKind.INTERVAL,
         weekdaysMask: Int = 0,
         monthDay: Int = 0,
+        weekdayOrdinal: Int = 0,
+        yearMonthsMask: Int = 0,
+        seasonMask: Int = 0,
     ): Long {
         require(intervalDays >= 1) { "intervalDays must be >= 1" }
         nextGridDueAfter(
@@ -130,6 +141,9 @@ object CadenceCalculator {
             scheduleKind = scheduleKind,
             weekdaysMask = weekdaysMask,
             monthDay = monthDay,
+            weekdayOrdinal = weekdayOrdinal,
+            yearMonthsMask = yearMonthsMask,
+            seasonMask = seasonMask,
             zone = zone,
         )?.let { return it }
 
@@ -163,6 +177,9 @@ object CadenceCalculator {
         scheduleKind: ScheduleKind,
         weekdaysMask: Int,
         monthDay: Int,
+        weekdayOrdinal: Int,
+        yearMonthsMask: Int,
+        seasonMask: Int,
         zone: ZoneId,
     ): Long? {
         val matches: (LocalDate) -> Boolean = when (scheduleKind) {
@@ -178,6 +195,23 @@ object CadenceCalculator {
                 val onMonthDay: (LocalDate) -> Boolean =
                     { date -> date.dayOfMonth == monthDay.coerceAtMost(date.lengthOfMonth()) }
                 onMonthDay
+            }
+            ScheduleKind.NTH_WEEKDAY -> {
+                require(NthWeekday.isValid(weekdayOrdinal)) { "weekdayOrdinal must be 1–4 or last" }
+                require(Weekdays.isSingle(weekdaysMask)) { "weekdaysMask must be exactly one weekday" }
+                val onNth: (LocalDate) -> Boolean =
+                    { date -> NthWeekday.matches(date, weekdayOrdinal, weekdaysMask) }
+                onNth
+            }
+            ScheduleKind.YEARLY -> {
+                require(Yearly.isValid(yearMonthsMask, seasonMask, monthDay)) {
+                    "yearly needs at least one month or season"
+                }
+                val onYearly: (LocalDate) -> Boolean = { date ->
+                    YearMonths.matches(date, yearMonthsMask, monthDay) ||
+                        Seasons.matches(date, seasonMask)
+                }
+                onYearly
             }
         }
         var date = Instant.ofEpochMilli(afterEpochMs).atZone(zone).toLocalDate()

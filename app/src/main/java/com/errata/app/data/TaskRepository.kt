@@ -7,6 +7,7 @@ import com.errata.app.data.backup.CompletionBackup
 import com.errata.app.data.backup.ErrataBackup
 import com.errata.app.data.backup.SettingsBackup
 import com.errata.app.data.backup.TaskBackup
+import com.errata.app.data.backup.normalized
 import com.errata.app.data.backup.parseAppearanceMode
 import com.errata.app.data.backup.parseCadenceMode
 import com.errata.app.data.backup.parseScheduleKind
@@ -17,8 +18,15 @@ import com.errata.app.data.local.TaskEntity
 import com.errata.app.domain.cadence.CadenceCalculator
 import com.errata.app.domain.cadence.CadenceMode
 import com.errata.app.domain.estimate.EstimateAdjuster
+import com.errata.app.domain.history.HistoryRetention
 import com.errata.app.domain.starter.StarterCatalog
 import com.errata.app.domain.starter.StarterSpec
+import com.errata.app.domain.sync.StableIds
+import com.errata.app.domain.sync.SyncCompletion
+import com.errata.app.domain.sync.SyncMerge
+import com.errata.app.domain.sync.SyncSettings
+import com.errata.app.domain.sync.SyncSnapshot
+import com.errata.app.domain.sync.SyncTask
 import java.time.ZoneId
 import kotlinx.coroutines.flow.Flow
 
@@ -50,12 +58,17 @@ class TaskRepository(
             val anchor = task.anchorEpochDay.takeIf { it != 0L }
                 ?: CadenceCalculator.epochDayOf(task.nextDueAtEpochMs, zone)
             task.copy(
+                uuid = StableIds.orNew(task.uuid),
                 anchorEpochDay = anchor,
                 createdAtEpochMs = task.createdAtEpochMs.takeIf { it != 0L } ?: now,
                 updatedAtEpochMs = now,
             )
         } else {
-            task.copy(updatedAtEpochMs = now)
+            val previous = tasks.getById(task.id)
+            task.copy(
+                uuid = StableIds.orNew(task.uuid.ifBlank { previous?.uuid.orEmpty() }),
+                updatedAtEpochMs = now,
+            )
         }
 
         return if (normalized.id == 0L) {
@@ -89,6 +102,7 @@ class TaskRepository(
                 ?: CadenceCalculator.epochDayOf(drafted.nextDueAtEpochMs, zone)
             drafted.copy(
                 id = 0,
+                uuid = StableIds.new(),
                 anchorEpochDay = anchor,
                 createdAtEpochMs = drafted.createdAtEpochMs.takeIf { it != 0L } ?: now,
                 updatedAtEpochMs = now,
@@ -104,6 +118,7 @@ class TaskRepository(
 
         completions.insert(
             CompletionEntity(
+                uuid = StableIds.new(),
                 taskId = taskId,
                 completedAtEpochMs = completedAtEpochMs,
                 scheduledDueAtEpochMs = scheduledDue,
@@ -121,6 +136,9 @@ class TaskRepository(
             scheduleKind = task.scheduleKind,
             weekdaysMask = task.weekdaysMask,
             monthDay = task.monthDay,
+            weekdayOrdinal = task.weekdayOrdinal,
+            yearMonthsMask = task.yearMonthsMask,
+            seasonMask = task.seasonMask,
         )
 
         tasks.update(
@@ -131,6 +149,7 @@ class TaskRepository(
                 updatedAtEpochMs = completedAtEpochMs,
             ),
         )
+        pruneHistory()
     }
 
     suspend fun snooze(taskId: Long, untilEpochMs: Long) {
@@ -169,6 +188,9 @@ class TaskRepository(
             scheduleKind = task.scheduleKind,
             weekdaysMask = task.weekdaysMask,
             monthDay = task.monthDay,
+            weekdayOrdinal = task.weekdayOrdinal,
+            yearMonthsMask = task.yearMonthsMask,
+            seasonMask = task.seasonMask,
         )
         tasks.update(
             task.copy(
@@ -207,7 +229,15 @@ class TaskRepository(
     }
 
     suspend fun updateSettings(entity: SettingsEntity) {
-        settings.upsert(entity.copy(id = 1))
+        val previous = getSettings()
+        val sharedChanged = previous.sharedEquals(entity).not()
+        val now = System.currentTimeMillis()
+        settings.upsert(
+            entity.copy(
+                id = 1,
+                updatedAtEpochMs = if (sharedChanged) now else previous.updatedAtEpochMs,
+            ),
+        )
     }
 
     suspend fun defaultCadenceMode(): CadenceMode = getSettings().defaultCadenceMode
@@ -224,26 +254,149 @@ class TaskRepository(
 
     /** Wipe local data and replace with [backup]. */
     suspend fun importReplace(backup: ErrataBackup) {
-        if (backup.schemaVersion != BACKUP_SCHEMA_VERSION) {
+        if (backup.schemaVersion !in 1..BACKUP_SCHEMA_VERSION) {
             throw BackupFormatException(
                 "Unsupported backup version ${backup.schemaVersion}",
             )
         }
+        val normalized = backup.normalized()
         db.withTransaction {
             completions.deleteAll()
             tasks.deleteAll()
             settings.deleteAll()
-            settings.upsert(backup.settings.toEntity())
-            if (backup.tasks.isNotEmpty()) {
-                tasks.upsertAll(backup.tasks.map { it.toEntity() })
+            settings.upsert(normalized.settings.toEntity())
+            if (normalized.tasks.isNotEmpty()) {
+                tasks.upsertAll(normalized.tasks.map { it.toEntity() })
             }
-            if (backup.completions.isNotEmpty()) {
-                completions.insertAll(backup.completions.map { it.toEntity() })
+            if (normalized.completions.isNotEmpty()) {
+                completions.insertAll(normalized.completions.map { it.toEntity() })
             }
         }
         db.ensureSettings()
+        pruneHistory()
+    }
+
+    suspend fun pruneHistory(nowEpochMs: Long = System.currentTimeMillis()) {
+        val days = getSettings().historyRetentionDays
+        val rows = completions.listAll().map { row ->
+            HistoryRetention.Row(
+                id = row.id,
+                taskId = row.taskId,
+                completedAtEpochMs = row.completedAtEpochMs,
+            )
+        }
+        val ids = HistoryRetention.idsToDelete(rows, nowEpochMs, days)
+        ids.chunked(500).forEach { chunk ->
+            completions.deleteByIds(chunk)
+        }
+    }
+
+    suspend fun purgeHistory() {
+        val now = System.currentTimeMillis()
+        val current = getSettings()
+        db.withTransaction {
+            completions.deleteAll()
+            settings.upsert(
+                current.copy(
+                    historyGeneration = current.historyGeneration + 1,
+                    historyPurgedAtEpochMs = now,
+                ),
+            )
+        }
+    }
+
+    suspend fun resetTasks(alsoClearCloud: Boolean = false) {
+        val now = System.currentTimeMillis()
+        val current = getSettings()
+        db.withTransaction {
+            completions.deleteAll()
+            tasks.deleteAll()
+            if (alsoClearCloud) {
+                settings.upsert(
+                    current.copy(
+                        tasksGeneration = current.tasksGeneration + 1,
+                        tasksResetAtEpochMs = now,
+                    ),
+                )
+            }
+        }
+    }
+
+    suspend fun toSyncSnapshot(nowEpochMs: Long = System.currentTimeMillis()): SyncSnapshot {
+        val settingsEntity = getSettings()
+        val taskRows = tasks.listAll()
+        val idToUuid = taskRows.associate { it.id to it.uuid }
+        return SyncSnapshot(
+            writtenAtEpochMs = nowEpochMs,
+            tasksGeneration = settingsEntity.tasksGeneration,
+            tasksResetAtEpochMs = settingsEntity.tasksResetAtEpochMs,
+            historyGeneration = settingsEntity.historyGeneration,
+            historyPurgedAtEpochMs = settingsEntity.historyPurgedAtEpochMs,
+            settings = settingsEntity.toSyncSettings(),
+            tasks = taskRows.map { it.toSyncTask() },
+            completions = completions.listAll().mapNotNull { row ->
+                val taskUuid = idToUuid[row.taskId] ?: return@mapNotNull null
+                row.toSyncCompletion(taskUuid)
+            },
+        )
+    }
+
+    suspend fun applySyncSnapshot(snapshot: SyncSnapshot) {
+        val current = getSettings()
+        val pruned = SyncMerge.pruneCompletions(snapshot, System.currentTimeMillis())
+        db.withTransaction {
+            val existing = tasks.listAll().associateBy { it.uuid }
+            for (remote in pruned.tasks) {
+                val local = existing[remote.uuid]
+                val entity = remote.toEntity(localId = local?.id ?: 0L)
+                if (local == null) {
+                    tasks.upsert(entity.copy(id = 0))
+                } else {
+                    tasks.update(entity)
+                }
+            }
+            val keep = pruned.tasks.map { it.uuid }
+            if (keep.isEmpty()) {
+                tasks.deleteAll()
+            } else {
+                tasks.deleteWhereUuidNotIn(keep)
+            }
+            completions.deleteAll()
+            val uuidToId = tasks.listAll().associate { it.uuid to it.id }
+            val rows = pruned.completions.mapNotNull { row ->
+                val taskId = uuidToId[row.taskUuid] ?: return@mapNotNull null
+                row.toEntity(taskId)
+            }
+            if (rows.isNotEmpty()) {
+                completions.insertAll(rows)
+            }
+            settings.upsert(
+                current.copy(
+                    defaultCadenceMode = parseCadenceMode(pruned.settings.defaultCadenceMode),
+                    defaultReminderMinutesOfDay = pruned.settings.defaultReminderMinutesOfDay,
+                    defaultWorkStartMinutesOfDay = pruned.settings.defaultWorkStartMinutesOfDay,
+                    soonHorizonDays = pruned.settings.soonHorizonDays,
+                    digestEnabled = pruned.settings.digestEnabled,
+                    historyRetentionDays = pruned.settings.historyRetentionDays,
+                    updatedAtEpochMs = pruned.settings.updatedAtEpochMs,
+                    historyGeneration = pruned.historyGeneration,
+                    historyPurgedAtEpochMs = pruned.historyPurgedAtEpochMs,
+                    tasksGeneration = pruned.tasksGeneration,
+                    tasksResetAtEpochMs = pruned.tasksResetAtEpochMs,
+                ),
+            )
+        }
+        pruneHistory()
     }
 }
+
+private fun SettingsEntity.sharedEquals(other: SettingsEntity): Boolean =
+    defaultCadenceMode == other.defaultCadenceMode &&
+        defaultReminderMinutesOfDay == other.defaultReminderMinutesOfDay &&
+        defaultWorkStartMinutesOfDay == other.defaultWorkStartMinutesOfDay &&
+        soonHorizonDays == other.soonHorizonDays &&
+        digestEnabled == other.digestEnabled &&
+        historyRetentionDays == other.historyRetentionDays
 
 private fun SettingsEntity.toBackup() = SettingsBackup(
     defaultCadenceMode = defaultCadenceMode.name,
@@ -252,6 +405,12 @@ private fun SettingsEntity.toBackup() = SettingsBackup(
     soonHorizonDays = soonHorizonDays,
     appearanceMode = appearanceMode.name,
     digestEnabled = digestEnabled,
+    historyRetentionDays = historyRetentionDays,
+    updatedAtEpochMs = updatedAtEpochMs,
+    historyGeneration = historyGeneration,
+    historyPurgedAtEpochMs = historyPurgedAtEpochMs,
+    tasksGeneration = tasksGeneration,
+    tasksResetAtEpochMs = tasksResetAtEpochMs,
 )
 
 private fun SettingsBackup.toEntity() = SettingsEntity(
@@ -262,10 +421,27 @@ private fun SettingsBackup.toEntity() = SettingsEntity(
     soonHorizonDays = soonHorizonDays,
     appearanceMode = parseAppearanceMode(appearanceMode),
     digestEnabled = digestEnabled,
+    historyRetentionDays = historyRetentionDays,
+    updatedAtEpochMs = updatedAtEpochMs,
+    historyGeneration = historyGeneration,
+    historyPurgedAtEpochMs = historyPurgedAtEpochMs,
+    tasksGeneration = tasksGeneration,
+    tasksResetAtEpochMs = tasksResetAtEpochMs,
+)
+
+private fun SettingsEntity.toSyncSettings() = SyncSettings(
+    updatedAtEpochMs = updatedAtEpochMs,
+    defaultCadenceMode = defaultCadenceMode.name,
+    defaultReminderMinutesOfDay = defaultReminderMinutesOfDay,
+    defaultWorkStartMinutesOfDay = defaultWorkStartMinutesOfDay,
+    soonHorizonDays = soonHorizonDays,
+    digestEnabled = digestEnabled,
+    historyRetentionDays = historyRetentionDays,
 )
 
 private fun TaskEntity.toBackup() = TaskBackup(
     id = id,
+    uuid = uuid,
     title = title,
     notes = notes,
     estimateMinutes = estimateMinutes,
@@ -273,6 +449,9 @@ private fun TaskEntity.toBackup() = TaskBackup(
     scheduleKind = scheduleKind.name,
     weekdaysMask = weekdaysMask,
     monthDay = monthDay,
+    weekdayOrdinal = weekdayOrdinal,
+    yearMonthsMask = yearMonthsMask,
+    seasonMask = seasonMask,
     cadenceMode = cadenceMode.name,
     anchorEpochDay = anchorEpochDay,
     nextDueAtEpochMs = nextDueAtEpochMs,
@@ -288,6 +467,7 @@ private fun TaskEntity.toBackup() = TaskBackup(
 
 private fun TaskBackup.toEntity() = TaskEntity(
     id = id,
+    uuid = StableIds.orNew(uuid),
     title = title,
     notes = notes,
     estimateMinutes = estimateMinutes,
@@ -295,6 +475,60 @@ private fun TaskBackup.toEntity() = TaskEntity(
     scheduleKind = parseScheduleKind(scheduleKind),
     weekdaysMask = weekdaysMask,
     monthDay = monthDay,
+    weekdayOrdinal = weekdayOrdinal,
+    yearMonthsMask = yearMonthsMask,
+    seasonMask = seasonMask,
+    cadenceMode = parseCadenceMode(cadenceMode),
+    anchorEpochDay = anchorEpochDay,
+    nextDueAtEpochMs = nextDueAtEpochMs,
+    lastCompletedAtEpochMs = lastCompletedAtEpochMs,
+    reminderMinutesOfDay = reminderMinutesOfDay,
+    snoozedUntilEpochMs = snoozedUntilEpochMs,
+    area = area,
+    isPaused = isPaused,
+    isArchived = isArchived,
+    createdAtEpochMs = createdAtEpochMs,
+    updatedAtEpochMs = updatedAtEpochMs,
+)
+
+private fun TaskEntity.toSyncTask() = SyncTask(
+    uuid = uuid,
+    title = title,
+    notes = notes,
+    estimateMinutes = estimateMinutes,
+    intervalDays = intervalDays,
+    scheduleKind = scheduleKind.name,
+    weekdaysMask = weekdaysMask,
+    monthDay = monthDay,
+    weekdayOrdinal = weekdayOrdinal,
+    yearMonthsMask = yearMonthsMask,
+    seasonMask = seasonMask,
+    cadenceMode = cadenceMode.name,
+    anchorEpochDay = anchorEpochDay,
+    nextDueAtEpochMs = nextDueAtEpochMs,
+    lastCompletedAtEpochMs = lastCompletedAtEpochMs,
+    reminderMinutesOfDay = reminderMinutesOfDay,
+    snoozedUntilEpochMs = snoozedUntilEpochMs,
+    area = area,
+    isPaused = isPaused,
+    isArchived = isArchived,
+    createdAtEpochMs = createdAtEpochMs,
+    updatedAtEpochMs = updatedAtEpochMs,
+)
+
+private fun SyncTask.toEntity(localId: Long) = TaskEntity(
+    id = localId,
+    uuid = uuid,
+    title = title,
+    notes = notes,
+    estimateMinutes = estimateMinutes,
+    intervalDays = intervalDays,
+    scheduleKind = parseScheduleKind(scheduleKind),
+    weekdaysMask = weekdaysMask,
+    monthDay = monthDay,
+    weekdayOrdinal = weekdayOrdinal,
+    yearMonthsMask = yearMonthsMask,
+    seasonMask = seasonMask,
     cadenceMode = parseCadenceMode(cadenceMode),
     anchorEpochDay = anchorEpochDay,
     nextDueAtEpochMs = nextDueAtEpochMs,
@@ -310,6 +544,7 @@ private fun TaskBackup.toEntity() = TaskEntity(
 
 private fun CompletionEntity.toBackup() = CompletionBackup(
     id = id,
+    uuid = uuid,
     taskId = taskId,
     completedAtEpochMs = completedAtEpochMs,
     scheduledDueAtEpochMs = scheduledDueAtEpochMs,
@@ -318,8 +553,27 @@ private fun CompletionEntity.toBackup() = CompletionBackup(
 
 private fun CompletionBackup.toEntity() = CompletionEntity(
     id = id,
+    uuid = StableIds.orNew(uuid),
     taskId = taskId,
     completedAtEpochMs = completedAtEpochMs,
     scheduledDueAtEpochMs = scheduledDueAtEpochMs,
     estimateMinutesAtCompletion = estimateMinutesAtCompletion,
 )
+
+private fun CompletionEntity.toSyncCompletion(taskUuid: String) = SyncCompletion(
+    uuid = uuid,
+    taskUuid = taskUuid,
+    completedAtEpochMs = completedAtEpochMs,
+    scheduledDueAtEpochMs = scheduledDueAtEpochMs,
+    estimateMinutesAtCompletion = estimateMinutesAtCompletion,
+)
+
+private fun SyncCompletion.toEntity(taskId: Long) = CompletionEntity(
+    id = 0,
+    uuid = uuid,
+    taskId = taskId,
+    completedAtEpochMs = completedAtEpochMs,
+    scheduledDueAtEpochMs = scheduledDueAtEpochMs,
+    estimateMinutesAtCompletion = estimateMinutesAtCompletion,
+)
+

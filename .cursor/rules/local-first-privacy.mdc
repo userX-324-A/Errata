@@ -14,7 +14,7 @@ alwaysApply: true
 ## Permissions
 
 - Request only what reminders and (optional) exact alarms need
-- Do not add `INTERNET` until a documented sync/export-to-cloud feature exists
+- Do not add `INTERNET` except for the documented opt-in Google Drive App Data path (`docs/01-architecture.md`, `docs/07-google-sync.md`)
 - Prefer storage Access that matches sideload/backup story (user-initiated export/import files)
 
 ## Data

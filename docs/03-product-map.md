@@ -39,7 +39,7 @@ Authority for **what** we build and **why**. Roadmap order lives in [`02-roadmap
 | **Helps** | People whose chores aren’t daily habits |
 | **When** | On create and after every Done |
 | **Pain removed** | Habit apps force daily; calendars ignore “from when I last did it” |
-| **Does** | Interval every N days; weekly weekday sets; monthly day-of-month (clamp missing days). Interval after-Done modes: **from-completion**, **fixed-anchor**, **from-completion + catch-up** (global default + per-task override). Weekly/monthly ignore those modes and stay on the calendar. |
+| **Does** | Interval every N days; weekly weekday sets; monthly day-of-month (clamp missing days); weekday of month (1st–4th or last of one weekday); yearly months and/or northern civil season starts. Interval after-Done modes: **from-completion**, **fixed-anchor**, **from-completion + catch-up** (global default + per-task override). Calendar kinds ignore those modes and stay on the grid. |
 | **Does not** | Punish missed intervals; invent streaks |
 
 **Default global mode:** from-completion + catch-up (see [Cadence policy](#cadence-policy) below).
@@ -95,7 +95,7 @@ Authority for **what** we build and **why**. Roadmap order lives in [`02-roadmap
 | **Helps** | Tablet ↔ phone / backup before wipe |
 | **When** | Before second-device pain or OS reset |
 | **Pain removed** | Data trapped on one install; cloud-account tax |
-| **Does** | User-initiated SAF file export/import of tasks, completions, settings (`schemaVersion` 1). **Import replaces** all local data after confirm. Reached from **Settings**. |
+| **Does** | User-initiated SAF file export/import of tasks, completions, settings (`schemaVersion` 2). **Import replaces** all local data after confirm. Reached from **Settings**. |
 | **Does not** | Require an account or INTERNET; merge/diff import (v1) |
 
 ---
@@ -213,6 +213,16 @@ Authority for **what** we build and **why**. Roadmap order lives in [`02-roadmap
 | **Does** | Last completed; calm fact like typical lateness — **no XP/streaks** |
 | **Does not** | Leaderboards or shame charts |
 
+### History hygiene
+
+| | |
+|---|---|
+| **Helps** | Anyone who Dones for years and does not want a forever log |
+| **When** | Settings; also quietly after Done and on launch |
+| **Pain removed** | Completions accumulating with no off switch |
+| **Does** | Age cap (90 days / 1 year / 2 years / keep all) while always keeping the last eight Dones per task; purge history (tasks stay); reset all tasks (settings stay, empty app) |
+| **Does not** | Shame, streaks, or cloud delete |
+
 ### Exact-alarm permission UX
 
 | | |
@@ -229,9 +239,10 @@ Authority for **what** we build and **why**. Roadmap order lives in [`02-roadmap
 
 | Feature | Purpose |
 |---|---|
-| Richer cadence | Weekly weekday sets and monthly day-of-month |
+| Richer cadence | Weekly weekday sets, monthly day-of-month, weekday of month (1st–4th / last), yearly months and civil seasons |
 | Templates / starters | Editable seed pack on true empty state; user-chosen pin, not auto-seed |
 | Multi-device via file | Export/import plus optional user-chosen folder (`errata-backup.json`, last write wins). Drive via the system picker |
+| Optional Google Drive | Opt-in Google sign-in; hidden Drive **appDataFolder**; merge across devices; WorkManager, no FGS. SAF stays |
 | Play Store packaging | Privacy policy + listing/Data safety copy |
 
 Windows / desktop remains **out** until Android is boringly solid (see vision).
@@ -240,9 +251,7 @@ Windows / desktop remains **out** until Android is boringly solid (see vision).
 
 | Feature | Purpose |
 |---|---|
-| nth-weekday / seasonal | “First Saturday,” seasonal anchors |
 | Play Console submit | Host privacy URL, screenshots, AAB — not a hole in the sideload app |
-| Drive SDK | Only if the system picker is not enough; still no Errata account by default |
 
 ---
 
@@ -253,7 +262,7 @@ Windows / desktop remains **out** until Android is boringly solid (see vision).
 - Full GTD, kanban, tags sprawl, nested projects  
 - Always-on tracking / sticky FGS for “engagement”  
 - Medical or clinical treatment claims  
-- Cloud account as default path  
+- Cloud account as **default** path (optional Google is opt-in)  
 - Windows client before Android MVP is solid  
 
 ---
@@ -267,6 +276,8 @@ Schedule **kind** is orthogonal to after-Done **mode**.
 | **Every N days** (default) | After-Done mode below |
 | **Weekly** | Next selected weekday (Mon–Sun set) strictly after the event, same clock time as the due that was open |
 | **Monthly** | Next occurrence of day-of-month 1–31; if that day does not exist, clamp to the last day of the month. Same keep-time rule |
+| **Weekday of month** | Next 1st / 2nd / 3rd / 4th / last of one weekday strictly after the event. 1st–4th always exist; last is the 4th or 5th depending on the month. Same keep-time rule |
+| **Yearly** | Union of selected months (shared day 1–31, clamp missing days) and northern civil season starts (20 Mar / 21 Jun / 22 Sep / 21 Dec). Same keep-time rule |
 
 ### Modes (per task; global default in Settings; interval tasks only)
 
