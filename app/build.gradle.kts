@@ -12,19 +12,33 @@ android {
     namespace = "com.errata.app"
     compileSdk = 35
 
+    val localProperties = Properties()
+    val localFile = rootProject.file("local.properties")
+    if (localFile.exists()) {
+        localFile.inputStream().use { localProperties.load(it) }
+    }
+
     defaultConfig {
         applicationId = "com.errata.app"
         minSdk = 26
         targetSdk = 35
         versionCode = 1
         versionName = "0.1.0"
-        val localProperties = Properties()
-        val localFile = rootProject.file("local.properties")
-        if (localFile.exists()) {
-            localFile.inputStream().use { localProperties.load(it) }
-        }
         val webClientId = localProperties.getProperty("errata.googleWebClientId", "")
         buildConfigField("String", "GOOGLE_WEB_CLIENT_ID", "\"$webClientId\"")
+    }
+
+    val releaseStorePath = localProperties.getProperty("errata.release.storeFile", "")
+    val releaseStoreFile = if (releaseStorePath.isNotBlank()) rootProject.file(releaseStorePath) else null
+    if (releaseStoreFile != null && releaseStoreFile.exists()) {
+        signingConfigs {
+            create("release") {
+                storeFile = releaseStoreFile
+                storePassword = localProperties.getProperty("errata.release.storePassword", "")
+                keyAlias = localProperties.getProperty("errata.release.keyAlias", "upload")
+                keyPassword = localProperties.getProperty("errata.release.keyPassword", "")
+            }
+        }
     }
 
     buildTypes {
@@ -34,6 +48,9 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro",
             )
+            if (releaseStoreFile != null && releaseStoreFile.exists()) {
+                signingConfig = signingConfigs.getByName("release")
+            }
         }
     }
 

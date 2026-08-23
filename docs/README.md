@@ -15,6 +15,7 @@ Cursor rules under `.cursor/rules/` are day-to-day coding guardrails. This folde
 | [02-roadmap.md](./02-roadmap.md) | Shipped phases + later items |
 | [04-sideload.md](./04-sideload.md) | Build + install APK without Play |
 | [05-privacy.md](./05-privacy.md) | Privacy policy (Play URL when hosted) |
+| [privacy.html](./privacy.html) | Same policy as a public HTML page |
 | [06-play.md](./06-play.md) | Listing draft + Data safety answers |
 | [07-google-sync.md](./07-google-sync.md) | Optional Google Drive App Data (OAuth + two-device checks) |
 

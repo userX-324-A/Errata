@@ -23,13 +23,25 @@ errata.googleWebClientId=YOUR_WEB_CLIENT_ID.apps.googleusercontent.com
 
 Rebuild the APK after this line exists. Settings → Google shows **Link Google** only when this id is present.
 
-### Debug SHA-1
+### SHA-1 fingerprints
+
+Debug (sideload from Android Studio / `installDebug`):
+
+```
+02:CE:49:CD:32:81:57:D7:14:09:E5:2B:9C:E5:FD:36:80:7C:D2:11
+```
+
+Release upload key (`keystore/errata-upload.jks`, Play AAB):
+
+```
+C0:C4:BC:0F:E6:55:60:FD:AC:42:5A:81:E8:E0:15:7B:8B:5E:03:62
+```
+
+After the first Play upload, add the **App Signing** SHA-1 from Play Console as a third Android client fingerprint.
 
 ```bat
 keytool -list -v -keystore %USERPROFILE%\.android\debug.keystore -alias androiddebugkey -storepass android -keypass android
 ```
-
-Copy the SHA-1 into the Android OAuth client. Add the release SHA-1 the same way when you sign a release APK.
 
 Client ids are public. Never create or commit a Web client **secret**.
 

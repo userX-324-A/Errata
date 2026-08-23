@@ -30,7 +30,7 @@ No app account required — just the APK file.
 2. If Android blocks it, allow installs from that source (Files, Drive, etc.) for this one install.
 3. Confirm install. Open **Errata**.
 
-Debug APKs are signed with the local debug keystore — good enough for personal sideload. Release/Play signing comes later if you ship publicly.
+Debug APKs are signed with the local debug keystore — good enough for personal sideload. Play upload uses a separate keystore (`keystore/`, not in git); see [`06-play.md`](./06-play.md).
 
 ## After install
 

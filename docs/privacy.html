@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Privacy — Errata · Ordinary Tools</title>
+  <style>
+    body { font-family: system-ui, sans-serif; line-height: 1.5; max-width: 40rem; margin: 2rem auto; padding: 0 1.25rem; color: #1a1a1a; }
+    h1, h2 { font-weight: 600; }
+    h1 { font-size: 1.6rem; }
+    h2 { font-size: 1.1rem; margin-top: 1.75rem; }
+    table { border-collapse: collapse; width: 100%; }
+    td, th { border: 1px solid #ccc; padding: 0.4rem 0.5rem; text-align: left; vertical-align: top; }
+    a { color: #3d5a4c; }
+  </style>
+</head>
+<body>
+  <h1>Privacy — Errata</h1>
+  <p><strong>Publisher:</strong> Ordinary Tools<br />
+  <strong>Contact:</strong> <a href="mailto:ordinary.tools.apps@gmail.com">ordinary.tools.apps@gmail.com</a><br />
+  Last updated: 23 August 2026.</p>
+  <p>This page is the Play Console / OAuth policy. The in-app Privacy screen states the same facts offline.</p>
+
+  <h2>Who we are</h2>
+  <p><strong>Ordinary Tools</strong> publishes Errata, a personal Android app for recurring upkeep (chores on a cadence, estimates, reminders, a pending list). There is <strong>no Errata account</strong> and no Ordinary Tools servers. The app is free. We do not sell in-app purchases or process payments.</p>
+
+  <h2>What is stored</h2>
+  <p>On <strong>this device</strong> (local database and app preferences):</p>
+  <ul>
+    <li>Tasks you pin (title, notes, schedule, estimates, optional area label)</li>
+    <li>Completion history</li>
+    <li>Settings (appearance, default reminder time, digest, cadence default, work-start, how long to keep completion history)</li>
+    <li>A persistable folder URI if you choose a backup folder (that URI is not included in exported JSON)</li>
+    <li>If you link Google: the email you signed in with, and sync status, on this device only</li>
+  </ul>
+
+  <h2>Optional Google Drive copy</h2>
+  <p>Linking Google is <strong>opt-in</strong>. If you do:</p>
+  <ul>
+    <li>Errata asks Google for sign-in and for the <strong>Drive app data</strong> scope only (<code>drive.appdata</code>). It cannot see the rest of your Drive.</li>
+    <li>A hidden file (<code>errata-sync.json</code>) is stored in Google Drive’s app folder for Errata. It uses <strong>your</strong> Drive quota. You do not pick a folder or manage the file in the Drive UI.</li>
+    <li>That file includes task titles, notes, schedules, completion history, and shared settings (not appearance, not your backup-folder URI).</li>
+    <li>Traffic uses HTTPS to Google. Errata does not run a backend.</li>
+    <li>Unlink stops sync. You can also delete the Google copy from Settings. Uninstalling Errata does <strong>not</strong> delete the Drive file unless you chose delete.</li>
+    <li>Switching Google accounts: unlink (delete the copy if you want), then link the other account. Two Google accounts are not merged.</li>
+  </ul>
+  <p>You can skip Google entirely. Folder export / JSON backup still work.</p>
+
+  <h2>What is not collected</h2>
+  <p>Errata does <strong>not</strong> run Ordinary Tools servers, ads, analytics, or crash-reporting SDKs. Task titles are not sent anywhere except <strong>Google Drive app data if you linked Google</strong>.</p>
+  <p>The app has the Internet permission so that optional Google path can run. It does not phone home to Ordinary Tools.</p>
+
+  <h2>Permissions</h2>
+  <table>
+    <tr><th>Permission</th><th>Why</th></tr>
+    <tr><td>Internet</td><td>Optional Google Drive app data when you link</td></tr>
+    <tr><td>Network state</td><td>So background sync can wait for connectivity</td></tr>
+    <tr><td>Notifications</td><td>Due reminders (and optional morning digest)</td></tr>
+    <tr><td>Boot completed</td><td>Reschedule reminders after reboot</td></tr>
+    <tr><td>Exact alarms (optional, Android 12+)</td><td>Fire at the clock time you picked; inexact fallback if declined</td></tr>
+  </table>
+  <p>File and folder access uses the <strong>system picker</strong> when you export, import, or choose a backup folder. That is not a blanket storage permission.</p>
+
+  <h2>Copies you make</h2>
+  <p>You can export or import a JSON file, or write/read <code>errata-backup.json</code> in a folder you pick. Last write wins; import replaces all data on that device after you confirm. If Google is linked, import then updates the Drive copy to match this device.</p>
+  <p>If the system picker offers Drive or another provider, that copy lives wherever <strong>you</strong> put it — separate from optional app-data sync.</p>
+  <p>Completion history can be trimmed automatically (age cap; last eight Dones per task are always kept) or cleared from Settings. Deleting all tasks from Settings removes tasks and history but keeps settings. If Google is linked, reset can also clear the Google copy.</p>
+
+  <h2>System cloud backup</h2>
+  <p>Android Auto Backup / cloud backup of Errata app data is <strong>off</strong>. Moving to another device is your export, folder file, optional Google link, or a new install.</p>
+
+  <h2>Reminders</h2>
+  <p>Notifications are local. Errata is not a medical device and does not provide clinical advice.</p>
+
+  <h2>Changes</h2>
+  <p>If storage, permissions, or network use change, this policy and the in-app Privacy screen must change with them.</p>
+</body>
+</html>

@@ -61,7 +61,8 @@ Tier 3 core is in tree. Ask before starting anything under **Later**.
 
 Not holes in the daily driver. Implement only if asked.
 
-- [ ] Play Console submit (host privacy URL, screenshots, AAB, paid account) — copy is in [`05-privacy.md`](./05-privacy.md) / [`06-play.md`](./06-play.md)
+- [ ] Host privacy policy URL (public HTTPS; repo is private so Pages is blocked) — [`privacy.html`](./privacy.html)
+- [ ] Play Console closed beta (Ordinary Tools account, screenshots, AAB) — [`06-play.md`](./06-play.md)
 
 ## Explicitly not on the roadmap
 

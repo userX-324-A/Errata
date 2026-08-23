@@ -251,7 +251,8 @@ Windows / desktop remains **out** until Android is boringly solid (see vision).
 
 | Feature | Purpose |
 |---|---|
-| Play Console submit | Host privacy URL, screenshots, AAB — not a hole in the sideload app |
+| Host privacy URL | Public HTTPS page of [`privacy.html`](./privacy.html); this private repo cannot use GitHub Pages |
+| Play Console closed beta | Ordinary Tools account, screenshots, AAB — not a hole in the sideload app |
 
 ---
 

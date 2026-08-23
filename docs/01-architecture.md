@@ -136,7 +136,7 @@ Existing installs migrate 7→8 with generated UUIDs. Calendar-grid rows keep a 
 
 - Debug/release APK for sideload — see [`04-sideload.md`](./04-sideload.md)  
 - Privacy policy: [`05-privacy.md`](./05-privacy.md) (in-app Settings → Privacy; host the doc when submitting to Play)  
-- Play listing / Data safety draft: [`06-play.md`](./06-play.md). Console upload is still later. Name **Errata** (not UpKeep).  
+- Play listing / Data safety: [`06-play.md`](./06-play.md). Publisher **Ordinary Tools**. Console upload waits on Play identity. Name **Errata** (not UpKeep).  
 - **Android Auto Backup is off** (`allowBackup=false`; cloud and device-to-device extraction excluded). Move path is user Backup export/folder.  
 
 ## Backup (export / import)

@@ -1,14 +1,15 @@
 # Privacy — Errata
 
-Play-usable policy. Must match the APK. Host this file (GitHub / Pages) and paste that URL in Play Console when you submit. The in-app Privacy screen states the same facts offline.
+Play-usable policy. Must match the APK. Host this file as a public HTTPS page (this repo is private, so GitHub Pages is unavailable here). Paste that URL in Play Console and Cloud OAuth consent. The in-app Privacy screen states the same facts offline.
 
-**Contact when hosted:** replace this line with an email you actually read.
+**Publisher:** Ordinary Tools  
+**Contact:** [ordinary.tools.apps@gmail.com](mailto:ordinary.tools.apps@gmail.com)
 
 Last updated: 23 August 2026.
 
 ## Who we are
 
-Errata is a personal Android app for recurring upkeep (chores on a cadence, estimates, reminders, a pending list). There is **no Errata account** and no Errata servers.
+**Ordinary Tools** publishes Errata, a personal Android app for recurring upkeep (chores on a cadence, estimates, reminders, a pending list). There is **no Errata account** and no Ordinary Tools servers. The app is free. We do not sell in-app purchases or process payments.
 
 ## What is stored
 
@@ -35,9 +36,9 @@ You can skip Google entirely. Folder export / JSON backup still work.
 
 ## What is not collected
 
-Errata does **not** run Errata servers, ads, analytics, or crash-reporting SDKs. Task titles are not sent anywhere except **Google Drive app data if you linked Google**.
+Errata does **not** run Ordinary Tools servers, ads, analytics, or crash-reporting SDKs. Task titles are not sent anywhere except **Google Drive app data if you linked Google**.
 
-The app has the `INTERNET` permission so that optional Google path can run. It does not phone home to Errata.
+The app has the `INTERNET` permission so that optional Google path can run. It does not phone home to Ordinary Tools.
 
 ## Permissions
 

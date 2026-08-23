@@ -178,7 +178,7 @@
     <string name="settings_backup_hint">Export, import, or a shared folder on this device</string>
     <string name="privacy_title">Privacy</string>
     <string name="privacy_hint">What’s stored on this device</string>
-    <string name="privacy_intro">Errata keeps your upkeep list on this device. There is no Errata account and no Errata servers. Linking Google is optional.</string>
+    <string name="privacy_intro">Errata is published by Ordinary Tools. Your upkeep list stays on this device. There is no Errata account and no Ordinary Tools servers. Linking Google is optional. Contact: ordinary.tools.apps@gmail.com</string>
     <string name="privacy_heading_stored">What’s stored</string>
     <string name="privacy_stored">Tasks, completion history, and settings live in the app’s local database. History can be trimmed or cleared in Settings. If you choose a backup folder, that folder’s address is remembered on this device only (it is not inside the exported JSON). If you link Google, a copy also lives in your Drive app folder.</string>
     <string name="privacy_heading_not">What isn’t collected</string>
