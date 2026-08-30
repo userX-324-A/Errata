@@ -2,5 +2,6 @@
 
 Publisher of **Errata** and other free, local-first personal tools.
 
-- [Errata privacy policy (markdown)](./05-privacy.md)
-- [Errata privacy policy (HTML for hosting)](./privacy.html)
+- Hosted homepage: https://userX-324-A.github.io/Errata/
+- [Errata privacy policy](https://userX-324-A.github.io/Errata/privacy.html)
+- [Publish checklist (human)](./08-publish.md)

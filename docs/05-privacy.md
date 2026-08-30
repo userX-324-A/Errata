@@ -1,6 +1,6 @@
 # Privacy — Errata
 
-Play-usable policy. Must match the APK. Host this file as a public HTTPS page (this repo is private, so GitHub Pages is unavailable here). Paste that URL in Play Console and Cloud OAuth consent. The in-app Privacy screen states the same facts offline.
+Play-usable policy. Must match the APK. Hosted at [https://userX-324-A.github.io/Errata/privacy.html](https://userX-324-A.github.io/Errata/privacy.html). Paste that URL in Play Console and Cloud OAuth consent. The in-app Privacy screen states the same facts offline.
 
 **Publisher:** Ordinary Tools  
 **Contact:** [ordinary.tools.apps@gmail.com](mailto:ordinary.tools.apps@gmail.com)

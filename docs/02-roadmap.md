@@ -61,8 +61,8 @@ Tier 3 core is in tree. Ask before starting anything under **Later**.
 
 Not holes in the daily driver. Implement only if asked.
 
-- [ ] Host privacy policy URL (public HTTPS; repo is private so Pages is blocked) — [`privacy.html`](./privacy.html)
-- [ ] Play Console closed beta (Ordinary Tools account, screenshots, AAB) — [`06-play.md`](./06-play.md)
+- [x] Host privacy policy URL — https://userX-324-A.github.io/Errata/privacy.html
+- [ ] Play Console closed beta (you: listing, AAB, 12 testers) — [`08-publish.md`](./08-publish.md)
 
 ## Explicitly not on the roadmap
 

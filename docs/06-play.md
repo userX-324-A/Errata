@@ -1,13 +1,14 @@
 # Play listing — Errata
 
-Closed-beta packaging. Sideload remains [`04-sideload.md`](./04-sideload.md). Privacy authority: [`05-privacy.md`](./05-privacy.md).
+Listing copy and Data safety answers. **Human upload steps:** [`08-publish.md`](./08-publish.md). Sideload: [`04-sideload.md`](./04-sideload.md). Privacy authority: [`05-privacy.md`](./05-privacy.md).
 
 **App name:** Errata (not UpKeep)  
 **Developer name:** Ordinary Tools  
 **Contact:** ordinary.tools.apps@gmail.com  
 **Price:** Free. No in-app products, no donations.
 
-Privacy URL (public HTTPS, not a Google Doc). This GitHub repo is **private**, so Pages is not available on the free plan. Cheapest: a tiny **public** repo with only [`privacy.html`](./privacy.html), or Cloudflare Pages. Then paste that URL into Play and Cloud OAuth consent.
+**Privacy URL:** https://userX-324-A.github.io/Errata/privacy.html  
+**Homepage:** https://userX-324-A.github.io/Errata/
 
 ## Short description (≤80 characters)
 
@@ -49,21 +50,7 @@ No ads, no full storage permission.
 
 ## Closed beta checklist
 
-Do these while Play identity verification is pending. Console upload waits on that.
-
-1. **Account** — Personal developer account (not organization). Identity in progress. Developer name **Ordinary Tools**.
-2. **Privacy URL** — Host [`privacy.html`](./privacy.html) on a public HTTPS URL (see above). Do not use a GitHub blob link.
-3. **AAB** — `gradlew.bat :app:bundleRelease` → `app\build\outputs\bundle\release\app-release.aab`. Signed with the local upload keystore (`keystore/`, not in git).
-4. **OAuth SHA-1s** — Android client `com.errata.app` needs:
-   - Debug: `02:CE:49:CD:32:81:57:D7:14:09:E5:2B:9C:E5:FD:36:80:7C:D2:11`
-   - Upload key: `C0:C4:BC:0F:E6:55:60:FD:AC:42:5A:81:E8:E0:15:7B:8B:5E:03:62`
-   - Play App Signing SHA-1 (add after the first AAB upload; Console → App integrity)
-5. **OAuth testers** — Keep consent **Testing**. Add closed-test Gmails as Cloud test users. Do not start Drive scope verification until production.
-6. **Store assets** — [`play/`](../play/README.md): 512 icon, 1024×500 feature graphic, phone + tablet screenshots (fake task titles).
-7. **App content** — Content rating; target audience not children; not a medical device; no ads; app access: Google link is optional, reviewers can use the app without signing in.
-8. **Closed test** — After verification: upload AAB → closed testing → **12 testers opted in for 14 days** → apply for production.
-
-`targetSdk` is 35 today. If you submit after **31 August 2026**, Play may require 36 — bump compile/target then.
+Moved to [`08-publish.md`](./08-publish.md) (Play Console, OAuth, paid testers, AAB). Store assets live in [`play/`](../play/README.md).
 
 ## Store claims to avoid
 

@@ -17,6 +17,7 @@ Cursor rules under `.cursor/rules/` are day-to-day coding guardrails. This folde
 | [05-privacy.md](./05-privacy.md) | Privacy policy (Play URL when hosted) |
 | [privacy.html](./privacy.html) | Same policy as a public HTML page |
 | [06-play.md](./06-play.md) | Listing draft + Data safety answers |
+| [08-publish.md](./08-publish.md) | **Human** Play / OAuth / tester steps |
 | [07-google-sync.md](./07-google-sync.md) | Optional Google Drive App Data (OAuth + two-device checks) |
 
 ## Principles (do not violate)

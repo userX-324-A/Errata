@@ -45,7 +45,7 @@ keytool -list -v -keystore %USERPROFILE%\.android\debug.keystore -alias androidd
 
 Client ids are public. Never create or commit a Web client **secret**.
 
-Testing users only until you host [`05-privacy.md`](./05-privacy.md) and complete brand verification. Production “any Google account” is later, with Play Console.
+Testing users only until you publish the OAuth consent screen. `drive.appdata` is **non-sensitive**; brand verification (homepage + [privacy.html](https://userX-324-A.github.io/Errata/privacy.html)) is enough for any Google account. Heavy Drive verification is not required. Steps: [`08-publish.md`](./08-publish.md).
 
 ## What the app does
 
@@ -66,7 +66,7 @@ Do this on a phone and a tablet signed into the **same** test Google account.
 7. Unlink on A: local list stays. Unlink and delete Google copy: Drive file gone; B will upload again if still linked.
 8. Airplane mode write, then reconnect — debounce/catch-up uploads without a stuck spinner of task titles.
 
-Then ask before Play Console submit vs more polish.
+Then follow [`08-publish.md`](./08-publish.md) for Play closed testing.
 
 ## Battery
 
