@@ -59,6 +59,7 @@ fun AllTasksScreen(
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     var archiveTargetId by remember { mutableStateOf<Long?>(null) }
+    var pauseTargetId by remember { mutableStateOf<Long?>(null) }
 
     Scaffold(
         topBar = {
@@ -91,7 +92,7 @@ fun AllTasksScreen(
         if (state.isEmpty) {
             StarterPackEmpty(
                 title = stringResource(R.string.library_empty_title),
-                body = stringResource(R.string.starters_body),
+                body = stringResource(R.string.library_empty_body),
                 onAddTask = onAddTask,
                 onPin = viewModel::pinStarters,
                 onRescheduleReminders = viewModel::rescheduleReminders,
@@ -120,7 +121,7 @@ fun AllTasksScreen(
                         item = item,
                         selected = item.task.id == selectedTaskId,
                         onOpen = { onOpenTask(item.task.id) },
-                        onPause = { viewModel.pause(item.task.id) },
+                        onPause = { pauseTargetId = item.task.id },
                         onResume = { viewModel.resume(item.task.id) },
                         onArchive = { archiveTargetId = item.task.id },
                     )
@@ -141,6 +142,29 @@ fun AllTasksScreen(
                 item { Spacer(modifier = Modifier.height(8.dp)) }
             }
         }
+    }
+
+    pauseTargetId?.let { id ->
+        AlertDialog(
+            onDismissRequest = { pauseTargetId = null },
+            title = { Text(stringResource(R.string.pause_confirm_title)) },
+            text = { Text(stringResource(R.string.pause_confirm_body)) },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        viewModel.pause(id)
+                        pauseTargetId = null
+                    },
+                ) {
+                    Text(stringResource(R.string.action_pause))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { pauseTargetId = null }) {
+                    Text(stringResource(R.string.action_cancel))
+                }
+            },
+        )
     }
 
     archiveTargetId?.let { id ->

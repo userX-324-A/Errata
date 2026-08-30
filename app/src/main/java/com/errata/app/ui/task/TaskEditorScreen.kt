@@ -1,5 +1,6 @@
 package com.errata.app.ui.task
 
+import android.Manifest
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -62,8 +63,12 @@ import com.errata.app.domain.cadence.Weekdays
 import com.errata.app.domain.cadence.YearMonths
 import com.errata.app.domain.history.TypicalLateness
 import com.errata.app.domain.reminders.ReminderPolicy
+import com.errata.app.reminders.AfterPinPrompt
 import com.errata.app.reminders.ExactAlarmAccess
-import com.errata.app.ui.theme.ERRATA_EDITOR_TWO_COLUMN_MIN_DP
+import com.errata.app.reminders.NotificationAccess
+import com.errata.app.reminders.afterPinPrompt
+import com.errata.app.ui.common.NotifyPromptDialog
+import com.errata.app.ui.adaptive.ErrataAdaptive
 import com.errata.app.ui.theme.ErrataScreenInsets
 import com.errata.app.ui.theme.ErrataTopInsets
 import com.errata.app.ui.theme.errataContentWidth
@@ -93,6 +98,7 @@ fun TaskEditorScreen(
     var showCustomArea by remember { mutableStateOf(false) }
     var customAreaText by remember { mutableStateOf("") }
     var showExactPrompt by remember { mutableStateOf(false) }
+    var showNotifyPrompt by remember { mutableStateOf(false) }
     var confirmDiscard by remember { mutableStateOf(false) }
     val context = LocalContext.current
     val exactLauncher = rememberLauncherForActivityResult(
@@ -100,6 +106,19 @@ fun TaskEditorScreen(
     ) {
         viewModel.rescheduleReminders()
         onSaved()
+    }
+    val finishAfterNotify = {
+        if (ExactAlarmAccess.shouldPrompt(context)) {
+            showExactPrompt = true
+        } else {
+            onSaved()
+        }
+    }
+    val notifyLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission(),
+    ) { granted ->
+        if (granted) viewModel.rescheduleReminders()
+        finishAfterNotify()
     }
 
     val requestLeave = {
@@ -119,10 +138,12 @@ fun TaskEditorScreen(
 
     LaunchedEffect(state.saved) {
         if (!state.saved) return@LaunchedEffect
-        if (ExactAlarmAccess.shouldPrompt(context)) {
-            showExactPrompt = true
-        } else {
-            onSaved()
+        val notify = NotificationAccess.shouldPrompt(context) &&
+            !ReminderPolicy.isNone(state.reminderMinutesOfDay)
+        when (afterPinPrompt(notify, ExactAlarmAccess.shouldPrompt(context))) {
+            AfterPinPrompt.Notifications -> showNotifyPrompt = true
+            AfterPinPrompt.Exact -> showExactPrompt = true
+            AfterPinPrompt.None -> onSaved()
         }
     }
 
@@ -171,7 +192,7 @@ fun TaskEditorScreen(
                 .fillMaxSize()
                 .padding(innerPadding),
         ) {
-        val twoColumn = maxWidth >= ERRATA_EDITOR_TWO_COLUMN_MIN_DP.dp
+        val twoColumn = ErrataAdaptive.editorTwoColumn(maxWidth.value.toInt())
         val dueDateLabel = DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM)
             .format(LocalDate.ofEpochDay(state.dueEpochDay))
         val dueTimeLabel = formatDeviceClock(state.dueMinuteOfDay)
@@ -197,6 +218,20 @@ fun TaskEditorScreen(
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth(),
                 isError = state.errorMessage == "title",
+            )
+            OutlinedTextField(
+                value = state.estimateMinutes,
+                onValueChange = viewModel::updateEstimate,
+                label = { Text(stringResource(R.string.field_estimate)) },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                modifier = Modifier.fillMaxWidth(),
+                isError = state.errorMessage == "estimate",
+            )
+            Text(
+                text = stringResource(R.string.field_estimate_hint),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             OutlinedTextField(
                 value = state.notes,
@@ -251,16 +286,6 @@ fun TaskEditorScreen(
                     },
                 )
             }
-
-            OutlinedTextField(
-                value = state.estimateMinutes,
-                onValueChange = viewModel::updateEstimate,
-                label = { Text(stringResource(R.string.field_estimate)) },
-                singleLine = true,
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                modifier = Modifier.fillMaxWidth(),
-                isError = state.errorMessage == "estimate",
-            )
             }, second = {
             Text(
                 text = stringResource(R.string.field_schedule),
@@ -552,10 +577,12 @@ fun TaskEditorScreen(
             )
             Text(
                 text = stringResource(
-                    if (ReminderPolicy.isNone(state.reminderMinutesOfDay)) {
-                        R.string.reminder_none_hint
-                    } else {
-                        R.string.reminder_when_due_hint
+                    when {
+                        ReminderPolicy.isNone(state.reminderMinutesOfDay) ->
+                            R.string.reminder_none_hint
+                        ReminderPolicy.isClock(state.reminderMinutesOfDay) ->
+                            R.string.reminder_custom_hint
+                        else -> R.string.reminder_when_due_hint
                     },
                 ),
                 style = MaterialTheme.typography.bodySmall,
@@ -750,6 +777,21 @@ fun TaskEditorScreen(
                 TextButton(onClick = { showCustomArea = false }) {
                     Text(stringResource(R.string.action_cancel))
                 }
+            },
+        )
+    }
+
+    if (showNotifyPrompt) {
+        NotifyPromptDialog(
+            onAllow = {
+                NotificationAccess.markPrompted(context)
+                showNotifyPrompt = false
+                notifyLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+            },
+            onNotNow = {
+                NotificationAccess.markPrompted(context)
+                showNotifyPrompt = false
+                finishAfterNotify()
             },
         )
     }

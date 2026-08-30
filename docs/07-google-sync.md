@@ -50,9 +50,9 @@ Testing users only until you publish the OAuth consent screen. `drive.appdata` i
 ## What the app does
 
 - Credential Manager Google sign-in, then `drive.appdata` only. Drive authorize is bound to that signed-in account (`AuthorizationRequest.setAccount`).
-- Hidden file `errata-sync.json` in Drive **appDataFolder**. If more than one exists, keep the newest `modifiedTime` and delete the others. Patch always sends If-Match (fetch metadata etag if the GET body omitted it). Tasks LWW by uuid `updatedAt`; completions union; shared settings LWW. Purge, reset, and **linked import** bump generations so the other side drops superseded rows. Corrupt Drive JSON fails the round and is not overwritten. SAF folder export stays.
-- WorkManager: one unique one-shot (`errata-sync`) — 45s debounce after writes (including Pin selected), Sync now / app open replace that delay; one 24h catch-up. Access token is cached ~50 minutes; Drive 401/403 drops the cache and retries once. If auth is still dead, work is cancelled until Link Google or Sync now — not retried forever. Rounds are serialized; a merge is not applied if local changed during the upload. No foreground service.
-- Unlink and delete Google copy only unlinks after the Drive delete succeeds. Stay linked and retry if offline.
+- Hidden file `errata-sync.json` in Drive **appDataFolder**. If more than one exists, keep the newest `modifiedTime` and delete the others. First upload with no cached id lists first and patches an existing file instead of creating a second. Patch always sends If-Match (fetch metadata etag if the GET body omitted it). Tasks LWW by uuid `updatedAt`; completions union; shared settings LWW. Purge, **reset with clear Google copy** (tasks *and* history generations), and **linked import** bump generations so the other side drops superseded rows. Unlinked import keeps the file’s generations. Corrupt Drive JSON fails the round, is not overwritten, and cancels work until Sync now — not retried forever. SAF folder export stays.
+- WorkManager: one unique one-shot (`errata-sync`) — 45s debounce after writes (including Pin selected), Sync now / process start replace that delay (not Activity rotation); one 24h catch-up. Access token is cached ~50 minutes; Drive 401/403 drops the cache and retries once. If auth is still dead **or the Drive copy is unreadable**, work is cancelled until Link Google or Sync now — not retried forever. Rounds are serialized; a merge is not applied if local changed during the upload. No foreground service.
+- Unlink and delete Google copy lists every `errata-sync.json` and only unlinks after all deletes succeed. Stay linked and retry if offline or a sibling remains.
 
 ## Two-device check (after OAuth works)
 
@@ -63,9 +63,9 @@ Do this on a phone and a tablet signed into the **same** test Google account.
 3. Pin the same chore independently on both **before** linking — you get two tasks (no fuzzy merge).
 4. Yearly task with few Dones: typical lateness still has samples after a 90-day retention setting.
 5. Purge history on A; B should drop old Dones but keep a Done made after the purge.
-6. Reset on A with **Also clear the Google copy** checked — both empty. Unchecked — A empty until sync restores from Google.
-7. Import a backup on A while linked — B should match the file (tasks that were only on Drive and not in the file disappear).
-8. Unlink on A: local list stays. Unlink and delete Google copy: Drive file gone; B will upload again if still linked. Airplane mode + delete Google copy should stay linked and say it failed.
+6. Reset on A with **Also clear the Google copy** checked — both empty, including Dones. Unchecked — A empty until sync restores from Google.
+7. Import a backup on A while linked — B should match the file (tasks that were only on Drive and not in the file disappear). Import while unlinked does not stamp wipe generations; a later Link merges with Drive.
+8. Unlink on A: local list stays. Unlink and delete Google copy: every `errata-sync.json` gone; B will upload again if still linked. Airplane mode + delete Google copy should stay linked and say it failed.
 9. Airplane mode write, then reconnect — debounce/catch-up uploads without a stuck spinner of task titles.
 
 Then follow [`08-publish.md`](./08-publish.md) for Play closed testing.

@@ -40,6 +40,12 @@ class StarterCatalogTest {
         ScheduleKind.entries.forEach { kind ->
             assertTrue("missing kind $kind", StarterCatalog.ALL.any { it.scheduleKind == kind })
         }
+        val haircut = StarterCatalog.ALL.single { it.id == "haircut" }
+        assertEquals("Get a haircut", haircut.title)
+        assertEquals(60, haircut.estimateMinutes)
+        val oil = StarterCatalog.ALL.single { it.id == "oil" }
+        assertEquals("Oil change", oil.title)
+        assertEquals(60, oil.estimateMinutes)
         val bins = StarterCatalog.ALL.single { it.id == "bins" }
         assertEquals(Weekdays.bit(DayOfWeek.TUESDAY), bins.weekdaysMask)
         assertEquals("bill", StarterCatalog.ALL.single { it.id == "bill" }.id)
@@ -82,6 +88,35 @@ class StarterCatalogTest {
         val now = noon(2026, 1, 12) // Monday
         val due = StarterCatalog.firstDueEpochMs(spec, reminder, now, zone)
         assertEquals(atReminder(2026, 1, 13), due)
+    }
+
+    @Test
+    fun weekly_tuesdayMorningBeforeReminder_isToday() {
+        val spec = StarterCatalog.ALL.single { it.id == "bins" }
+        val now = LocalDate.of(2026, 1, 13).atTime(8, 0).toInstant(zone).toEpochMilli()
+        val due = StarterCatalog.firstDueEpochMs(spec, reminder, now, zone)
+        assertEquals(atReminder(2026, 1, 13), due)
+    }
+
+    @Test
+    fun monthly_day1_thisMorning_isToday() {
+        val spec = StarterCatalog.ALL.single { it.id == "bill" }
+        val now = LocalDate.of(2026, 2, 1).atTime(8, 0).toInstant(zone).toEpochMilli()
+        val due = StarterCatalog.firstDueEpochMs(spec, reminder, now, zone)
+        assertEquals(atReminder(2026, 2, 1), due)
+    }
+
+    @Test
+    fun estimates_handsOnDefaults() {
+        fun minutes(id: String) = StarterCatalog.ALL.single { it.id == id }.estimateMinutes
+        assertEquals(40, minutes("bathroom"))
+        assertEquals(90, minutes("deep_kitchen"))
+        assertEquals(40, minutes("bedding"))
+        assertEquals(45, minutes("grout"))
+        assertEquals(25, minutes("mattress"))
+        assertEquals(90, minutes("gutters"))
+        assertEquals(35, minutes("car"))
+        assertEquals(40, minutes("lights"))
     }
 
     @Test
@@ -154,6 +189,7 @@ class StarterCatalogTest {
         val bins = StarterCatalog.ALL.single { it.id == "bins" }
         val bill = StarterCatalog.ALL.single { it.id == "bill" }
         assertTrue(StarterCatalog.cadenceSummary(bins).startsWith("Weekly"))
+        assertTrue(StarterCatalog.cadenceSummary(bins).contains("change the day"))
         assertEquals("Monthly · day 1", StarterCatalog.cadenceSummary(bill))
     }
 }

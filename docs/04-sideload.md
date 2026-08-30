@@ -46,7 +46,7 @@ Debug APKs are signed with the local debug keystore — good enough for personal
 
 ## After install
 
-- Grant **notifications** when prompted (reminders).
+- Grant **notifications** when you pin a task that reminds (not on first open). If you skip, Pending shows a quiet banner; Settings still has a path.
 - Optional on Android 12+: **Alarms & reminders** special access (Settings → On-time reminders) if you want them at the clock time you picked. Declining is fine — reminders still fire, sometimes a few minutes late.
 - Optional: **Backup** under Settings to export/import JSON, or a shared folder. Optional: **Link Google** (hidden Drive app folder) after you add an OAuth client — [docs/07-google-sync.md](./07-google-sync.md).
 - **Privacy** under Settings states what stays on device and what optional Google link sends. Android cloud backup of Errata data is off.
@@ -54,10 +54,12 @@ Debug APKs are signed with the local debug keystore — good enough for personal
 
 ## Device checks (friends / tablet)
 
-Unit tests cover cadence, reminder fire times, digest membership, backup, and sync merge. `androidTest` covers catalog Save popping to pending. Walk the rest on a **real tablet or phone** (sideload or Play). Calm titles; no real personal notes.
+Unit tests cover cadence, reminder fire times, digest membership, backup, sync merge, and catalog Save returning to the list (pane stack). Walk the rest on a **real tablet or phone** (sideload or Play). Calm titles; no real personal notes.
 
 ### Shade
 
+- [ ] Fresh install: first open does **not** show the system notification dialog; pin a reminder task — rationale, then the system prompt
+- [ ] Deny notifications — Pending banner (Allow reminders); list still works; Settings still has a path
 - [ ] Pin a task with a reminder; when the card appears, **Done** once — next due advances; the card is gone
 - [ ] Double-tap shade **Done** before it dismisses — one completion, not two cycles
 - [ ] Complete in-app, leftover shade **Snooze** — refused / gone; does not snooze the new cycle
@@ -69,17 +71,25 @@ Unit tests cover cadence, reminder fire times, digest membership, backup, and sy
 - [ ] N=1 — the usual per-task card (Done / Snooze)
 - [ ] N≥2 — one digest (count + total minutes); tap opens pending
 - [ ] Force-stop overnight past the digest clock, open the app — one missed digest that local day, not a second card
+- [ ] Pin a due-today task after the window, then open Settings — still one same-day card, not a second
+- [ ] After today’s digest, change the default clock to later today — no second digest this local day
+- [ ] Digest N≥2, Done in-app — the digest card is gone (count/minutes do not linger)
 
 ### Import and Google
 
-- [ ] Settings → Backup import (SAF) replace-all while offline
+- [ ] Settings → Backup import (SAF) replace-all while offline — use a **current** export. An older uuid-less file warns before replace
 - [ ] Import while **linked** — the other device matches the file after Sync now (see [`07-google-sync.md`](./07-google-sync.md) two-device step 7)
+
+### Catalog Save
+
+- [ ] Compact: Add task → starter → Save returns to Pending, not the catalog. Back from the editor still shows the catalog
+- [ ] Two-pane: same Save keeps the list visible; detail clears
 
 ### Tablet layout
 
 - [ ] Compact / phone: bottom bar; editor is a full-screen push
-- [ ] 7–10″ landscape (expanded): navigation rail; Pending, All tasks, and catalog keep the list beside the editor; Save does not hide the list
-- [ ] Narrow (~720dp) vs wide two-pane — list stays usable, editor can use two columns
+- [ ] Medium and expanded (7–10″ portrait and landscape): navigation rail; Pending, All tasks, and catalog keep the list beside the editor; Save does not hide the list
+- [ ] Wide two-pane: editor can use two columns; medium two-pane keeps a single-column editor
 
 ## Rebuild and update
 

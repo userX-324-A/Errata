@@ -73,7 +73,7 @@ Authority for **what** we build and **why**. Roadmap order lives in [`02-roadmap
 | **Helps** | When now isn’t possible but the task isn’t done |
 | **When** | List or notification |
 | **Pain removed** | Binary done-or-ignore; reminders that nag forever |
-| **Does** | Delay due/reminder without completing. Presets: **1 hour**, **later today**, **tomorrow** (next day at the task’s reminder or due clock, not midnight), **pick time** |
+| **Does** | Delay due/reminder without completing. Presets: **1 hour**, **later today**, **tomorrow** (next day at the task’s reminder or due clock, not midnight), **pick time**. Pause, resume, and due/grid edits clear it. |
 | **Does not** | Count as completion or skip-the-cycle |
 
 ### Reminders
@@ -95,7 +95,7 @@ Authority for **what** we build and **why**. Roadmap order lives in [`02-roadmap
 | **Helps** | Tablet ↔ phone / backup before wipe |
 | **When** | Before second-device pain or OS reset |
 | **Pain removed** | Data trapped on one install; cloud-account tax |
-| **Does** | User-initiated SAF file export/import of tasks, completions, settings (`schemaVersion` 2). **Import replaces** all local data after confirm. Reached from **Settings**. |
+| **Does** | User-initiated SAF file export/import of tasks, completions, settings (`schemaVersion` 2). **Import replaces** all local data after confirm. v1 / uuid-less files mint new ids and warn — prefer a current export before linking Google on two devices. If Google is linked, Drive then follows this device. Reached from **Settings**. |
 | **Does not** | Require an account or INTERNET; merge/diff import (v1) |
 
 ---
@@ -119,11 +119,11 @@ Authority for **what** we build and **why**. Roadmap order lives in [`02-roadmap
 | **Helps** | You with a hard stop (leaving, work start, appointment) |
 | **When** | Before a free pocket of time |
 | **Pain removed** | Staring at five dues and guessing what fits |
-| **Does** | User sets **available minutes** and/or **must stop by clock time T**; app recommends candidates that fit |
-| **Does not** | Sync a full work calendar product |
+| **Does** | User sets **available minutes** and/or **must stop by clock time T**; lists each candidate ≤ the window; leftover is after the best pick |
+| **Does not** | Pack several tasks into N minutes; sync a full work calendar product |
 
 **Candidate set:** overdue + due today + soon (7-day).  
-**Ranking:** urgency band first (overdue → due today → soon); within band prefer tasks that **fill but don’t overrun** the window; show leftover minutes. If nothing fits: calm empty state + widen the window or show all.
+**Ranking:** urgency band first (overdue → due today → soon); within band prefer the largest estimate that still fits (each ≤ window). Leftover is after that best pick, not after packing the list. If nothing fits: calm empty state + widen the window or show all.
 
 **“Leaving / committed to work”** = free-window end time (optional saved default work-start in Settings) — not a separate calendar app.
 
@@ -154,7 +154,7 @@ Authority for **what** we build and **why**. Roadmap order lives in [`02-roadmap
 | **Helps** | Seasonal or paused life (travel, injury, winterized gear) |
 | **When** | Task shouldn’t due/remind for a while, or is retired |
 | **Pain removed** | Deleting a task just to silence it; losing history |
-| **Does** | **Pause** = hidden from due/reminders until resumed; **Archive** = retired, history kept, not in pending |
+| **Does** | **Pause** = confirm-gated; hidden from due/reminders until Resume (snooze is cleared); **Archive** = retired, history kept, not in pending |
 | **Does not** | Soft-delete without an explicit archive path |
 
 ### Skip (this cycle)
@@ -164,7 +164,7 @@ Authority for **what** we build and **why**. Roadmap order lives in [`02-roadmap
 | **Helps** | Rare “not this time” without lying via Done |
 | **When** | Task is due but intentionally won’t happen this cycle |
 | **Pain removed** | Fake completions that wreck cadence math |
-| **Does** | Advances/postpones per cadence mode without a completion record; confirm copy so it isn’t a trash can |
+| **Does** | Advances/postpones per cadence mode without a completion record; confirm copy so it isn’t a trash can; same expected-due one-shot as Done |
 | **Does not** | Replace Snooze (temporary) or Pause (indefinite) |
 
 **Boundary:** Snooze = later still this obligation; Skip = abandon this cycle; Pause = freeze the task; Done = you did it. Skip ships **without** a reason field; skip-with-reason is not a goal.
@@ -190,7 +190,7 @@ Authority for **what** we build and **why**. Roadmap order lives in [`02-roadmap
 | **Helps** | Mornings with many same-time dues |
 | **When** | Opt-in in Settings |
 | **Pain removed** | Ten separate wakes; notification spam |
-| **Does** | One digest: count + total minutes + open pending; None stays off it; custom clocks stay per-task on the due day, then join while overdue. Per-task still available as default. Missed standing alarm (boot / force-stop / import after the window) posts once that local day |
+| **Does** | One digest: count + total minutes + open pending; None stays off it; custom clocks stay per-task on the due day, then join while overdue. Per-task still available as default. Missed standing alarm (boot / force-stop / import after the window) posts once that local day. Same-day new pins notify once. In-app Done / Snooze / Skip dismisses the digest card |
 | **Does not** | Force digest on everyone |
 
 ### Home-screen widget
@@ -232,6 +232,16 @@ Authority for **what** we build and **why**. Roadmap order lives in [`02-roadmap
 | **Pain removed** | Silent failures when OEM denies exact alarms |
 | **Does** | Clear why + system settings path; fall back to inexact when denied |
 | **Does not** | Demand exact alarms for every task |
+
+### Notification permission UX
+
+| | |
+|---|---|
+| **Helps** | People who want due reminders without a mystery prompt on first open |
+| **When** | First reminder-bearing pin (API 33+); later if still off |
+| **Pain removed** | Cold `POST_NOTIFICATIONS` before any task; deny-once with no way back except Settings |
+| **Does** | Explain, then the system dialog; Pending banner + Settings path if still silent |
+| **Does not** | Ask on cold start; block the list if they skip |
 
 ---
 
@@ -285,7 +295,7 @@ Schedule **kind** is orthogonal to after-Done **mode**.
 | Mode | Next due after Done |
 |---|---|
 | **From completion** | `completedAt + interval` |
-| **Fixed anchor** | Next slot on the original grid (late Done does not shift the grid) |
+| **Fixed anchor** | Next slot on the original grid (late Done does not shift the grid). Editing due day, interval, mode, or schedule kind retargets the grid to the saved due day. |
 | **From completion + catch-up** (default) | Like from-completion, but if badly overdue, compress the wait slightly so seasons don’t drift forever |
 
 ### Catch-up formula (v1 sketch)
@@ -314,14 +324,15 @@ Always allowed. Missing a reminder must not corrupt cadence math (snooze/skip/pa
 Open app → Pending queue (home)
          → Set free window (minutes and/or stop-by time)
          → Rank candidates (overdue → due today → soon)
-         → Show fits + leftover minutes
+         → Show each ≤ window + leftover after best
          → Done / Snooze → back to queue
 ```
 
 | Decision | v1 default |
 |---|---|
 | Candidates | Overdue + due today + soon (7 days) |
-| Overrun | Do not recommend tasks whose estimate exceeds the remaining window |
+| Overrun | Do not recommend tasks whose estimate exceeds the **remaining** window. Until work / stop-by keep the clock and shrink remaining each tick; 15/30/45 stay a fixed pocket. |
+| Packing | List every individual fit. Leftover after the best pick, not after summing the list |
 | Empty fit | Calm message; offer show-unfiltered pending or adjust window |
 | Work-start | Optional saved default for “until work” chip |
 

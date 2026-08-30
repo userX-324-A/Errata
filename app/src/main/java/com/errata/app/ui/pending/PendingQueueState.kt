@@ -6,7 +6,10 @@ import com.errata.app.domain.area.TaskAreas
 import com.errata.app.domain.due.DueBucket
 import com.errata.app.domain.due.PendingClassifier
 import com.errata.app.domain.freewindow.FreeWindowRanker
+import com.errata.app.domain.freewindow.FreeWindowSelection
+import com.errata.app.domain.freewindow.remainingMinutes
 import java.time.LocalTime
+import java.time.ZoneId
 
 object PendingQueueState {
 
@@ -14,11 +17,12 @@ object PendingQueueState {
         tasks: List<TaskEntity>,
         settings: SettingsEntity,
         now: Long,
-        windowMinutes: Int?,
+        window: FreeWindowSelection?,
         honesty: PendingHonestyPrompt?,
         requestedArea: String?,
         hint: Boolean,
         formatTime: (LocalTime) -> String = DueCopy::formatTimeDefault,
+        zone: ZoneId = ZoneId.systemDefault(),
     ): PendingQueueUiState {
         val items = tasks.mapNotNull { task ->
             val bucket = PendingClassifier.classify(
@@ -79,7 +83,17 @@ object PendingQueueState {
         val untilWork = FreeWindowRanker.minutesUntilWorkStart(
             workStartMinutesOfDay = settings.defaultWorkStartMinutesOfDay,
             nowEpochMs = now,
+            zone = zone,
         )
+        val windowMinutes = window?.remainingMinutes(now, zone)
+        val workStart = settings.defaultWorkStartMinutesOfDay
+        val untilWorkSelected =
+            window is FreeWindowSelection.UntilClock && window.minutesOfDay == workStart
+        val customWindowSelected = when (window) {
+            is FreeWindowSelection.Duration -> window.minutes !in setOf(15, 30, 45)
+            is FreeWindowSelection.UntilClock -> !untilWorkSelected
+            null -> false
+        }
 
         var fits: List<PendingItem> = emptyList()
         var leftover: Int? = null
@@ -111,6 +125,9 @@ object PendingQueueState {
             fits = fits,
             leftoverAfterBestMinutes = leftover,
             untilWorkMinutes = untilWork,
+            untilWorkSelected = untilWorkSelected,
+            workStartMinutesOfDay = workStart,
+            customWindowSelected = customWindowSelected,
             honesty = honesty,
             availableAreas = availableAreas,
             activeArea = selectedArea,

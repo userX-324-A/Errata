@@ -82,6 +82,10 @@ object NotificationHelper {
         NotificationManagerCompat.from(context).cancel(notificationId(taskId))
     }
 
+    fun dismissDigest(context: Context) {
+        NotificationManagerCompat.from(context).cancel(ReminderScheduler.DIGEST_NOTIFICATION_ID)
+    }
+
     fun cancelActions(context: Context, taskId: Long) {
         doneIntent(context, taskId = taskId, scheduledDueAtEpochMs = 0L).cancel()
         snoozeIntent(context, taskId = taskId, scheduledDueAtEpochMs = 0L).cancel()

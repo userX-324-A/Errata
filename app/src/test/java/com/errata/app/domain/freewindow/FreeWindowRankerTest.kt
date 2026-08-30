@@ -1,6 +1,8 @@
 package com.errata.app.domain.freewindow
 
 import com.errata.app.domain.due.DueBucket
+import com.errata.app.domain.freewindow.FreeWindowSelection
+import com.errata.app.domain.freewindow.remainingMinutes
 import java.time.LocalDate
 import java.time.LocalTime
 import java.time.ZoneOffset
@@ -75,6 +77,7 @@ class FreeWindowRankerTest {
             availableMinutes = 30,
         )
         assertEquals(listOf(2L, 3L, 1L), result.fits.map { it.id })
+        // 30 − 25 (best), not 30 − 25 − 20 − 10.
         assertEquals(5, result.leftoverAfterBestMinutes)
     }
 
@@ -149,6 +152,33 @@ class FreeWindowRankerTest {
                 stopByMinutesOfDay = 15 * 60 + 30,
                 nowEpochMs = now,
                 zone = zone,
+            ),
+        )
+    }
+
+    @Test
+    fun untilClockRemaining_shrinksWithNow() {
+        val clock = FreeWindowSelection.UntilClock(9 * 60)
+        val day = LocalDate.of(2026, 3, 10)
+        assertEquals(
+            60,
+            clock.remainingMinutes(
+                day.atTime(LocalTime.of(8, 0)).toInstant(zone).toEpochMilli(),
+                zone,
+            ),
+        )
+        assertEquals(
+            20,
+            clock.remainingMinutes(
+                day.atTime(LocalTime.of(8, 40)).toInstant(zone).toEpochMilli(),
+                zone,
+            ),
+        )
+        assertEquals(
+            0,
+            clock.remainingMinutes(
+                day.atTime(LocalTime.of(10, 0)).toInstant(zone).toEpochMilli(),
+                zone,
             ),
         )
     }

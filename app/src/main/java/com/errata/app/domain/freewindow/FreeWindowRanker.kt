@@ -10,7 +10,8 @@ import java.time.ZoneId
 /**
  * Ranks pending candidates that fit a free time window.
  *
- * Fit = estimateMinutes <= availableMinutes.
+ * Fit = each estimateMinutes <= availableMinutes (not a packed set).
+ * leftoverAfterBestMinutes = window minus the first (best) fit, not minus the sum.
  * Order = urgency band (overdue → due today → soon), then largest estimate that fits,
  * then earlier effective due, then title.
  */

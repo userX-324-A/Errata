@@ -25,4 +25,19 @@ class DriveSyncFilesTest {
         val b = DriveSyncFiles.FileRef("bbb", "2026-08-30T12:00:00.000Z")
         assertEquals(b, DriveSyncFiles.pickCanonical(listOf(a, b)))
     }
+
+    @Test
+    fun wipeComplete_emptyList() {
+        assertEquals(true, DriveSyncFiles.wipeComplete(emptyList(), emptySet()))
+    }
+
+    @Test
+    fun wipeComplete_allDeleted() {
+        val files = listOf(
+            DriveSyncFiles.FileRef("a"),
+            DriveSyncFiles.FileRef("b"),
+        )
+        assertEquals(true, DriveSyncFiles.wipeComplete(files, setOf("a", "b")))
+        assertEquals(false, DriveSyncFiles.wipeComplete(files, setOf("a")))
+    }
 }

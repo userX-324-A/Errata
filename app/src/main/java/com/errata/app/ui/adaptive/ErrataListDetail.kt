@@ -6,9 +6,11 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.adaptive.ExperimentalMaterial3AdaptiveApi
+import androidx.compose.material3.adaptive.currentWindowAdaptiveInfo
 import androidx.compose.material3.adaptive.layout.AnimatedPane
 import androidx.compose.material3.adaptive.layout.ListDetailPaneScaffoldRole
 import androidx.compose.material3.adaptive.layout.PaneAdaptedValue
+import androidx.compose.material3.adaptive.layout.calculatePaneScaffoldDirectiveWithTwoPanesOnMediumWidth
 import androidx.compose.material3.adaptive.navigation.NavigableListDetailPaneScaffold
 import androidx.compose.material3.adaptive.navigation.ThreePaneScaffoldNavigator
 import androidx.compose.material3.adaptive.navigation.rememberListDetailPaneScaffoldNavigator
@@ -37,7 +39,12 @@ fun ErrataListDetail(
     list: @Composable (actions: PaneActions, selectedKey: String?) -> Unit,
     detail: @Composable (key: String, actions: PaneActions) -> Unit,
 ) {
-    val navigator = rememberListDetailPaneScaffoldNavigator<String>()
+    val navigator = rememberListDetailPaneScaffoldNavigator<String>(
+        // Two panes from medium so list-detail matches the nav rail (see ErrataAdaptive).
+        scaffoldDirective = calculatePaneScaffoldDirectiveWithTwoPanesOnMediumWidth(
+            currentWindowAdaptiveInfo(),
+        ),
+    )
     val scope = rememberCoroutineScope()
     val actions = remember(navigator, scope) {
         paneActions(navigator, scope)
@@ -84,9 +91,10 @@ internal fun paneActions(
     },
     popToList = {
         scope.launch {
-            while (navigator.canNavigateBack()) {
-                navigator.navigateBack()
-            }
+            PaneSaveNav.popToList(
+                canNavigateBack = { navigator.canNavigateBack() },
+                navigateBack = { navigator.navigateBack() },
+            )
         }
     },
 )

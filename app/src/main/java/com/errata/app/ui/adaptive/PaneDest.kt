@@ -2,7 +2,7 @@ package com.errata.app.ui.adaptive
 
 /**
  * Saveable string keys for [androidx.compose.material3.adaptive.navigation.ThreePaneScaffoldNavigator].
- * Compact: list or detail. Expanded: list + detail side by side.
+ * Compact: list or detail. Medium and expanded: list + detail side by side.
  */
 object PaneDest {
     const val CATALOG = "catalog"

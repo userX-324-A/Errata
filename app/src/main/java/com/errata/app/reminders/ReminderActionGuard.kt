@@ -3,7 +3,7 @@ package com.errata.app.reminders
 import java.util.concurrent.ConcurrentHashMap
 
 /**
- * Shade and in-app Done/Snooze: one in-flight action per task; apply only if still on
+ * Shade and in-app Done/Snooze/Skip: one in-flight action per task; apply only if still on
  * the same due and the task is still open (not paused/archived).
  */
 object ReminderActionGuard {
@@ -22,6 +22,18 @@ object ReminderActionGuard {
     }
 
     fun shouldComplete(
+        currentNextDueAtEpochMs: Long,
+        expectedNextDueAtEpochMs: Long?,
+        isPaused: Boolean = false,
+        isArchived: Boolean = false,
+    ): Boolean = shouldApply(
+        currentNextDueAtEpochMs,
+        expectedNextDueAtEpochMs,
+        isPaused,
+        isArchived,
+    )
+
+    fun shouldSkip(
         currentNextDueAtEpochMs: Long,
         expectedNextDueAtEpochMs: Long?,
         isPaused: Boolean = false,

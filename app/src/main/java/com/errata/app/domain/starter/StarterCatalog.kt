@@ -37,12 +37,12 @@ object StarterCatalog {
     val ALL: List<StarterSpec> = listOf(
         StarterSpec("nails", "Trim nails", 10, ScheduleKind.INTERVAL, intervalDays = 14, area = "Body"),
         StarterSpec("beard", "Trim beard", 15, ScheduleKind.INTERVAL, intervalDays = 7, area = "Body"),
-        StarterSpec("haircut", "Haircut", 45, ScheduleKind.INTERVAL, intervalDays = 42, area = "Body"),
+        StarterSpec("haircut", "Get a haircut", 60, ScheduleKind.INTERVAL, intervalDays = 42, area = "Body"),
         StarterSpec("glasses", "Clean glasses", 5, ScheduleKind.INTERVAL, intervalDays = 7, area = "Body"),
-        StarterSpec("bathroom", "Clean bathroom", 25, ScheduleKind.INTERVAL, intervalDays = 7, area = "Bathroom"),
+        StarterSpec("bathroom", "Clean bathroom", 40, ScheduleKind.INTERVAL, intervalDays = 7, area = "Bathroom"),
         StarterSpec("towels", "Wash towels", 20, ScheduleKind.INTERVAL, intervalDays = 7, area = "Bathroom"),
         StarterSpec("drain", "Clear shower drain", 15, ScheduleKind.INTERVAL, intervalDays = 30, area = "Bathroom"),
-        StarterSpec("grout", "Scrub grout", 30, ScheduleKind.INTERVAL, intervalDays = 90, area = "Bathroom"),
+        StarterSpec("grout", "Scrub grout", 45, ScheduleKind.INTERVAL, intervalDays = 90, area = "Bathroom"),
         StarterSpec("fridge", "Wipe the fridge", 20, ScheduleKind.INTERVAL, intervalDays = 14, area = "Kitchen"),
         StarterSpec("dishwasher", "Clean dishwasher filter", 15, ScheduleKind.INTERVAL, intervalDays = 30, area = "Kitchen"),
         StarterSpec("counters", "Wipe kitchen counters", 10, ScheduleKind.INTERVAL, intervalDays = 7, area = "Kitchen"),
@@ -57,14 +57,14 @@ object StarterCatalog {
         StarterSpec(
             id = "deep_kitchen",
             title = "Deep-clean kitchen",
-            estimateMinutes = 45,
+            estimateMinutes = 90,
             scheduleKind = ScheduleKind.NTH_WEEKDAY,
             weekdaysMask = Weekdays.bit(DayOfWeek.SATURDAY),
             weekdayOrdinal = 1,
             area = "Kitchen",
         ),
         StarterSpec("hvac", "Change HVAC filter", 20, ScheduleKind.INTERVAL, intervalDays = 90, area = "House"),
-        StarterSpec("bedding", "Wash bedding", 20, ScheduleKind.INTERVAL, intervalDays = 14, area = "House"),
+        StarterSpec("bedding", "Wash bedding", 40, ScheduleKind.INTERVAL, intervalDays = 14, area = "House"),
         StarterSpec(
             id = "bins",
             title = "Put the bins out",
@@ -76,11 +76,11 @@ object StarterCatalog {
         StarterSpec("vacuum", "Vacuum living space", 25, ScheduleKind.INTERVAL, intervalDays = 7, area = "House"),
         StarterSpec("cobwebs", "Dust high corners", 15, ScheduleKind.INTERVAL, intervalDays = 30, area = "House"),
         StarterSpec("windows", "Wash windows", 40, ScheduleKind.INTERVAL, intervalDays = 180, area = "House"),
-        StarterSpec("mattress", "Rotate the mattress", 15, ScheduleKind.INTERVAL, intervalDays = 180, area = "House"),
+        StarterSpec("mattress", "Rotate the mattress", 25, ScheduleKind.INTERVAL, intervalDays = 180, area = "House"),
         StarterSpec(
             id = "gutters",
             title = "Clear the gutters",
-            estimateMinutes = 60,
+            estimateMinutes = 90,
             scheduleKind = ScheduleKind.YEARLY,
             seasonMask = Seasons.AUTUMN,
             area = "House",
@@ -104,9 +104,9 @@ object StarterCatalog {
             seasonMask = Seasons.SPRING,
             area = "Clothes",
         ),
-        StarterSpec("car", "Vacuum the car", 20, ScheduleKind.INTERVAL, intervalDays = 30, area = "Car"),
+        StarterSpec("car", "Vacuum the car", 35, ScheduleKind.INTERVAL, intervalDays = 30, area = "Car"),
         StarterSpec("tires", "Check tire pressure", 10, ScheduleKind.INTERVAL, intervalDays = 30, area = "Car"),
-        StarterSpec("oil", "Oil-change reminder", 10, ScheduleKind.INTERVAL, intervalDays = 90, area = "Car"),
+        StarterSpec("oil", "Oil change", 60, ScheduleKind.INTERVAL, intervalDays = 90, area = "Car"),
         StarterSpec("wipers", "Replace wiper blades", 20, ScheduleKind.INTERVAL, intervalDays = 180, area = "Car"),
         StarterSpec("paper", "Sort the paper pile", 15, ScheduleKind.INTERVAL, intervalDays = 7, area = "Paper"),
         StarterSpec(
@@ -154,7 +154,7 @@ object StarterCatalog {
         StarterSpec(
             id = "lights",
             title = "Pack holiday lights",
-            estimateMinutes = 20,
+            estimateMinutes = 40,
             scheduleKind = ScheduleKind.YEARLY,
             seasonMask = Seasons.WINTER,
             area = "House",
@@ -196,7 +196,8 @@ object StarterCatalog {
 
     fun cadenceSummary(spec: StarterSpec): String = when (spec.scheduleKind) {
         ScheduleKind.INTERVAL -> "Every ${spec.intervalDays} days"
-        ScheduleKind.WEEKLY -> "Weekly · ${Weekdays.shortLabels(spec.weekdaysMask)}"
+        ScheduleKind.WEEKLY ->
+            "Weekly · ${Weekdays.shortLabels(spec.weekdaysMask)} · change the day"
         ScheduleKind.MONTHLY -> "Monthly · day ${spec.monthDay}"
         ScheduleKind.NTH_WEEKDAY -> NthWeekday.summary(spec.weekdayOrdinal, spec.weekdaysMask)
         ScheduleKind.YEARLY -> Yearly.summary(spec.seasonMask, spec.yearMonthsMask, spec.monthDay)
@@ -220,27 +221,17 @@ object StarterCatalog {
             ScheduleKind.MONTHLY,
             ScheduleKind.NTH_WEEKDAY,
             ScheduleKind.YEARLY,
-            -> {
-                val dummyDue = CadenceCalculator.atLocalDateMinutes(
-                    today.toEpochDay(),
-                    reminder,
-                    zone,
-                )
-                CadenceCalculator.nextDueAfterSkip(
-                    mode = CadenceMode.FROM_COMPLETION,
-                    intervalDays = spec.intervalDays.coerceAtLeast(1),
-                    scheduledDueAtEpochMs = dummyDue,
-                    anchorEpochDay = today.toEpochDay(),
-                    nowEpochMs = nowEpochMs,
-                    zone = zone,
-                    scheduleKind = spec.scheduleKind,
-                    weekdaysMask = spec.weekdaysMask,
-                    monthDay = spec.monthDay,
-                    weekdayOrdinal = spec.weekdayOrdinal,
-                    yearMonthsMask = spec.yearMonthsMask,
-                    seasonMask = spec.seasonMask,
-                )
-            }
+            -> CadenceCalculator.nextGridDueOnOrAfter(
+                nowEpochMs = nowEpochMs,
+                reminderMinutesOfDay = reminder,
+                scheduleKind = spec.scheduleKind,
+                weekdaysMask = spec.weekdaysMask,
+                monthDay = spec.monthDay,
+                weekdayOrdinal = spec.weekdayOrdinal,
+                yearMonthsMask = spec.yearMonthsMask,
+                seasonMask = spec.seasonMask,
+                zone = zone,
+            )
         }
     }
 

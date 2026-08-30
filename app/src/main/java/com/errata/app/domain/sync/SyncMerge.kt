@@ -47,6 +47,22 @@ object SyncMerge {
     )
 
     /**
+     * After a local reset that should empty Drive on the next merge, bump both
+     * generations so completions are not unioned back from the same history gen.
+     */
+    fun marksAfterLocalReset(
+        previousTasksGeneration: Int,
+        previousHistoryGeneration: Int,
+        nowEpochMs: Long,
+    ): CloudFollowMarks = CloudFollowMarks(
+        tasksGeneration = previousTasksGeneration + 1,
+        tasksResetAtEpochMs = nowEpochMs,
+        historyGeneration = previousHistoryGeneration + 1,
+        historyPurgedAtEpochMs = nowEpochMs,
+        settingsUpdatedAtEpochMs = 0L,
+    )
+
+    /**
      * After a local replace-all import, bump generations so the next Drive merge
      * drops cloud-only tasks and completions older than this import.
      */

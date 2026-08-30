@@ -1,5 +1,6 @@
 package com.errata.app.ui.starter
 
+import android.Manifest
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
@@ -41,7 +42,11 @@ import androidx.compose.ui.unit.dp
 import com.errata.app.R
 import com.errata.app.domain.starter.StarterCatalog
 import com.errata.app.domain.starter.StarterSpec
+import com.errata.app.reminders.AfterPinPrompt
 import com.errata.app.reminders.ExactAlarmAccess
+import com.errata.app.reminders.NotificationAccess
+import com.errata.app.reminders.afterPinPrompt
+import com.errata.app.ui.common.NotifyPromptDialog
 import com.errata.app.ui.theme.ErrataScreenInsets
 import com.errata.app.ui.theme.ErrataTopInsets
 import com.errata.app.ui.theme.errataContentWidth
@@ -57,11 +62,20 @@ fun StarterPackEmpty(
 ) {
     var selectedIds by remember { mutableStateOf(setOf<String>()) }
     var showExactPrompt by remember { mutableStateOf(false) }
+    var showNotifyPrompt by remember { mutableStateOf(false) }
     val context = LocalContext.current
     val exactLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.StartActivityForResult(),
     ) {
         onRescheduleReminders()
+    }
+    val notifyLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission(),
+    ) { granted ->
+        if (granted) onRescheduleReminders()
+        if (ExactAlarmAccess.shouldPrompt(context)) {
+            showExactPrompt = true
+        }
     }
 
     Column(
@@ -113,8 +127,15 @@ fun StarterPackEmpty(
                 val specs = StarterCatalog.specsByIds(selectedIds)
                 if (specs.isEmpty()) return@Button
                 onPin(specs)
-                if (ExactAlarmAccess.shouldPrompt(context)) {
-                    showExactPrompt = true
+                when (
+                    afterPinPrompt(
+                        NotificationAccess.shouldPrompt(context),
+                        ExactAlarmAccess.shouldPrompt(context),
+                    )
+                ) {
+                    AfterPinPrompt.Notifications -> showNotifyPrompt = true
+                    AfterPinPrompt.Exact -> showExactPrompt = true
+                    AfterPinPrompt.None -> Unit
                 }
             },
             enabled = selectedIds.isNotEmpty(),
@@ -126,6 +147,23 @@ fun StarterPackEmpty(
             Text(stringResource(R.string.add_task))
         }
         Spacer(modifier = Modifier.height(88.dp))
+    }
+
+    if (showNotifyPrompt) {
+        NotifyPromptDialog(
+            onAllow = {
+                NotificationAccess.markPrompted(context)
+                showNotifyPrompt = false
+                notifyLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+            },
+            onNotNow = {
+                NotificationAccess.markPrompted(context)
+                showNotifyPrompt = false
+                if (ExactAlarmAccess.shouldPrompt(context)) {
+                    showExactPrompt = true
+                }
+            },
+        )
     }
 
     if (showExactPrompt) {

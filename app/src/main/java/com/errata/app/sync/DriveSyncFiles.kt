@@ -21,4 +21,8 @@ object DriveSyncFiles {
 
     fun orphanIds(files: List<FileRef>, canonicalId: String): List<String> =
         files.map { it.id }.filter { it != canonicalId }
+
+    /** Wipe succeeded only when every listed copy was deleted (or none existed). */
+    fun wipeComplete(listed: List<FileRef>, deletedIds: Set<String>): Boolean =
+        listed.all { it.id in deletedIds }
 }

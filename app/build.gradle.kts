@@ -26,7 +26,6 @@ android {
         versionName = "0.1.0"
         val webClientId = localProperties.getProperty("errata.googleWebClientId", "")
         buildConfigField("String", "GOOGLE_WEB_CLIENT_ID", "\"$webClientId\"")
-        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
     val releaseStorePath = localProperties.getProperty("errata.release.storeFile", "")
@@ -115,14 +114,7 @@ dependencies {
     implementation(libs.okhttp)
 
     debugImplementation(libs.androidx.compose.ui.tooling)
-    debugImplementation(libs.androidx.compose.ui.test.manifest)
 
     testImplementation(libs.junit)
     testImplementation(libs.kotlinx.coroutines.test)
-
-    androidTestImplementation(platform(libs.androidx.compose.bom))
-    androidTestImplementation(libs.androidx.compose.ui.test.junit4)
-    androidTestImplementation(libs.androidx.test.ext.junit)
-    androidTestImplementation(libs.androidx.test.runner)
-    androidTestImplementation(libs.androidx.navigation.testing)
 }

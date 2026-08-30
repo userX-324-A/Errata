@@ -108,6 +108,13 @@ object DigestPlanner {
     fun localEpochDay(nowEpochMs: Long, zone: ZoneId = ZoneId.systemDefault()): Long =
         Instant.ofEpochMilli(nowEpochMs).atZone(zone).toLocalDate().toEpochDay()
 
+    /** True when today's digest (or miss-replay) already posted — do not schedule another fire today. */
+    fun alreadyPostedToday(
+        lastNotifiedEpochDay: Long?,
+        nowEpochMs: Long,
+        zone: ZoneId = ZoneId.systemDefault(),
+    ): Boolean = lastNotifiedEpochDay == localEpochDay(nowEpochMs, zone)
+
     /**
      * Pinned after this morning's digest: notify now instead of waiting until tomorrow.
      * Tasks that were already due at digest fire stay silent (they were in the digest).

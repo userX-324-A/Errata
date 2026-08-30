@@ -41,11 +41,16 @@ class ErrataApp : Application() {
             store = driveClient,
             prefs = syncPreferences,
             scheduler = reminderScheduler,
-            widgetUpdater = widgetUpdater,
         )
     }
     val taskCommands: TaskCommands by lazy {
-        TaskCommands(taskRepository, reminderScheduler, widgetUpdater, syncScheduler)
+        TaskCommands(
+            taskRepository,
+            reminderScheduler,
+            widgetUpdater,
+            syncScheduler,
+            isGoogleLinked = { syncPreferences.isLinked() },
+        )
     }
 
     override fun onCreate() {

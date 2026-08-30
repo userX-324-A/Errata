@@ -54,7 +54,7 @@ File and folder access uses the **system picker** (SAF) when you export, import,
 
 ## Copies you make
 
-You can export or import a JSON file, or write/read `errata-backup.json` in a folder you pick. Last write wins; import replaces all data on that device after you confirm. If Google is linked, import then updates the Drive copy to match this device.
+You can export or import a JSON file, or write/read `errata-backup.json` in a folder you pick. Last write wins; import replaces all data on that device after you confirm. If Google is linked, import then updates the Drive copy to match this device. If it is not linked, the backup’s generations stay so a later Link merges with Drive instead of wiping it.
 
 If the system picker offers Drive or another provider, that copy lives wherever **you** put it — separate from optional app-data sync.
 

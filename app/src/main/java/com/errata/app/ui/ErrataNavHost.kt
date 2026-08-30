@@ -43,17 +43,8 @@ import com.errata.app.ui.task.TaskEditorViewModel
 
 object Routes {
     const val PENDING = "pending"
-    const val STARTERS = "starters"
-    const val TASK = "task/{taskId}?starter={starterId}"
-    const val BACKUP = "backup"
-    const val PRIVACY = "privacy"
     const val LIBRARY = "tasks"
     const val SETTINGS = "settings"
-
-    fun task(taskId: Long, starterId: String? = null): String {
-        val base = "task/$taskId"
-        return if (starterId.isNullOrBlank()) base else "$base?starter=$starterId"
-    }
 }
 
 private data class TabDest(
@@ -171,6 +162,8 @@ fun ErrataNavHost(modifier: Modifier = Modifier) {
                         app.syncScheduler,
                         app.syncCoordinator,
                         com.errata.app.sync.GoogleAuth.playServicesAvailable(app),
+                        initialNotify = com.errata.app.reminders.NotificationAccess.areEnabled(app),
+                        initialExact = com.errata.app.reminders.ExactAlarmAccess.canExact(app),
                     ),
                 )
                 ErrataListDetail(

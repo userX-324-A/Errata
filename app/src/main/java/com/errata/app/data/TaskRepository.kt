@@ -219,9 +219,24 @@ class TaskRepository(
 
     /**
      * Abandon this cycle: advance next due without a completion record.
+     * Same expected-due guard as Done so a second confirm cannot burn two cycles.
      */
-    suspend fun skip(taskId: Long, nowEpochMs: Long = System.currentTimeMillis()) {
-        val task = tasks.getById(taskId) ?: return
+    suspend fun skip(
+        taskId: Long,
+        nowEpochMs: Long = System.currentTimeMillis(),
+        expectedNextDueAtEpochMs: Long? = null,
+    ): Boolean {
+        val task = tasks.getById(taskId) ?: return false
+        if (
+            !ReminderActionGuard.shouldSkip(
+                task.nextDueAtEpochMs,
+                expectedNextDueAtEpochMs,
+                isPaused = task.isPaused,
+                isArchived = task.isArchived,
+            )
+        ) {
+            return false
+        }
         val nextDue = CadenceCalculator.nextDueAfterSkip(
             mode = task.cadenceMode,
             intervalDays = task.intervalDays,
@@ -237,6 +252,7 @@ class TaskRepository(
             seasonMask = task.seasonMask,
         )
         tasks.update(TaskCycle.skipped(task, nextDue, nowEpochMs))
+        return true
     }
 
     suspend fun setPaused(taskId: Long, paused: Boolean) {
@@ -244,6 +260,7 @@ class TaskRepository(
         tasks.update(
             task.copy(
                 isPaused = paused,
+                snoozedUntilEpochMs = null,
                 updatedAtEpochMs = System.currentTimeMillis(),
             ),
         )
@@ -290,8 +307,12 @@ class TaskRepository(
         )
     }
 
-    /** Wipe local data and replace with [backup]. */
-    suspend fun importReplace(backup: ErrataBackup) {
+    /**
+     * Wipe local data and replace with [backup].
+     * [followCloud]: bump purge/reset generations so the next Drive merge
+     * follows this device. Only when Google is linked.
+     */
+    suspend fun importReplace(backup: ErrataBackup, followCloud: Boolean = false) {
         if (backup.schemaVersion !in 1..BACKUP_SCHEMA_VERSION) {
             throw BackupFormatException(
                 "Unsupported backup version ${backup.schemaVersion}",
@@ -305,23 +326,26 @@ class TaskRepository(
             tasks.deleteAll()
             settings.deleteAll()
             val imported = normalized.settings.toEntity()
-            val follow = SyncMerge.marksAfterLocalReplace(
-                previousTasksGeneration = previous?.tasksGeneration ?: 0,
-                previousHistoryGeneration = previous?.historyGeneration ?: 0,
-                importedTasksGeneration = imported.tasksGeneration,
-                importedHistoryGeneration = imported.historyGeneration,
-                importedSettingsUpdatedAt = imported.updatedAtEpochMs,
-                nowEpochMs = now,
-            )
-            settings.upsert(
+            val toStore = if (followCloud) {
+                val follow = SyncMerge.marksAfterLocalReplace(
+                    previousTasksGeneration = previous?.tasksGeneration ?: 0,
+                    previousHistoryGeneration = previous?.historyGeneration ?: 0,
+                    importedTasksGeneration = imported.tasksGeneration,
+                    importedHistoryGeneration = imported.historyGeneration,
+                    importedSettingsUpdatedAt = imported.updatedAtEpochMs,
+                    nowEpochMs = now,
+                )
                 imported.copy(
                     tasksGeneration = follow.tasksGeneration,
                     tasksResetAtEpochMs = follow.tasksResetAtEpochMs,
                     historyGeneration = follow.historyGeneration,
                     historyPurgedAtEpochMs = follow.historyPurgedAtEpochMs,
                     updatedAtEpochMs = follow.settingsUpdatedAtEpochMs,
-                ),
-            )
+                )
+            } else {
+                imported
+            }
+            settings.upsert(toStore)
             if (normalized.tasks.isNotEmpty()) {
                 tasks.upsertAll(normalized.tasks.map { it.toEntity() })
             }
@@ -375,10 +399,17 @@ class TaskRepository(
             completions.deleteAll()
             tasks.deleteAll()
             if (alsoClearCloud) {
+                val follow = SyncMerge.marksAfterLocalReset(
+                    previousTasksGeneration = current.tasksGeneration,
+                    previousHistoryGeneration = current.historyGeneration,
+                    nowEpochMs = now,
+                )
                 settings.upsert(
                     current.copy(
-                        tasksGeneration = current.tasksGeneration + 1,
-                        tasksResetAtEpochMs = now,
+                        tasksGeneration = follow.tasksGeneration,
+                        tasksResetAtEpochMs = follow.tasksResetAtEpochMs,
+                        historyGeneration = follow.historyGeneration,
+                        historyPurgedAtEpochMs = follow.historyPurgedAtEpochMs,
                     ),
                 )
             }

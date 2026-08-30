@@ -32,7 +32,7 @@ data class TaskEditorUiState(
     val isNew: Boolean = true,
     val title: String = "",
     val notes: String = "",
-    val estimateMinutes: String = "15",
+    val estimateMinutes: String = "",
     val intervalDays: String = "14",
     val scheduleKind: ScheduleKind = ScheduleKind.INTERVAL,
     val weekdaysMask: Int = 0,
@@ -82,6 +82,29 @@ fun TaskEditorUiState.editFingerprint(): List<Any?> = listOf(
     area,
 )
 
+/** Due day, interval, mode, or schedule kind — the FIXED_ANCHOR grid. */
+fun TaskEditorUiState.cadenceGridChanged(prior: TaskEditorUiState): Boolean =
+    dueEpochDay != prior.dueEpochDay ||
+        intervalDays != prior.intervalDays ||
+        cadenceMode != prior.cadenceMode ||
+        scheduleKind != prior.scheduleKind ||
+        weekdaysMask != prior.weekdaysMask ||
+        monthDay != prior.monthDay ||
+        weekdayOrdinal != prior.weekdayOrdinal ||
+        yearMonthsMask != prior.yearMonthsMask ||
+        seasonMask != prior.seasonMask
+
+fun TaskEditorUiState.anchorOnSave(prior: TaskEditorUiState?): Long {
+    if (isNew || prior == null || cadenceGridChanged(prior)) return dueEpochDay
+    return anchorEpochDay
+}
+
+fun TaskEditorUiState.snoozeOnSave(prior: TaskEditorUiState?): Long? {
+    if (isNew || prior == null) return null
+    if (cadenceGridChanged(prior) || dueMinuteOfDay != prior.dueMinuteOfDay) return null
+    return snoozedUntilEpochMs
+}
+
 /** New blank task: reminder from Settings kind; due clock from Settings default time. */
 fun TaskEditorUiState.withBlankNew(
     cadenceMode: CadenceMode,
@@ -124,6 +147,7 @@ class TaskEditorViewModel(
     private val _uiState = MutableStateFlow(TaskEditorUiState(isNew = taskId == 0L))
     val uiState: StateFlow<TaskEditorUiState> = _uiState.asStateFlow()
     private var baselineFingerprint: List<Any?>? = null
+    private var baselineState: TaskEditorUiState? = null
     private val saveGate = AtomicBoolean(false)
 
     init {
@@ -348,7 +372,9 @@ class TaskEditorViewModel(
     }
 
     private fun markBaseline() {
-        baselineFingerprint = _uiState.value.editFingerprint()
+        val snap = _uiState.value
+        baselineFingerprint = snap.editFingerprint()
+        baselineState = snap
     }
 
     fun save() {
@@ -385,7 +411,7 @@ class TaskEditorViewModel(
                         zone,
                     )
                     val now = System.currentTimeMillis()
-                    val anchor = if (state.isNew) state.dueEpochDay else state.anchorEpochDay
+                    val anchor = state.anchorOnSave(baselineState)
                     val storedInterval = if (state.scheduleKind == ScheduleKind.INTERVAL) {
                         interval
                     } else {
@@ -431,7 +457,7 @@ class TaskEditorViewModel(
                         nextDueAtEpochMs = nextDue,
                         lastCompletedAtEpochMs = state.lastCompletedAtEpochMs,
                         reminderMinutesOfDay = state.reminderMinutesOfDay,
-                        snoozedUntilEpochMs = state.snoozedUntilEpochMs,
+                        snoozedUntilEpochMs = state.snoozeOnSave(baselineState),
                         area = TaskAreas.normalize(state.area),
                         isPaused = state.isPaused,
                         isArchived = state.isArchived,
@@ -447,6 +473,7 @@ class TaskEditorViewModel(
                             createdAtEpochMs = row?.createdAtEpochMs ?: state.createdAtEpochMs,
                         )
                     }
+                    markBaseline()
                 }
             }
             } finally {

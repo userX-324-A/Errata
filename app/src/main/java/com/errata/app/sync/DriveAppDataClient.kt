@@ -80,7 +80,7 @@ class DriveAppDataClient(
     ): CloudSaveResult = withContext(Dispatchers.IO) {
         val bodyJson = SyncCodec.encode(snapshot)
         if (fileId.isNullOrBlank()) {
-            createFile(bodyJson)
+            recoverMissing(bodyJson)
         } else {
             val match = etag?.takeIf { it.isNotBlank() } ?: fetchEtag(fileId)
             if (match.isNullOrBlank()) {
@@ -92,30 +92,22 @@ class DriveAppDataClient(
     }
 
     override suspend fun delete(): Boolean = withContext(Dispatchers.IO) {
-        val id = currentFileId() ?: findFileId() ?: return@withContext true
-        val url = DRIVE_API_ROOT.toHttpUrl().newBuilder()
-            .addPathSegment("files")
-            .addPathSegment(id)
-            .build()
-        execute { token ->
-            Request.Builder()
-                .url(url)
-                .header("Authorization", "Bearer $token")
-                .delete()
-                .build()
-        }.use { response ->
-            if (response.code == 401 || response.code == 403) {
-                logDriveFailure("delete", response)
-                return@use false
-            }
-            if (response.code == 404 || response.isSuccessful) {
-                fileIdStore(null)
-                true
-            } else {
-                logDriveFailure("delete", response)
-                false
-            }
+        val refs = try {
+            listSyncFiles()
+        } catch (_: AuthRequiredException) {
+            return@withContext false
+        } catch (_: NetworkException) {
+            return@withContext false
         }
+        val deleted = mutableSetOf<String>()
+        for (ref in refs) {
+            if (deleteFileById(ref.id)) deleted += ref.id
+        }
+        if (!DriveSyncFiles.wipeComplete(refs, deleted)) {
+            return@withContext false
+        }
+        fileIdStore(null)
+        true
     }
 
     private suspend fun downloadMedia(fileId: String): CloudDocument {
@@ -342,19 +334,37 @@ class DriveAppDataClient(
         }
     }
 
-    private suspend fun deleteFileById(id: String) {
+    private suspend fun deleteFileById(id: String): Boolean {
         val url = DRIVE_API_ROOT.toHttpUrl().newBuilder()
             .addPathSegment("files")
             .addPathSegment(id)
             .build()
-        runCatching {
+        return try {
             execute { token ->
                 Request.Builder()
                     .url(url)
                     .header("Authorization", "Bearer $token")
                     .delete()
                     .build()
-            }.close()
+            }.use { response ->
+                when (response.code) {
+                    401, 403 -> {
+                        logDriveFailure("delete", response)
+                        false
+                    }
+                    404 -> true
+                    else -> {
+                        if (response.isSuccessful) {
+                            true
+                        } else {
+                            logDriveFailure("delete", response)
+                            false
+                        }
+                    }
+                }
+            }
+        } catch (_: AuthRequiredException) {
+            false
         }
     }
 

@@ -4,13 +4,14 @@
     <string name="add_task">Add task</string>
     <string name="pending_empty_title">Nothing pending</string>
     <string name="pending_empty_body">When something’s due, it’ll show up here with how long it should take.</string>
+    <string name="starters_empty_title">Pin a few tasks</string>
     <string name="starters_heading">Starters</string>
-    <string name="starters_body">Pick what you actually do. You can edit them later.</string>
+    <string name="starters_body">Pick what you actually do. Check the minutes — Pending uses them for time chips.</string>
     <string name="starters_pin">Pin selected</string>
-    <string name="starters_pinned_hint">Pinned. They’ll show here when due — All tasks lists them now.</string>
+    <string name="starters_pinned_hint">Pinned. Due today or soon shows here; the rest are in All tasks.</string>
     <string name="catalog_title">Add a task</string>
     <string name="catalog_blank">Blank task</string>
-    <string name="catalog_blank_hint">Title and cadence from scratch</string>
+    <string name="catalog_blank_hint">Title, minutes, and cadence from scratch</string>
 
     <string name="section_overdue">Overdue</string>
     <string name="section_due_today">Due today</string>
@@ -21,7 +22,7 @@
     <string name="free_window_until_work">Until work</string>
     <string name="free_window_custom">Custom</string>
     <string name="free_window_show_all">Show all</string>
-    <string name="free_window_header_fits">Fits in %1$d min · leftover after best %2$d</string>
+    <string name="free_window_header_fits">Each %1$d min or less · leftover after best %2$d</string>
     <string name="free_window_header_empty">Nothing fits in %1$d min</string>
     <string name="free_window_empty">Nothing on the list fits this window. Widen it or show all.</string>
     <string name="free_window_custom_title">How much time?</string>
@@ -66,6 +67,7 @@
     <string name="area_filter_all">All</string>
     <string name="area_filter_empty">Nothing in %1$s.</string>
     <string name="field_estimate">Estimated minutes</string>
+    <string name="field_estimate_hint">Used for Pending and time chips.</string>
     <string name="field_schedule">Schedule</string>
     <string name="schedule_interval">Every N days</string>
     <string name="schedule_weekly">Weekly</string>
@@ -98,7 +100,7 @@
     <string name="cadence_from_completion">From completion</string>
     <string name="cadence_fixed">Fixed schedule</string>
     <string name="cadence_catch_up">Catch-up</string>
-    <string name="cadence_applies_after_done">Cadence mode and interval apply after the next Done. You can still set the next due date and time above.</string>
+    <string name="cadence_applies_after_done">Cadence mode and interval apply after the next Done. You can still set the next due date and time.</string>
 
     <string name="error_title">Add a title</string>
     <string name="error_estimate">Estimate at least 1 minute</string>
@@ -134,6 +136,7 @@
     <string name="reminder_when_due">When due</string>
     <string name="reminder_when_due_summary">When due · %1$s</string>
     <string name="reminder_when_due_hint">Fires at the due clock. Settings sets the default for new tasks and the morning digest.</string>
+    <string name="reminder_custom_hint">Fires at this clock, not the due time.</string>
     <string name="reminder_custom">Custom · %1$s</string>
     <string name="reminder_at_clock">At %1$s</string>
     <string name="editor_discard_title">Discard changes?</string>
@@ -161,11 +164,16 @@
     <string name="settings_default_reminder">Default due time</string>
     <string name="settings_default_reminder_hint">Seeds the due clock on a new task. Morning digest uses this time. Clock reminder uses it too.</string>
     <string name="settings_digest">Morning digest</string>
-    <string name="settings_digest_hint">One notification at the default time instead of one per task. None and custom times stay off the digest. Something pinned after that still reminds the same day.</string>
+    <string name="settings_digest_hint">One notification at the default time instead of one per task. None never joins. Custom clocks stay per-task on the due day, then join while overdue. Something pinned after that still reminds the same day, once.</string>
     <string name="settings_notifications">Notifications</string>
     <string name="settings_notifications_on">Reminders can show on this device.</string>
     <string name="settings_notifications_off">Due reminders stay silent until this is allowed. The device will not wake for them.</string>
     <string name="settings_notifications_open">Open notification settings</string>
+    <string name="notify_prompt_title">Due reminders</string>
+    <string name="notify_prompt_body">Errata can notify you when something is due. Optional — the list still works if you skip.</string>
+    <string name="notify_prompt_allow">Allow</string>
+    <string name="pending_notifications_off">Reminders are silent on this device until notifications are allowed.</string>
+    <string name="pending_notifications_allow">Allow reminders</string>
     <string name="settings_exact_alarms">On-time reminders</string>
     <string name="settings_exact_on">Reminders can fire at the time you picked.</string>
     <string name="settings_exact_off">Without this, reminders may arrive a few minutes late. Nothing else changes.</string>
@@ -240,6 +248,8 @@
     <string name="library_empty_title">No tasks yet</string>
     <string name="library_empty_body">Pin a recurring upkeep task and it’ll show up here even when it’s not due.</string>
     <string name="action_pause">Pause</string>
+    <string name="pause_confirm_title">Pause this task?</string>
+    <string name="pause_confirm_body">Hidden from pending and reminders until you Resume. It stays in All tasks.</string>
     <string name="action_resume">Resume</string>
     <string name="action_archive">Archive</string>
     <string name="archive_confirm_title">Archive this task?</string>
@@ -250,8 +260,10 @@
     <string name="backup_import">Import from file</string>
     <string name="backup_export_ok">Export finished.</string>
     <string name="backup_import_ok">Import finished. Your list and reminders were restored.</string>
+    <string name="backup_import_minted">Import finished. This older file had no stable ids — prefer a current export if you’ll also Link Google.</string>
     <string name="backup_confirm_title">Replace all data?</string>
     <string name="backup_confirm_body">This clears every task and setting on this device, then loads the backup file.</string>
+    <string name="backup_confirm_minted">This older file has no stable ids. Prefer a current export if you’ll Link Google on more than one device.</string>
     <string name="backup_confirm_action">Replace</string>
     <string name="backup_folder_heading">This folder</string>
     <string name="backup_folder_body">Optional. One errata-backup.json you write and read when you choose. Last write wins. For Drive, Export and pick Drive — folder pickers often omit it.</string>

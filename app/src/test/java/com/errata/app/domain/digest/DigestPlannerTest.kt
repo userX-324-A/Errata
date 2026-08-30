@@ -313,4 +313,13 @@ class DigestPlannerTest {
             DigestPlanner.shouldReplayMissedDigest(todayDay, defaultMinutes, afternoon, zone),
         )
     }
+
+    @Test
+    fun alreadyPostedToday_blocksSecondSameDayFire() {
+        val afternoon = LocalDate.of(2026, 4, 10).atTime(15, 0).toInstant(zone).toEpochMilli()
+        val today = LocalDate.of(2026, 4, 10).toEpochDay()
+        assertTrue(DigestPlanner.alreadyPostedToday(today, afternoon, zone))
+        assertFalse(DigestPlanner.alreadyPostedToday(today - 1, afternoon, zone))
+        assertFalse(DigestPlanner.alreadyPostedToday(null, afternoon, zone))
+    }
 }

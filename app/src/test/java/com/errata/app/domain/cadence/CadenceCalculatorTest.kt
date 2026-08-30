@@ -860,4 +860,46 @@ class CadenceCalculatorTest {
         assertEquals(1, zoned.hour)
         assertEquals(30, zoned.minute)
     }
+
+    @Test
+    fun nextGridDueOnOrAfter_includesTodayWhenClockIsAhead() {
+        val reminder = 9 * 60
+        val now = LocalDate.of(2026, 1, 13).atTime(8, 0).toInstant(zone).toEpochMilli()
+        val due = CadenceCalculator.nextGridDueOnOrAfter(
+            nowEpochMs = now,
+            reminderMinutesOfDay = reminder,
+            scheduleKind = ScheduleKind.WEEKLY,
+            weekdaysMask = Weekdays.bit(DayOfWeek.TUESDAY),
+            zone = zone,
+        )
+        assertEquals(
+            CadenceCalculator.atLocalDateMinutes(
+                LocalDate.of(2026, 1, 13).toEpochDay(),
+                reminder,
+                zone,
+            ),
+            due,
+        )
+    }
+
+    @Test
+    fun nextGridDueOnOrAfter_skipsTodayWhenClockHasPassed() {
+        val reminder = 9 * 60
+        val now = LocalDate.of(2026, 1, 13).atTime(10, 0).toInstant(zone).toEpochMilli()
+        val due = CadenceCalculator.nextGridDueOnOrAfter(
+            nowEpochMs = now,
+            reminderMinutesOfDay = reminder,
+            scheduleKind = ScheduleKind.WEEKLY,
+            weekdaysMask = Weekdays.bit(DayOfWeek.TUESDAY),
+            zone = zone,
+        )
+        assertEquals(
+            CadenceCalculator.atLocalDateMinutes(
+                LocalDate.of(2026, 1, 20).toEpochDay(),
+                reminder,
+                zone,
+            ),
+            due,
+        )
+    }
 }

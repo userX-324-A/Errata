@@ -7,6 +7,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.errata.app.data.TaskCommands
+import com.errata.app.data.backup.BackupCodec
 import com.errata.app.data.backup.BackupFolderException
 import com.errata.app.data.backup.BackupFolderStore
 import com.errata.app.data.backup.BackupFormatException
@@ -26,6 +27,7 @@ data class BackupUiState(
     val isError: Boolean = false,
     val busy: Boolean = false,
     val pendingImportJson: String? = null,
+    val importMintsIds: Boolean = false,
     val hasFolder: Boolean = false,
     val folderLabel: String? = null,
 )
@@ -101,7 +103,12 @@ class BackupViewModel(
                     BackupFolderStore(context).readJson()
                 }
                 _uiState.update {
-                    it.copy(busy = false, pendingImportJson = json, isError = false)
+                    it.copy(
+                        busy = false,
+                        pendingImportJson = json,
+                        importMintsIds = mintedIds(json),
+                        isError = false,
+                    )
                 }
             } catch (e: BackupFolderException) {
                 _uiState.update { it.copy(busy = false, message = e.code, isError = true) }
@@ -136,26 +143,35 @@ class BackupViewModel(
 
     fun prepareImport(json: String) {
         _uiState.update {
-            it.copy(pendingImportJson = json, message = null, isError = false)
+            it.copy(
+                pendingImportJson = json,
+                importMintsIds = mintedIds(json),
+                message = null,
+                isError = false,
+            )
         }
     }
 
     fun cancelImport() {
-        _uiState.update { it.copy(pendingImportJson = null) }
+        _uiState.update { it.copy(pendingImportJson = null, importMintsIds = false) }
     }
 
     fun confirmImport() {
         val json = _uiState.value.pendingImportJson ?: return
         viewModelScope.launch {
             _uiState.update {
-                it.copy(busy = true, pendingImportJson = null, message = null, isError = false)
+                it.copy(busy = true, pendingImportJson = null, importMintsIds = false, message = null, isError = false)
             }
             try {
-                withContext(Dispatchers.IO) {
+                val minted = withContext(Dispatchers.IO) {
                     commands.importJsonReplace(json)
                 }
                 _uiState.update {
-                    it.copy(busy = false, message = "imported", isError = false)
+                    it.copy(
+                        busy = false,
+                        message = if (minted) "imported_minted" else "imported",
+                        isError = false,
+                    )
                 }
             } catch (e: BackupFormatException) {
                 _uiState.update {
@@ -176,6 +192,9 @@ class BackupViewModel(
         }
         _uiState.update { it.copy(hasFolder = hasFolder, folderLabel = label) }
     }
+
+    private fun mintedIds(json: String): Boolean =
+        runCatching { BackupCodec.inspect(json).mintedStableIds }.getOrDefault(false)
 
     companion object {
         fun factory(commands: TaskCommands): ViewModelProvider.Factory =

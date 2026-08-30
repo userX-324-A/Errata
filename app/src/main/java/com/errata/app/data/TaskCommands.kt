@@ -1,7 +1,6 @@
 package com.errata.app.data
 
 import com.errata.app.data.backup.BackupCodec
-import com.errata.app.data.backup.ErrataBackup
 import com.errata.app.data.local.SettingsEntity
 import com.errata.app.data.local.TaskEntity
 import com.errata.app.domain.starter.StarterSpec
@@ -19,6 +18,7 @@ class TaskCommands(
     private val scheduler: ReminderScheduler,
     private val widgetUpdater: WidgetUpdater,
     private val syncScheduler: SyncScheduler? = null,
+    private val isGoogleLinked: () -> Boolean = { false },
 ) {
     val observeActiveTasks get() = repository.observeActiveTasks()
     val observeSettings get() = repository.observeSettings()
@@ -51,7 +51,9 @@ class TaskCommands(
                 previous.soonHorizonDays != entity.soonHorizonDays ||
                 previous.digestEnabled != entity.digestEnabled ||
                 previous.historyRetentionDays != entity.historyRetentionDays
-        if (sharedChanged) afterWrite()
+        if (sharedChanged) {
+            afterWrite(refreshWidget = !reminderChanged && !digestChanged)
+        }
     }
 
     suspend fun upsert(task: TaskEntity): Long {
@@ -66,7 +68,7 @@ class TaskCommands(
         val pinned = repository.pinStarters(specs)
         if (pinned > 0) {
             scheduler.rescheduleAll()
-            afterWrite()
+            afterWrite(refreshWidget = false)
         }
         return pinned
     }
@@ -99,11 +101,17 @@ class TaskCommands(
         afterWrite()
     }
 
-    suspend fun skip(taskId: Long) {
-        repository.skip(taskId)
+    suspend fun skip(
+        taskId: Long,
+        expectedNextDueAtEpochMs: Long? = null,
+    ): Boolean {
+        if (!repository.skip(taskId, expectedNextDueAtEpochMs = expectedNextDueAtEpochMs)) {
+            return false
+        }
         scheduler.dismissPostedReminder(taskId)
         scheduler.rescheduleTask(taskId)
         afterWrite()
+        return true
     }
 
     suspend fun pause(taskId: Long) {
@@ -130,12 +138,12 @@ class TaskCommands(
         BackupCodec.encode(repository.exportSnapshot())
     }
 
-    suspend fun importJsonReplace(json: String) = withContext(Dispatchers.IO) {
-        val backup: ErrataBackup = BackupCodec.decode(json)
-        repository.importReplace(backup)
+    suspend fun importJsonReplace(json: String): Boolean = withContext(Dispatchers.IO) {
+        val decoded = BackupCodec.inspect(json)
+        repository.importReplace(decoded.backup, followCloud = isGoogleLinked())
         scheduler.rescheduleAll()
-        widgetUpdater.refresh()
         syncScheduler?.requestNow()
+        decoded.mintedStableIds
     }
 
     suspend fun pruneHistory() = repository.pruneHistory()
@@ -148,13 +156,13 @@ class TaskCommands(
     suspend fun resetTasks(alsoClearCloud: Boolean = false) {
         repository.resetTasks(alsoClearCloud)
         scheduler.rescheduleAll()
-        afterWrite()
+        afterWrite(refreshWidget = false)
     }
 
     suspend fun rescheduleReminders() = scheduler.rescheduleAll()
 
-    private suspend fun afterWrite() {
-        widgetUpdater.refresh()
+    private suspend fun afterWrite(refreshWidget: Boolean = true) {
+        if (refreshWidget) widgetUpdater.refresh()
         syncScheduler?.requestDebounced()
     }
 }

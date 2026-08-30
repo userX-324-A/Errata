@@ -1,5 +1,8 @@
 package com.errata.app.ui.pending
 
+import android.Manifest
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -46,6 +49,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
@@ -57,7 +61,9 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.repeatOnLifecycle
 import com.errata.app.R
 import com.errata.app.domain.due.DueBucket
+import com.errata.app.reminders.NotificationAccess
 import com.errata.app.ui.common.AreaFilterChips
+import com.errata.app.ui.common.NotifyPromptDialog
 import com.errata.app.ui.common.TaskAreaLabel
 import com.errata.app.ui.common.isDevice24Hour
 import com.errata.app.domain.estimate.EstimateHonesty
@@ -79,10 +85,28 @@ fun PendingQueueScreen(
     selectedTaskId: Long? = null,
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
+    var canNotify by remember { mutableStateOf(NotificationAccess.areEnabled(context)) }
+    var showNotifyPrompt by remember { mutableStateOf(false) }
+    val notifyPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission(),
+    ) { granted ->
+        canNotify = NotificationAccess.areEnabled(context)
+        if (granted) viewModel.rescheduleReminders()
+    }
+    val notifySettingsLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.StartActivityForResult(),
+    ) {
+        canNotify = NotificationAccess.areEnabled(context)
+        if (canNotify) viewModel.rescheduleReminders()
+    }
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
-            if (event == Lifecycle.Event.ON_RESUME) viewModel.refreshNow()
+            if (event == Lifecycle.Event.ON_RESUME) {
+                viewModel.refreshNow()
+                canNotify = NotificationAccess.areEnabled(context)
+            }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
@@ -101,6 +125,14 @@ fun PendingQueueScreen(
     var showStopByPicker by remember { mutableStateOf(false) }
     var customMinutesText by remember { mutableStateOf("") }
     var customError by remember { mutableStateOf<String?>(null) }
+    val showNotifyBanner = !canNotify && !state.hasNoPinnedTasks
+    val onNotifyCta = {
+        if (NotificationAccess.shouldPrompt(context)) {
+            showNotifyPrompt = true
+        } else {
+            notifySettingsLauncher.launch(NotificationAccess.settingsIntent(context))
+        }
+    }
 
     Scaffold(
         topBar = {
@@ -133,7 +165,7 @@ fun PendingQueueScreen(
     ) { innerPadding ->
         if (state.hasNoPinnedTasks) {
             StarterPackEmpty(
-                title = stringResource(R.string.pending_empty_title),
+                title = stringResource(R.string.starters_empty_title),
                 body = stringResource(R.string.starters_body),
                 onAddTask = onAddTask,
                 onPin = viewModel::pinStarters,
@@ -141,11 +173,15 @@ fun PendingQueueScreen(
                 modifier = Modifier.padding(innerPadding).errataContentWidth(),
             )
         } else if (state.isEmpty) {
-            PendingEmptyState(
-                modifier = Modifier.padding(innerPadding).errataContentWidth(),
-                onAddTask = onAddTask,
-                pinnedHint = state.startersPinnedHint,
-            )
+            Column(modifier = Modifier.padding(innerPadding).errataContentWidth()) {
+                if (showNotifyBanner) {
+                    NotifyOffBanner(onAllow = onNotifyCta)
+                }
+                PendingEmptyState(
+                    onAddTask = onAddTask,
+                    pinnedHint = state.startersPinnedHint,
+                )
+            }
         } else {
             LazyColumn(
                 modifier = Modifier
@@ -155,10 +191,16 @@ fun PendingQueueScreen(
                 contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 8.dp, bottom = 88.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
+                if (showNotifyBanner) {
+                    item {
+                        NotifyOffBanner(onAllow = onNotifyCta)
+                    }
+                }
                 item {
                     FreeWindowChips(
                         state = state,
                         onMinutes = viewModel::setWindowMinutes,
+                        onUntilClock = viewModel::setWindowUntilClock,
                         onCustom = {
                             customMinutesText = ""
                             customError = null
@@ -262,6 +304,20 @@ fun PendingQueueScreen(
                 }
             }
         }
+    }
+
+    if (showNotifyPrompt) {
+        NotifyPromptDialog(
+            onAllow = {
+                NotificationAccess.markPrompted(context)
+                showNotifyPrompt = false
+                notifyPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+            },
+            onNotNow = {
+                NotificationAccess.markPrompted(context)
+                showNotifyPrompt = false
+            },
+        )
     }
 
     snoozeTaskId?.let { id ->
@@ -412,7 +468,7 @@ fun PendingQueueScreen(
                             nowEpochMs = System.currentTimeMillis(),
                         )
                         if (available != null && available > 0) {
-                            viewModel.setWindowMinutes(available)
+                            viewModel.setWindowUntilClock(stopMinutes)
                             showStopByPicker = false
                         } else {
                             showStopByPicker = false
@@ -439,6 +495,7 @@ fun PendingQueueScreen(
 private fun FreeWindowChips(
     state: PendingQueueUiState,
     onMinutes: (Int) -> Unit,
+    onUntilClock: (Int) -> Unit,
     onCustom: () -> Unit,
 ) {
     Column(modifier = Modifier.padding(bottom = 4.dp)) {
@@ -456,20 +513,23 @@ private fun FreeWindowChips(
         ) {
             listOf(15, 30, 45).forEach { minutes ->
                 FilterChip(
-                    selected = state.activeWindowMinutes == minutes,
+                    selected = state.activeWindowMinutes == minutes &&
+                        !state.untilWorkSelected &&
+                        !state.customWindowSelected,
                     onClick = { onMinutes(minutes) },
                     label = { Text(stringResource(R.string.free_window_minutes, minutes)) },
                 )
             }
-            state.untilWorkMinutes?.let { until ->
+            val workStart = state.workStartMinutesOfDay
+            if (workStart != null && (state.untilWorkMinutes != null || state.untilWorkSelected)) {
                 FilterChip(
-                    selected = state.activeWindowMinutes == until,
-                    onClick = { onMinutes(until) },
+                    selected = state.untilWorkSelected,
+                    onClick = { onUntilClock(workStart) },
                     label = { Text(stringResource(R.string.free_window_until_work)) },
                 )
             }
             FilterChip(
-                selected = false,
+                selected = state.customWindowSelected,
                 onClick = onCustom,
                 label = { Text(stringResource(R.string.free_window_custom)) },
             )
@@ -625,6 +685,36 @@ private fun PendingEmptyState(
         }
         TextButton(onClick = onAddTask) {
             Text(stringResource(R.string.add_task))
+        }
+    }
+}
+
+@Composable
+private fun NotifyOffBanner(onAllow: () -> Unit) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 8.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+        ),
+        shape = RoundedCornerShape(16.dp),
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(4.dp),
+        ) {
+            Text(
+                text = stringResource(R.string.pending_notifications_off),
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onSurface,
+            )
+            TextButton(
+                onClick = onAllow,
+                contentPadding = PaddingValues(0.dp),
+            ) {
+                Text(stringResource(R.string.pending_notifications_allow))
+            }
         }
     }
 }

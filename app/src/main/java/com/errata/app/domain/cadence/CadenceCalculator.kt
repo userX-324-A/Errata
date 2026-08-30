@@ -170,6 +170,42 @@ object CadenceCalculator {
     }
 
     /**
+     * First pin: next matching grid slot on or after [nowEpochMs], including
+     * today if that local clock is still ahead. Does not consume a slot (not Skip).
+     */
+    fun nextGridDueOnOrAfter(
+        nowEpochMs: Long,
+        reminderMinutesOfDay: Int,
+        scheduleKind: ScheduleKind,
+        weekdaysMask: Int = 0,
+        monthDay: Int = 0,
+        weekdayOrdinal: Int = 0,
+        yearMonthsMask: Int = 0,
+        seasonMask: Int = 0,
+        zone: ZoneId = ZoneId.systemDefault(),
+    ): Long {
+        val matches = gridDayMatcher(
+            scheduleKind = scheduleKind,
+            weekdaysMask = weekdaysMask,
+            monthDay = monthDay,
+            weekdayOrdinal = weekdayOrdinal,
+            yearMonthsMask = yearMonthsMask,
+            seasonMask = seasonMask,
+        ) ?: error("nextGridDueOnOrAfter is for calendar kinds")
+        val reminder = reminderMinutesOfDay.coerceIn(0, 24 * 60 - 1)
+        val today = Instant.ofEpochMilli(nowEpochMs).atZone(zone).toLocalDate()
+        val todayFire = atLocalDateMinutes(today.toEpochDay(), reminder, zone)
+        var date = if (todayFire > nowEpochMs) today else today.plusDays(1)
+        repeat(400) {
+            if (matches(date)) {
+                return atLocalDateMinutes(date.toEpochDay(), reminder, zone)
+            }
+            date = date.plusDays(1)
+        }
+        error("no matching cadence slot within a year")
+    }
+
+    /**
      * Next matching calendar-grid slot on a local day strictly after both
      * [afterEpochMs]'s calendar day and the open scheduled due's calendar day
      * (early Done or Skip consumes that slot), or null for interval tasks.
@@ -185,38 +221,14 @@ object CadenceCalculator {
         seasonMask: Int,
         zone: ZoneId,
     ): Long? {
-        val matches: (LocalDate) -> Boolean = when (scheduleKind) {
-            ScheduleKind.INTERVAL -> return null
-            ScheduleKind.WEEKLY -> {
-                require(Weekdays.hasAny(weekdaysMask)) { "weekdaysMask must include at least one day" }
-                val selected: (LocalDate) -> Boolean =
-                    { date -> Weekdays.contains(weekdaysMask, date.dayOfWeek) }
-                selected
-            }
-            ScheduleKind.MONTHLY -> {
-                require(monthDay in 1..31) { "monthDay must be 1–31" }
-                val onMonthDay: (LocalDate) -> Boolean =
-                    { date -> date.dayOfMonth == monthDay.coerceAtMost(date.lengthOfMonth()) }
-                onMonthDay
-            }
-            ScheduleKind.NTH_WEEKDAY -> {
-                require(NthWeekday.isValid(weekdayOrdinal)) { "weekdayOrdinal must be 1–4 or last" }
-                require(Weekdays.isSingle(weekdaysMask)) { "weekdaysMask must be exactly one weekday" }
-                val onNth: (LocalDate) -> Boolean =
-                    { date -> NthWeekday.matches(date, weekdayOrdinal, weekdaysMask) }
-                onNth
-            }
-            ScheduleKind.YEARLY -> {
-                require(Yearly.isValid(yearMonthsMask, seasonMask, monthDay)) {
-                    "yearly needs at least one month or season"
-                }
-                val onYearly: (LocalDate) -> Boolean = { date ->
-                    YearMonths.matches(date, yearMonthsMask, monthDay) ||
-                        Seasons.matches(date, seasonMask)
-                }
-                onYearly
-            }
-        }
+        val matches = gridDayMatcher(
+            scheduleKind = scheduleKind,
+            weekdaysMask = weekdaysMask,
+            monthDay = monthDay,
+            weekdayOrdinal = weekdayOrdinal,
+            yearMonthsMask = yearMonthsMask,
+            seasonMask = seasonMask,
+        ) ?: return null
         var date = LocalDate.ofEpochDay(
             max(epochDayOf(afterEpochMs, zone), epochDayOf(scheduledDueAtEpochMs, zone)) + 1,
         )
@@ -227,6 +239,48 @@ object CadenceCalculator {
             date = date.plusDays(1)
         }
         error("no matching cadence slot within a year")
+    }
+
+    private fun gridDayMatcher(
+        scheduleKind: ScheduleKind,
+        weekdaysMask: Int,
+        monthDay: Int,
+        weekdayOrdinal: Int,
+        yearMonthsMask: Int,
+        seasonMask: Int,
+    ): ((LocalDate) -> Boolean)? {
+        return when (scheduleKind) {
+            ScheduleKind.INTERVAL -> null
+            ScheduleKind.WEEKLY -> {
+                require(Weekdays.hasAny(weekdaysMask)) { "weekdaysMask must include at least one day" }
+                val matches: (LocalDate) -> Boolean =
+                    { date -> Weekdays.contains(weekdaysMask, date.dayOfWeek) }
+                matches
+            }
+            ScheduleKind.MONTHLY -> {
+                require(monthDay in 1..31) { "monthDay must be 1–31" }
+                val matches: (LocalDate) -> Boolean =
+                    { date -> date.dayOfMonth == monthDay.coerceAtMost(date.lengthOfMonth()) }
+                matches
+            }
+            ScheduleKind.NTH_WEEKDAY -> {
+                require(NthWeekday.isValid(weekdayOrdinal)) { "weekdayOrdinal must be 1–4 or last" }
+                require(Weekdays.isSingle(weekdaysMask)) { "weekdaysMask must be exactly one weekday" }
+                val matches: (LocalDate) -> Boolean =
+                    { date -> NthWeekday.matches(date, weekdayOrdinal, weekdaysMask) }
+                matches
+            }
+            ScheduleKind.YEARLY -> {
+                require(Yearly.isValid(yearMonthsMask, seasonMask, monthDay)) {
+                    "yearly needs at least one month or season"
+                }
+                val matches: (LocalDate) -> Boolean = { date ->
+                    YearMonths.matches(date, yearMonthsMask, monthDay) ||
+                        Seasons.matches(date, seasonMask)
+                }
+                matches
+            }
+        }
     }
 
     private fun skipFromScheduled(

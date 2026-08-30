@@ -125,6 +125,46 @@ class SyncMergeTest {
     }
 
     @Test
+    fun marksAfterLocalReset_bumpsTaskAndHistoryGens() {
+        val marks = SyncMerge.marksAfterLocalReset(
+            previousTasksGeneration = 2,
+            previousHistoryGeneration = 4,
+            nowEpochMs = 300,
+        )
+        assertEquals(3, marks.tasksGeneration)
+        assertEquals(5, marks.historyGeneration)
+        assertEquals(300L, marks.tasksResetAtEpochMs)
+        assertEquals(300L, marks.historyPurgedAtEpochMs)
+    }
+
+    @Test
+    fun resetClearCloud_dropsRemoteTasksAndHistory() {
+        val now = 500L
+        val marks = SyncMerge.marksAfterLocalReset(
+            previousTasksGeneration = 1,
+            previousHistoryGeneration = 1,
+            nowEpochMs = now,
+        )
+        val local = snapshot(
+            tasksGeneration = marks.tasksGeneration,
+            tasksResetAtEpochMs = marks.tasksResetAtEpochMs,
+            historyGeneration = marks.historyGeneration,
+            historyPurgedAtEpochMs = marks.historyPurgedAtEpochMs,
+        )
+        val cloud = snapshot(
+            tasksGeneration = 1,
+            historyGeneration = 1,
+            tasks = listOf(task("old", "Should vanish", created = 10, updated = 400)),
+            completions = listOf(done("cloud-old", "old", at = 30)),
+        )
+        val out = SyncMerge.merge(local, cloud)
+        assertTrue(out.tasks.isEmpty())
+        assertTrue(out.completions.isEmpty())
+        assertEquals(marks.tasksGeneration, out.tasksGeneration)
+        assertEquals(marks.historyGeneration, out.historyGeneration)
+    }
+
+    @Test
     fun importReplace_dropsCloudOnlyTasksAndOldHistory() {
         val now = 500L
         val marks = SyncMerge.marksAfterLocalReplace(

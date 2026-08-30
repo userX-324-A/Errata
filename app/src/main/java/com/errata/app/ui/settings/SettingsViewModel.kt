@@ -13,6 +13,7 @@ import com.errata.app.domain.cadence.CadenceMode
 import com.errata.app.domain.history.HistoryRetention
 import com.errata.app.domain.reminders.DefaultReminderKind
 import com.errata.app.domain.settings.AppearanceMode
+import com.errata.app.reminders.PermissionReschedule
 import com.errata.app.sync.GoogleAuth
 import com.errata.app.sync.GoogleLinkResult
 import com.errata.app.sync.SyncCoordinator
@@ -47,10 +48,12 @@ class SettingsViewModel(
     private val syncScheduler: SyncScheduler,
     private val coordinator: SyncCoordinator,
     private val playServicesAvailable: Boolean,
+    initialNotify: Boolean,
+    initialExact: Boolean,
 ) : ViewModel() {
 
     private var pendingLinkEmail: String? = null
-    private var lastPermissionFlags: Pair<Boolean, Boolean>? = null
+    private var lastPermissionFlags: Pair<Boolean, Boolean> = initialNotify to initialExact
 
     val uiState: StateFlow<SettingsUiState> = combine(
         commands.observeSettings,
@@ -128,12 +131,13 @@ class SettingsViewModel(
     }
 
     /**
-     * Settings resume: rebuild alarms if notification or exact-alarm access
-     * changed (including the first visit this process, when last known is unset).
+     * Settings resume: rebuild alarms only when notification or exact-alarm
+     * access changed. Flags are seeded at construction (process-start
+     * rescheduleAll already ran).
      */
     fun onResumePermissionFlags(canNotify: Boolean, canExact: Boolean) {
         val next = canNotify to canExact
-        if (lastPermissionFlags == next) return
+        if (!PermissionReschedule.shouldRun(lastPermissionFlags, next)) return
         lastPermissionFlags = next
         rescheduleReminders()
     }
@@ -201,6 +205,8 @@ class SettingsViewModel(
             syncScheduler: SyncScheduler,
             coordinator: SyncCoordinator,
             playServicesAvailable: Boolean,
+            initialNotify: Boolean,
+            initialExact: Boolean,
         ): ViewModelProvider.Factory =
             object : ViewModelProvider.Factory {
                 @Suppress("UNCHECKED_CAST")
@@ -211,6 +217,8 @@ class SettingsViewModel(
                         syncScheduler,
                         coordinator,
                         playServicesAvailable,
+                        initialNotify,
+                        initialExact,
                     ) as T
                 }
             }

@@ -48,4 +48,13 @@ class ReminderActionGuardTest {
         assertFalse(ReminderActionGuard.shouldSnooze(1_000L, 1_000L, isPaused = true))
         assertFalse(ReminderActionGuard.shouldSnooze(1_000L, 1_000L, isArchived = true))
     }
+
+    @Test
+    fun shouldSkip_sameDueGuardAsComplete() {
+        assertTrue(ReminderActionGuard.shouldSkip(1_000L, expectedNextDueAtEpochMs = null))
+        assertTrue(ReminderActionGuard.shouldSkip(1_000L, 1_000L))
+        assertFalse(ReminderActionGuard.shouldSkip(2_000L, 1_000L))
+        assertFalse(ReminderActionGuard.shouldSkip(1_000L, 1_000L, isPaused = true))
+        assertFalse(ReminderActionGuard.shouldSkip(1_000L, 1_000L, isArchived = true))
+    }
 }

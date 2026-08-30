@@ -14,7 +14,9 @@ import kotlinx.coroutines.launch
  */
 class BootReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent?) {
-        if (intent?.action !in ACTIONS) return
+        val action = intent?.action ?: return
+        if (action !in ACTIONS) return
+        if (!shouldRun(action, System.currentTimeMillis())) return
         val pending = goAsync()
         CoroutineScope(Dispatchers.IO).launch {
             try {
@@ -38,5 +40,22 @@ class BootReceiver : BroadcastReceiver() {
 
         const val ACTION_QUICKBOOT = "android.intent.action.QUICKBOOT_POWERON"
         const val ACTION_HTC_QUICKBOOT = "com.htc.intent.action.QUICKBOOT_POWERON"
+        const val CLOCK_DEBOUNCE_MS = 2_000L
+
+        @Volatile
+        private var lastClockRescheduleMs = 0L
+
+        fun shouldRun(action: String, nowMs: Long): Boolean {
+            if (!isClockAction(action)) return true
+            if (nowMs - lastClockRescheduleMs < CLOCK_DEBOUNCE_MS) return false
+            lastClockRescheduleMs = nowMs
+            return true
+        }
+
+        fun isClockAction(action: String): Boolean =
+            action == Intent.ACTION_TIME_CHANGED || action == Intent.ACTION_TIMEZONE_CHANGED
+
+        fun shouldDebounceClock(lastMs: Long, nowMs: Long, windowMs: Long = CLOCK_DEBOUNCE_MS): Boolean =
+            nowMs - lastMs < windowMs
     }
 }

@@ -28,7 +28,7 @@ class SyncWorker(
                 Result.success()
             }
             SyncOutcome.Retryable -> Result.retry()
-            SyncOutcome.Auth -> {
+            SyncOutcome.Auth, SyncOutcome.Corrupt -> {
                 app.syncScheduler.cancelAll()
                 Result.success()
             }

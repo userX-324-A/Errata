@@ -6,7 +6,6 @@ import com.errata.app.domain.sync.SyncMerge
 import com.errata.app.domain.sync.SyncRound
 import com.errata.app.domain.sync.SyncRoundResult
 import com.errata.app.reminders.ReminderScheduler
-import com.errata.app.widget.WidgetUpdater
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
@@ -14,6 +13,13 @@ enum class SyncOutcome {
     Ok,
     Retryable,
     Auth,
+    Corrupt,
+}
+
+fun syncOutcomeForFailure(reason: String): SyncOutcome = when (reason) {
+    "auth" -> SyncOutcome.Auth
+    "corrupt" -> SyncOutcome.Corrupt
+    else -> SyncOutcome.Retryable
 }
 
 class SyncCoordinator(
@@ -21,7 +27,6 @@ class SyncCoordinator(
     private val store: DriveAppDataClient,
     private val prefs: SyncPreferences,
     private val scheduler: ReminderScheduler,
-    private val widgetUpdater: WidgetUpdater,
 ) {
     private val lock = Mutex()
 
@@ -49,13 +54,12 @@ class SyncCoordinator(
                 }
                 repository.applySyncSnapshot(result.snapshot)
                 scheduler.rescheduleAll()
-                widgetUpdater.refresh()
                 prefs.markSynced(System.currentTimeMillis())
                 SyncOutcome.Ok
             }
             is SyncRoundResult.Failed -> {
                 prefs.markError(result.reason)
-                if (result.reason == "auth") SyncOutcome.Auth else SyncOutcome.Retryable
+                syncOutcomeForFailure(result.reason)
             }
         }
     }

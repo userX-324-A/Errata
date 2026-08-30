@@ -13,6 +13,7 @@ import com.errata.app.domain.due.DueBucket
 import com.errata.app.domain.estimate.EstimateAdjuster
 import com.errata.app.domain.estimate.EstimateHonesty
 import com.errata.app.domain.reminders.ReminderPolicy
+import com.errata.app.domain.freewindow.FreeWindowSelection
 import com.errata.app.domain.starter.StarterSpec
 import com.errata.app.reminders.ReminderActionGuard
 import com.errata.app.ui.common.formatClock
@@ -47,6 +48,9 @@ data class PendingQueueUiState(
     val fits: List<PendingItem> = emptyList(),
     val leftoverAfterBestMinutes: Int? = null,
     val untilWorkMinutes: Int? = null,
+    val untilWorkSelected: Boolean = false,
+    val workStartMinutesOfDay: Int? = null,
+    val customWindowSelected: Boolean = false,
     val honesty: PendingHonestyPrompt? = null,
     val availableAreas: List<String> = emptyList(),
     /** Null = All. */
@@ -67,7 +71,7 @@ class PendingQueueViewModel(
 ) : ViewModel() {
 
     private val nowTick = MutableStateFlow(System.currentTimeMillis())
-    private val activeWindowMinutes = MutableStateFlow<Int?>(null)
+    private val window = MutableStateFlow<FreeWindowSelection?>(null)
     private val honestyPrompt = MutableStateFlow<PendingHonestyPrompt?>(null)
     private val activeArea = MutableStateFlow<String?>(null)
     private val startersPinnedHint = MutableStateFlow(false)
@@ -84,7 +88,7 @@ class PendingQueueViewModel(
         commands.observeActiveTasks,
         commands.observeSettings,
         nowTick,
-        activeWindowMinutes,
+        window,
         combine(honestyPrompt, activeArea, startersPinnedHint, busyIds) { honesty, area, hint, busy ->
             QueueExtras(honesty, area, hint, busy)
         },
@@ -111,13 +115,18 @@ class PendingQueueViewModel(
 
     fun setWindowMinutes(minutes: Int) {
         if (minutes > 0) {
-            activeWindowMinutes.value = minutes
+            window.value = FreeWindowSelection.Duration(minutes)
             refreshNow()
         }
     }
 
+    fun setWindowUntilClock(minutesOfDay: Int) {
+        window.value = FreeWindowSelection.UntilClock(minutesOfDay)
+        refreshNow()
+    }
+
     fun clearWindow() {
-        activeWindowMinutes.value = null
+        window.value = null
     }
 
     fun setActiveArea(area: String?) {
@@ -193,7 +202,11 @@ class PendingQueueViewModel(
     fun skip(taskId: Long) {
         viewModelScope.launch {
             withTaskBusy(taskId) {
-                commands.skip(taskId)
+                val task = commands.getTask(taskId) ?: return@withTaskBusy
+                commands.skip(
+                    taskId,
+                    expectedNextDueAtEpochMs = task.nextDueAtEpochMs,
+                )
                 refreshNow()
             }
         }

@@ -4,6 +4,11 @@ import com.errata.app.domain.sync.StableIds
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 
+data class BackupDecode(
+    val backup: ErrataBackup,
+    val mintedStableIds: Boolean,
+)
+
 object BackupCodec {
     private val json = Json {
         prettyPrint = true
@@ -13,7 +18,9 @@ object BackupCodec {
 
     fun encode(backup: ErrataBackup): String = json.encodeToString(backup.normalized())
 
-    fun decode(text: String): ErrataBackup {
+    fun decode(text: String): ErrataBackup = inspect(text).backup
+
+    fun inspect(text: String): BackupDecode {
         val backup = try {
             json.decodeFromString<ErrataBackup>(text)
         } catch (e: Exception) {
@@ -24,7 +31,9 @@ object BackupCodec {
                 "Unsupported backup version ${backup.schemaVersion} (expected $BACKUP_SCHEMA_VERSION)",
             )
         }
-        return backup.normalized()
+        val minted = backup.tasks.any { it.uuid.isBlank() } ||
+            backup.completions.any { it.uuid.isBlank() }
+        return BackupDecode(backup.normalized(), minted)
     }
 }
 

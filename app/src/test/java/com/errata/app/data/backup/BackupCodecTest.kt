@@ -3,6 +3,7 @@ package com.errata.app.data.backup
 import com.errata.app.domain.cadence.CadenceMode
 import com.errata.app.domain.cadence.ScheduleKind
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -88,6 +89,19 @@ class BackupCodecTest {
         assertEquals(2, decoded.schemaVersion)
         assertTrue(decoded.tasks.single().uuid.isNotBlank())
         assertTrue(decoded.completions.single().uuid.isNotBlank())
+        assertTrue(BackupCodec.inspect(json).mintedStableIds)
+    }
+
+    @Test
+    fun decode_v2_keepsUuidsWithoutMinting() {
+        val uuid = "11111111-1111-1111-1111-111111111111"
+        val original = sample().copy(
+            tasks = listOf(sample().tasks.single().copy(uuid = uuid)),
+            completions = listOf(sample().completions.single().copy(uuid = "c1")),
+        )
+        val inspected = BackupCodec.inspect(BackupCodec.encode(original))
+        assertFalse(inspected.mintedStableIds)
+        assertEquals(uuid, inspected.backup.tasks.single().uuid)
     }
 
     @Test

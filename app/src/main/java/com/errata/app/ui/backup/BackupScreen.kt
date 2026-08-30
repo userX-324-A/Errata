@@ -203,15 +203,20 @@ fun BackupScreen(
             onDismissRequest = viewModel::cancelImport,
             title = { Text(stringResource(R.string.backup_confirm_title)) },
             text = {
-                Text(
-                    stringResource(
-                        if (ErrataApp.instance.syncPreferences.isLinked()) {
-                            R.string.backup_confirm_body_linked
-                        } else {
-                            R.string.backup_confirm_body
-                        },
-                    ),
-                )
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text(
+                        stringResource(
+                            if (ErrataApp.instance.syncPreferences.isLinked()) {
+                                R.string.backup_confirm_body_linked
+                            } else {
+                                R.string.backup_confirm_body
+                            },
+                        ),
+                    )
+                    if (state.importMintsIds) {
+                        Text(stringResource(R.string.backup_confirm_minted))
+                    }
+                }
             },
             confirmButton = {
                 TextButton(onClick = viewModel::confirmImport) {
@@ -232,6 +237,7 @@ private fun StatusFor(state: BackupUiState) {
     val text = when {
         state.message == "exported" -> stringResource(R.string.backup_export_ok)
         state.message == "imported" -> stringResource(R.string.backup_import_ok)
+        state.message == "imported_minted" -> stringResource(R.string.backup_import_minted)
         state.message == "folder_written" -> stringResource(R.string.backup_folder_written)
         state.message == "folder_cleared" -> stringResource(R.string.backup_folder_cleared)
         state.message == "no_folder" -> stringResource(R.string.backup_no_folder)

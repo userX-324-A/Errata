@@ -29,7 +29,15 @@ class ReminderScheduler(
         val settings = repository.getSettings()
         val tasks = repository.listSchedulableTasks()
         if (settings.digestEnabled && NotificationAccess.areEnabled(context)) {
-            scheduleDigest(settings.defaultReminderMinutesOfDay)
+            val now = System.currentTimeMillis()
+            scheduleDigest(
+                settings.defaultReminderMinutesOfDay,
+                nowEpochMs = now,
+                afterFire = DigestPlanner.alreadyPostedToday(
+                    DigestNotifyStore.lastNotifiedEpochDay(context),
+                    now,
+                ),
+            )
         } else {
             cancelDigest()
         }
@@ -50,6 +58,7 @@ class ReminderScheduler(
             sessionAlarmIds.addAll(scheduled)
             ScheduledAlarmStore.save(context, scheduled)
         }
+        // Owns the widget pass; callers that also afterWrite skip a second refresh.
         widgetUpdater.refresh()
         notifyMissedDigestIfNeeded()
     }
@@ -106,9 +115,10 @@ class ReminderScheduler(
                     candidate = task.toDigestCandidate(),
                     defaultReminderMinutesOfDay = minutes,
                     nowEpochMs = now,
-                )
+                ) && !DigestNotifyStore.alreadyPostedFallback(context, today, task.id)
             }
             postDigestCards(fallback)
+            DigestNotifyStore.markFallbackPosted(context, today, fallback.map { it.id })
         }
     }
 
@@ -175,10 +185,11 @@ class ReminderScheduler(
         cancel(taskId)
     }
 
-    /** Drop a posted per-task card and its Done/Snooze actions. Does not touch the digest. */
+    /** Drop a posted per-task card, its Done/Snooze actions, and a stale digest snapshot. */
     fun dismissPostedReminder(taskId: Long) {
         NotificationHelper.dismiss(context, taskId)
         NotificationHelper.cancelActions(context, taskId)
+        NotificationHelper.dismissDigest(context)
     }
 
     private fun scheduleTask(
@@ -204,7 +215,11 @@ class ReminderScheduler(
                         nowEpochMs = now,
                     )
                 ) {
-                    NotificationHelper.showDueReminder(context, task)
+                    val today = DigestPlanner.localEpochDay(now)
+                    if (!DigestNotifyStore.alreadyPostedFallback(context, today, task.id)) {
+                        NotificationHelper.showDueReminder(context, task)
+                        DigestNotifyStore.markFallbackPosted(context, today, listOf(task.id))
+                    }
                 }
                 return false
             }
