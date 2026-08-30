@@ -3,6 +3,7 @@ package com.errata.app.data.local
 import androidx.room.TypeConverter
 import com.errata.app.domain.cadence.CadenceMode
 import com.errata.app.domain.cadence.ScheduleKind
+import com.errata.app.domain.reminders.DefaultReminderKind
 import com.errata.app.domain.settings.AppearanceMode
 
 class Converters {
@@ -32,5 +33,16 @@ class Converters {
             AppearanceMode.valueOf(value)
         } catch (_: IllegalArgumentException) {
             AppearanceMode.SYSTEM
+        }
+
+    @TypeConverter
+    fun defaultReminderKindToString(kind: DefaultReminderKind): String = kind.name
+
+    @TypeConverter
+    fun stringToDefaultReminderKind(value: String): DefaultReminderKind =
+        try {
+            DefaultReminderKind.valueOf(value)
+        } catch (_: IllegalArgumentException) {
+            DefaultReminderKind.WHEN_DUE
         }
 }

@@ -4,8 +4,8 @@ import android.content.Context
 
 /**
  * Task ids that currently have a per-task [android.app.AlarmManager] wakeup.
- * [ReminderScheduler.rescheduleAll] cancels ids that dropped off this set
- * (import, reset, sync prune, archive) so deleted chores do not keep waking the device.
+ * Updated on [ReminderScheduler.rescheduleTask] as well as [ReminderScheduler.rescheduleAll].
+ * Orphans (import, reset, sync prune) are previous ∪ this-process ids minus remaining.
  */
 object ScheduledAlarmStore {
     private const val PREFS = "errata_scheduled_alarms"
@@ -23,7 +23,19 @@ object ScheduledAlarmStore {
             .apply()
     }
 
-    fun orphans(previous: Set<Long>, remaining: Set<Long>): Set<Long> = previous - remaining
+    fun add(context: Context, id: Long) {
+        save(context, load(context) + id)
+    }
+
+    fun remove(context: Context, id: Long) {
+        save(context, load(context) - id)
+    }
+
+    fun orphans(
+        previous: Set<Long>,
+        remaining: Set<Long>,
+        session: Set<Long> = emptySet(),
+    ): Set<Long> = (previous + session) - remaining
 
     private fun prefs(context: Context) =
         context.applicationContext.getSharedPreferences(PREFS, Context.MODE_PRIVATE)

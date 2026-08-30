@@ -50,7 +50,36 @@ Debug APKs are signed with the local debug keystore — good enough for personal
 - Optional on Android 12+: **Alarms & reminders** special access (Settings → On-time reminders) if you want them at the clock time you picked. Declining is fine — reminders still fire, sometimes a few minutes late.
 - Optional: **Backup** under Settings to export/import JSON, or a shared folder. Optional: **Link Google** (hidden Drive app folder) after you add an OAuth client — [docs/07-google-sync.md](./07-google-sync.md).
 - **Privacy** under Settings states what stays on device and what optional Google link sends. Android cloud backup of Errata data is off.
-- Optional: pin the **Errata** widget from the launcher widget picker for due count and minutes. It does not poll; it updates when you change tasks and once around local midnight.
+- Optional: pin the **Errata** widget from the launcher widget picker. Default is a larger tile (count, minutes, and a few titles). Shrink it if you only want the count line. If you already had a tiny tile, remove and re-pin (or resize) to get the new default. It does not poll; it updates when you change tasks, when you resize it, and once around local midnight.
+
+## Device checks (friends / tablet)
+
+Unit tests cover cadence, reminder fire times, digest membership, backup, and sync merge. `androidTest` covers catalog Save popping to pending. Walk the rest on a **real tablet or phone** (sideload or Play). Calm titles; no real personal notes.
+
+### Shade
+
+- [ ] Pin a task with a reminder; when the card appears, **Done** once — next due advances; the card is gone
+- [ ] Double-tap shade **Done** before it dismisses — one completion, not two cycles
+- [ ] Complete in-app, leftover shade **Snooze** — refused / gone; does not snooze the new cycle
+- [ ] Pause or archive, leftover shade Done/Snooze — refused
+
+### Digest (Settings → morning digest on)
+
+- [ ] N=0 at the default clock — silent
+- [ ] N=1 — the usual per-task card (Done / Snooze)
+- [ ] N≥2 — one digest (count + total minutes); tap opens pending
+- [ ] Force-stop overnight past the digest clock, open the app — one missed digest that local day, not a second card
+
+### Import and Google
+
+- [ ] Settings → Backup import (SAF) replace-all while offline
+- [ ] Import while **linked** — the other device matches the file after Sync now (see [`07-google-sync.md`](./07-google-sync.md) two-device step 7)
+
+### Tablet layout
+
+- [ ] Compact / phone: bottom bar; editor is a full-screen push
+- [ ] 7–10″ landscape (expanded): navigation rail; Pending, All tasks, and catalog keep the list beside the editor; Save does not hide the list
+- [ ] Narrow (~720dp) vs wide two-pane — list stays usable, editor can use two columns
 
 ## Rebuild and update
 

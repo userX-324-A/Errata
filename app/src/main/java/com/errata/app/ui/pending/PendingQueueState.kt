@@ -6,6 +6,7 @@ import com.errata.app.domain.area.TaskAreas
 import com.errata.app.domain.due.DueBucket
 import com.errata.app.domain.due.PendingClassifier
 import com.errata.app.domain.freewindow.FreeWindowRanker
+import java.time.LocalTime
 
 object PendingQueueState {
 
@@ -17,6 +18,7 @@ object PendingQueueState {
         honesty: PendingHonestyPrompt?,
         requestedArea: String?,
         hint: Boolean,
+        formatTime: (LocalTime) -> String = DueCopy::formatTimeDefault,
     ): PendingQueueUiState {
         val items = tasks.mapNotNull { task ->
             val bucket = PendingClassifier.classify(
@@ -44,6 +46,7 @@ object PendingQueueState {
                     snoozedUntilEpochMs = task.snoozedUntilEpochMs,
                     estimateMinutes = task.estimateMinutes,
                     nowEpochMs = now,
+                    formatTime = formatTime,
                 ),
             )
         }

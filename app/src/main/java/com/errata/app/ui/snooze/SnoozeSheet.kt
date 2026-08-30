@@ -40,6 +40,7 @@ fun SnoozeSheet(
             if (!showTimePicker) onDismiss()
         },
         sheetState = sheetState,
+        sheetMaxWidth = 640.dp,
     ) {
         Column(modifier = Modifier.padding(bottom = 24.dp)) {
             Text(

@@ -10,6 +10,7 @@ import com.errata.app.data.backup.TaskBackup
 import com.errata.app.data.backup.normalized
 import com.errata.app.data.backup.parseAppearanceMode
 import com.errata.app.data.backup.parseCadenceMode
+import com.errata.app.data.backup.parseDefaultReminderKind
 import com.errata.app.data.backup.parseScheduleKind
 import com.errata.app.data.local.CompletionEntity
 import com.errata.app.data.local.ErrataDatabase
@@ -21,6 +22,7 @@ import com.errata.app.domain.cadence.TaskCycle
 import com.errata.app.domain.estimate.EstimateAdjuster
 import com.errata.app.domain.history.HistoryGlance
 import com.errata.app.domain.history.HistoryRetention
+import com.errata.app.domain.reminders.ReminderPolicy
 import com.errata.app.domain.starter.StarterCatalog
 import com.errata.app.domain.starter.StarterSpec
 import com.errata.app.domain.sync.StableIds
@@ -42,6 +44,9 @@ class TaskRepository(
     private val tasks = db.taskDao()
     private val completions = db.completionDao()
     private val settings = db.settingsDao()
+
+    @Volatile
+    private var lastPruneEpochDay: Long? = null
 
     fun observeActiveTasks(): Flow<List<TaskEntity>> = tasks.observeActiveTasks()
 
@@ -101,6 +106,10 @@ class TaskRepository(
                 spec = spec,
                 cadenceMode = settings.defaultCadenceMode,
                 reminderMinutesOfDay = settings.defaultReminderMinutesOfDay,
+                storedReminderMinutes = ReminderPolicy.storedFor(
+                    settings.defaultReminderKind,
+                    settings.defaultReminderMinutesOfDay,
+                ),
                 nowEpochMs = now,
                 zone = zone,
             )
@@ -124,7 +133,14 @@ class TaskRepository(
         expectedNextDueAtEpochMs: Long? = null,
     ): Boolean {
         val task = tasks.getById(taskId) ?: return false
-        if (!ReminderActionGuard.shouldComplete(task.nextDueAtEpochMs, expectedNextDueAtEpochMs)) {
+        if (
+            !ReminderActionGuard.shouldComplete(
+                task.nextDueAtEpochMs,
+                expectedNextDueAtEpochMs,
+                isPaused = task.isPaused,
+                isArchived = task.isArchived,
+            )
+        ) {
             return false
         }
         val scheduledDue = task.nextDueAtEpochMs
@@ -165,14 +181,29 @@ class TaskRepository(
         return true
     }
 
-    suspend fun snooze(taskId: Long, untilEpochMs: Long) {
-        val task = tasks.getById(taskId) ?: return
+    suspend fun snooze(
+        taskId: Long,
+        untilEpochMs: Long,
+        expectedNextDueAtEpochMs: Long? = null,
+    ): Boolean {
+        val task = tasks.getById(taskId) ?: return false
+        if (
+            !ReminderActionGuard.shouldSnooze(
+                task.nextDueAtEpochMs,
+                expectedNextDueAtEpochMs,
+                isPaused = task.isPaused,
+                isArchived = task.isArchived,
+            )
+        ) {
+            return false
+        }
         tasks.update(
             task.copy(
                 snoozedUntilEpochMs = untilEpochMs,
                 updatedAtEpochMs = System.currentTimeMillis(),
             ),
         )
+        return true
     }
 
     suspend fun updateEstimateMinutes(taskId: Long, estimateMinutes: Int) {
@@ -301,21 +332,27 @@ class TaskRepository(
         db.ensureSettings()
     }
 
-    suspend fun pruneHistory(nowEpochMs: Long = System.currentTimeMillis()) =
-        withContext(Dispatchers.IO) {
-            val days = getSettings().historyRetentionDays
-            val rows = completions.listAll().map { row ->
-                HistoryRetention.Row(
-                    id = row.id,
-                    taskId = row.taskId,
-                    completedAtEpochMs = row.completedAtEpochMs,
+    suspend fun pruneHistory(
+        nowEpochMs: Long = System.currentTimeMillis(),
+        force: Boolean = false,
+    ) = withContext(Dispatchers.IO) {
+        val days = getSettings().historyRetentionDays
+        val today = CadenceCalculator.epochDayOf(nowEpochMs, zone)
+        if (!HistoryRetention.shouldRun(days, lastPruneEpochDay, today, force)) {
+            return@withContext
+        }
+        val cutoff = HistoryRetention.cutoffEpochMs(nowEpochMs, days)
+        if (cutoff != null) {
+            completions.taskIdsOlderThan(cutoff).forEach { taskId ->
+                completions.deleteExpiredBeyondKeep(
+                    taskId = taskId,
+                    cutoff = cutoff,
+                    keepCount = HistoryRetention.KEEP_PER_TASK,
                 )
             }
-            val ids = HistoryRetention.idsToDelete(rows, nowEpochMs, days)
-            ids.chunked(500).forEach { chunk ->
-                completions.deleteByIds(chunk)
-            }
         }
+        lastPruneEpochDay = today
+    }
 
     suspend fun purgeHistory() {
         val now = System.currentTimeMillis()
@@ -399,6 +436,9 @@ class TaskRepository(
             settings.upsert(
                 current.copy(
                     defaultCadenceMode = parseCadenceMode(pruned.settings.defaultCadenceMode),
+                    defaultReminderKind = parseDefaultReminderKind(
+                        pruned.settings.defaultReminderKind,
+                    ),
                     defaultReminderMinutesOfDay = pruned.settings.defaultReminderMinutesOfDay,
                     defaultWorkStartMinutesOfDay = pruned.settings.defaultWorkStartMinutesOfDay,
                     soonHorizonDays = pruned.settings.soonHorizonDays,
@@ -418,6 +458,7 @@ class TaskRepository(
 
 private fun SettingsEntity.sharedEquals(other: SettingsEntity): Boolean =
     defaultCadenceMode == other.defaultCadenceMode &&
+        defaultReminderKind == other.defaultReminderKind &&
         defaultReminderMinutesOfDay == other.defaultReminderMinutesOfDay &&
         defaultWorkStartMinutesOfDay == other.defaultWorkStartMinutesOfDay &&
         soonHorizonDays == other.soonHorizonDays &&
@@ -426,6 +467,7 @@ private fun SettingsEntity.sharedEquals(other: SettingsEntity): Boolean =
 
 private fun SettingsEntity.toBackup() = SettingsBackup(
     defaultCadenceMode = defaultCadenceMode.name,
+    defaultReminderKind = defaultReminderKind.name,
     defaultReminderMinutesOfDay = defaultReminderMinutesOfDay,
     defaultWorkStartMinutesOfDay = defaultWorkStartMinutesOfDay,
     soonHorizonDays = soonHorizonDays,
@@ -442,6 +484,7 @@ private fun SettingsEntity.toBackup() = SettingsBackup(
 private fun SettingsBackup.toEntity() = SettingsEntity(
     id = 1,
     defaultCadenceMode = parseCadenceMode(defaultCadenceMode),
+    defaultReminderKind = parseDefaultReminderKind(defaultReminderKind),
     defaultReminderMinutesOfDay = defaultReminderMinutesOfDay,
     defaultWorkStartMinutesOfDay = defaultWorkStartMinutesOfDay,
     soonHorizonDays = soonHorizonDays,
@@ -458,6 +501,7 @@ private fun SettingsBackup.toEntity() = SettingsEntity(
 private fun SettingsEntity.toSyncSettings() = SyncSettings(
     updatedAtEpochMs = updatedAtEpochMs,
     defaultCadenceMode = defaultCadenceMode.name,
+    defaultReminderKind = defaultReminderKind.name,
     defaultReminderMinutesOfDay = defaultReminderMinutesOfDay,
     defaultWorkStartMinutesOfDay = defaultWorkStartMinutesOfDay,
     soonHorizonDays = soonHorizonDays,

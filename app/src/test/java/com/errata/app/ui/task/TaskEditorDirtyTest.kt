@@ -2,6 +2,7 @@ package com.errata.app.ui.task
 
 import com.errata.app.domain.cadence.CadenceMode
 import com.errata.app.domain.cadence.ScheduleKind
+import com.errata.app.domain.reminders.ReminderPolicy
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
 import org.junit.Test
@@ -53,5 +54,63 @@ class TaskEditorDirtyTest {
         assertEquals(dueMinutes, state.dueMinuteOfDay)
         assertEquals(dueMinutes, state.defaultReminderMinutesOfDay)
         assertEquals(20_000L, state.dueEpochDay)
+    }
+
+    @Test
+    fun blankNew_inheritsNoneAndClock() {
+        val dueMinutes = 18 * 60
+        val none = TaskEditorUiState().withBlankNew(
+            cadenceMode = CadenceMode.FROM_COMPLETION,
+            todayEpochDay = 20_000L,
+            dueMinutes = dueMinutes,
+            storedReminderMinutes = ReminderPolicy.NONE,
+        )
+        assertEquals(ReminderPolicy.NONE, none.reminderMinutesOfDay)
+        assertEquals(dueMinutes, none.dueMinuteOfDay)
+        val clock = TaskEditorUiState().withBlankNew(
+            cadenceMode = CadenceMode.FROM_COMPLETION,
+            todayEpochDay = 20_000L,
+            dueMinutes = dueMinutes,
+            storedReminderMinutes = dueMinutes,
+        )
+        assertEquals(dueMinutes, clock.reminderMinutesOfDay)
+    }
+
+    @Test
+    fun fingerprint_noneIsDistinctFromWhenDue() {
+        val whenDue = state(reminderMinutesOfDay = null)
+        val none = state(reminderMinutesOfDay = ReminderPolicy.NONE)
+        assertNotEquals(whenDue.editFingerprint(), none.editFingerprint())
+    }
+
+    @Test
+    fun fingerprint_ignoresSavingAndSaved() {
+        val baseline = state()
+        assertEquals(
+            baseline.editFingerprint(),
+            state().copy(saved = true, saving = true).editFingerprint(),
+        )
+    }
+
+    @Test
+    fun shouldSkipSave_whenSavedOrSaving() {
+        assertEquals(false, state().shouldSkipSave())
+        assertEquals(true, state().copy(saved = true).shouldSkipSave())
+        assertEquals(true, state().copy(saving = true).shouldSkipSave())
+    }
+
+    @Test
+    fun adoptSavedRow_promotesNewTask() {
+        val next = TaskEditorUiState(isNew = true, saving = true).adoptSavedRow(
+            id = 7L,
+            uuid = "11111111-1111-1111-1111-111111111111",
+            createdAtEpochMs = 99L,
+        )
+        assertEquals(7L, next.existingId)
+        assertEquals("11111111-1111-1111-1111-111111111111", next.existingUuid)
+        assertEquals(false, next.isNew)
+        assertEquals(true, next.saved)
+        assertEquals(false, next.saving)
+        assertEquals(99L, next.createdAtEpochMs)
     }
 }

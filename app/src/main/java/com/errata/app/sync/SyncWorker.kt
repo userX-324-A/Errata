@@ -21,8 +21,17 @@ class SyncWorker(
         val app = applicationContext as? ErrataApp ?: return Result.success()
         if (!app.syncPreferences.isLinked()) return Result.success()
         return when (app.syncCoordinator.sync()) {
-            true -> Result.success()
-            false -> Result.retry()
+            SyncOutcome.Ok -> {
+                if (app.syncPreferences.isLinked()) {
+                    app.syncScheduler.ensurePeriodic()
+                }
+                Result.success()
+            }
+            SyncOutcome.Retryable -> Result.retry()
+            SyncOutcome.Auth -> {
+                app.syncScheduler.cancelAll()
+                Result.success()
+            }
         }
     }
 }

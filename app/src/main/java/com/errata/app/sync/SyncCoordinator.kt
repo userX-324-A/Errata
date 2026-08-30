@@ -10,6 +10,12 @@ import com.errata.app.widget.WidgetUpdater
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
+enum class SyncOutcome {
+    Ok,
+    Retryable,
+    Auth,
+}
+
 class SyncCoordinator(
     private val repository: TaskRepository,
     private val store: DriveAppDataClient,
@@ -19,37 +25,37 @@ class SyncCoordinator(
 ) {
     private val lock = Mutex()
 
-    suspend fun sync(): Boolean = lock.withLock {
-        if (!prefs.isLinked()) return true
+    suspend fun sync(): SyncOutcome = lock.withLock {
+        if (!prefs.isLinked()) return@withLock SyncOutcome.Ok
         val local = repository.toSyncSnapshot()
         val result = try {
             SyncRound.run(local, store, System.currentTimeMillis())
         } catch (_: DriveAppDataClient.AuthRequiredException) {
             prefs.markError("auth")
-            return false
+            return@withLock SyncOutcome.Auth
         } catch (_: DriveAppDataClient.NetworkException) {
             prefs.markError("network")
-            return false
+            return@withLock SyncOutcome.Retryable
         } catch (e: Exception) {
             Log.w(TAG, "sync", e)
             prefs.markError("network")
-            return false
+            return@withLock SyncOutcome.Retryable
         }
-        return when (result) {
+        when (result) {
             is SyncRoundResult.Applied -> {
                 val current = repository.toSyncSnapshot()
                 if (SyncMerge.localMoved(local, current)) {
-                    return false
+                    return@withLock SyncOutcome.Retryable
                 }
                 repository.applySyncSnapshot(result.snapshot)
                 scheduler.rescheduleAll()
                 widgetUpdater.refresh()
                 prefs.markSynced(System.currentTimeMillis())
-                true
+                SyncOutcome.Ok
             }
             is SyncRoundResult.Failed -> {
                 prefs.markError(result.reason)
-                result.reason != "auth"
+                if (result.reason == "auth") SyncOutcome.Auth else SyncOutcome.Retryable
             }
         }
     }

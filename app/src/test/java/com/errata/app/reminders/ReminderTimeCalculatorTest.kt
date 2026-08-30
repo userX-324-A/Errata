@@ -3,9 +3,11 @@ package com.errata.app.reminders
 import com.errata.app.data.local.TaskEntity
 import com.errata.app.domain.cadence.CadenceCalculator
 import com.errata.app.domain.cadence.CadenceMode
+import com.errata.app.domain.reminders.ReminderPolicy
 import java.time.LocalDate
 import java.time.ZoneOffset
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -138,5 +140,116 @@ class ReminderTimeCalculatorTest {
             ReminderTimeCalculator.atLocalDateMinutes(due.toEpochDay(), 9 * 60, ny),
             fire,
         )
+    }
+
+    @Test
+    fun none_skipsScheduleEvenWithSnooze() {
+        val due = LocalDate.of(2026, 4, 10)
+        val now = LocalDate.of(2026, 4, 10).atTime(8, 0).toInstant(zone).toEpochMilli()
+        val snooze = now + 30L * 60L * 1000L
+        assertNull(
+            ReminderTimeCalculator.nextFireEpochMs(
+                task = task(due, reminderMinutes = ReminderPolicy.NONE, snoozeMs = snooze),
+                defaultReminderMinutesOfDay = 9 * 60,
+                nowEpochMs = now,
+                zone = zone,
+            ),
+        )
+        assertNull(
+            ReminderTimeCalculator.nextFireEpochMs(
+                task = task(due, reminderMinutes = ReminderPolicy.NONE),
+                defaultReminderMinutesOfDay = 9 * 60,
+                nowEpochMs = now,
+                zone = zone,
+            ),
+        )
+    }
+
+    @Test
+    fun overdue_graceDay_clockAhead_firesToday() {
+        val due = LocalDate.of(2026, 4, 10)
+        val now = LocalDate.of(2026, 4, 11).atTime(8, 0).toInstant(zone).toEpochMilli()
+        val fire = ReminderTimeCalculator.nextFireEpochMs(
+            task = task(due, reminderMinutes = 9 * 60),
+            defaultReminderMinutesOfDay = 9 * 60,
+            nowEpochMs = now,
+            zone = zone,
+        )!!
+        assertEquals(
+            ReminderTimeCalculator.atLocalDateMinutes(due.toEpochDay() + 1, 9 * 60, zone),
+            fire,
+        )
+    }
+
+    @Test
+    fun overdue_graceDay_clockPast_noFurtherNudge() {
+        val due = LocalDate.of(2026, 4, 10)
+        val now = LocalDate.of(2026, 4, 11).atTime(10, 0).toInstant(zone).toEpochMilli()
+        assertNull(
+            ReminderTimeCalculator.nextFireEpochMs(
+                task = task(due, reminderMinutes = 9 * 60),
+                defaultReminderMinutesOfDay = 9 * 60,
+                nowEpochMs = now,
+                zone = zone,
+            ),
+        )
+    }
+
+    @Test
+    fun overdue_beyondGrace_noFireEvenBeforeClock() {
+        val due = LocalDate.of(2026, 4, 10)
+        val now = LocalDate.of(2026, 4, 12).atTime(8, 0).toInstant(zone).toEpochMilli()
+        assertNull(
+            ReminderTimeCalculator.nextFireEpochMs(
+                task = task(due, reminderMinutes = 9 * 60),
+                defaultReminderMinutesOfDay = 9 * 60,
+                nowEpochMs = now,
+                zone = zone,
+            ),
+        )
+    }
+
+    @Test
+    fun overdue_digestEnabled_noPerTaskFire() {
+        val due = LocalDate.of(2026, 4, 10)
+        val now = LocalDate.of(2026, 4, 11).atTime(8, 0).toInstant(zone).toEpochMilli()
+        assertNull(
+            ReminderTimeCalculator.nextFireEpochMs(
+                task = task(due, reminderMinutes = 18 * 60),
+                defaultReminderMinutesOfDay = 9 * 60,
+                nowEpochMs = now,
+                zone = zone,
+                digestEnabled = true,
+            ),
+        )
+    }
+
+    @Test
+    fun dueToday_pastReminder_digestEnabled_doesNotScheduleTomorrow() {
+        val due = LocalDate.of(2026, 4, 10)
+        val now = LocalDate.of(2026, 4, 10).atTime(10, 0).toInstant(zone).toEpochMilli()
+        assertNull(
+            ReminderTimeCalculator.nextFireEpochMs(
+                task = task(due, reminderMinutes = 9 * 60),
+                defaultReminderMinutesOfDay = 9 * 60,
+                nowEpochMs = now,
+                zone = zone,
+                digestEnabled = true,
+            ),
+        )
+    }
+
+    @Test
+    fun overdue_futureSnooze_stillFires() {
+        val due = LocalDate.of(2026, 4, 1)
+        val now = LocalDate.of(2026, 4, 20).atTime(8, 0).toInstant(zone).toEpochMilli()
+        val snooze = now + 30L * 60L * 1000L
+        val fire = ReminderTimeCalculator.nextFireEpochMs(
+            task = task(due, reminderMinutes = 18 * 60, snoozeMs = snooze),
+            defaultReminderMinutesOfDay = 9 * 60,
+            nowEpochMs = now,
+            zone = zone,
+        )!!
+        assertEquals(snooze, fire)
     }
 }

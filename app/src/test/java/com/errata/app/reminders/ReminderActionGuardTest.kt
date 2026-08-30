@@ -25,4 +25,27 @@ class ReminderActionGuardTest {
         assertTrue(ReminderActionGuard.shouldComplete(1_000L, 1_000L))
         assertFalse(ReminderActionGuard.shouldComplete(2_000L, 1_000L))
     }
+
+    @Test
+    fun shouldComplete_refusesPausedOrArchived() {
+        assertFalse(
+            ReminderActionGuard.shouldComplete(1_000L, 1_000L, isPaused = true),
+        )
+        assertFalse(
+            ReminderActionGuard.shouldComplete(
+                1_000L,
+                expectedNextDueAtEpochMs = null,
+                isArchived = true,
+            ),
+        )
+    }
+
+    @Test
+    fun shouldSnooze_sameDueGuardAsComplete() {
+        assertTrue(ReminderActionGuard.shouldSnooze(1_000L, expectedNextDueAtEpochMs = null))
+        assertTrue(ReminderActionGuard.shouldSnooze(1_000L, 1_000L))
+        assertFalse(ReminderActionGuard.shouldSnooze(2_000L, 1_000L))
+        assertFalse(ReminderActionGuard.shouldSnooze(1_000L, 1_000L, isPaused = true))
+        assertFalse(ReminderActionGuard.shouldSnooze(1_000L, 1_000L, isArchived = true))
+    }
 }

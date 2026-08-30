@@ -3,6 +3,7 @@ package com.errata.app.domain.digest
 import com.errata.app.domain.cadence.CadenceCalculator
 import com.errata.app.domain.due.DueBucket
 import com.errata.app.domain.due.PendingClassifier
+import com.errata.app.domain.reminders.ReminderPolicy
 import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalTime
@@ -26,7 +27,9 @@ object DigestPlanner {
 
     /**
      * Effective reminder minutes: per-task override, or the due clock when null.
-     * A task is a digest member only when that time equals the settings default.
+     * None never joins the digest. Default-clock tasks are members whenever
+     * they are due today or overdue. Custom clocks stay per-task on the due
+     * day, then join while overdue so they do not each RTC every morning.
      */
     fun usesDefaultReminder(
         reminderMinutesOfDay: Int?,
@@ -34,12 +37,16 @@ object DigestPlanner {
         nextDueAtEpochMs: Long,
         zone: ZoneId,
     ): Boolean {
+        if (ReminderPolicy.isNone(reminderMinutesOfDay)) return false
         val effective = reminderMinutesOfDay
             ?: CadenceCalculator.minutesOfDay(nextDueAtEpochMs, zone)
         return effective == defaultReminderMinutesOfDay
     }
 
-    /** Default-time tasks with no future snooze are covered by the digest alarm, not per-task. */
+    /**
+     * Covered by the standing digest alarm, not a per-task wakeup:
+     * default-clock tasks (any due day), and overdue custom / non-default clocks.
+     */
     fun coveredByDigest(
         candidate: Candidate,
         defaultReminderMinutesOfDay: Int,
@@ -49,12 +56,29 @@ object DigestPlanner {
         if (candidate.isArchived || candidate.isPaused) return false
         val snooze = candidate.snoozedUntilEpochMs
         if (snooze != null && snooze > nowEpochMs) return false
-        return usesDefaultReminder(
-            candidate.reminderMinutesOfDay,
-            defaultReminderMinutesOfDay,
-            candidate.nextDueAtEpochMs,
-            zone,
-        )
+        if (
+            usesDefaultReminder(
+                candidate.reminderMinutesOfDay,
+                defaultReminderMinutesOfDay,
+                candidate.nextDueAtEpochMs,
+                zone,
+            )
+        ) {
+            return true
+        }
+        return overdueJoinsDigest(candidate, nowEpochMs, zone)
+    }
+
+    /** Custom / non-default clocks after the due calendar day. None never joins. */
+    fun overdueJoinsDigest(
+        candidate: Candidate,
+        nowEpochMs: Long,
+        zone: ZoneId = ZoneId.systemDefault(),
+    ): Boolean {
+        if (candidate.isArchived || candidate.isPaused) return false
+        if (ReminderPolicy.isNone(candidate.reminderMinutesOfDay)) return false
+        val dueDay = CadenceCalculator.epochDayOf(candidate.nextDueAtEpochMs, zone)
+        return dueDay < localEpochDay(nowEpochMs, zone)
     }
 
     /** Today's digest alarm is still in the future (not yet fired). */
@@ -63,9 +87,26 @@ object DigestPlanner {
         nowEpochMs: Long,
         zone: ZoneId = ZoneId.systemDefault(),
     ): Boolean {
-        val today = Instant.ofEpochMilli(nowEpochMs).atZone(zone).toLocalDate().toEpochDay()
+        val today = localEpochDay(nowEpochMs, zone)
         return atLocalDateMinutes(today, defaultReminderMinutesOfDay, zone) > nowEpochMs
     }
+
+    /**
+     * Standing digest never marked this local day, and today's window has passed.
+     * Replay once (boot / force-stop / import). Post-digest new pins use [sameDayFallback].
+     */
+    fun shouldReplayMissedDigest(
+        lastNotifiedEpochDay: Long?,
+        defaultReminderMinutesOfDay: Int,
+        nowEpochMs: Long,
+        zone: ZoneId = ZoneId.systemDefault(),
+    ): Boolean {
+        if (todaysDigestPending(defaultReminderMinutesOfDay, nowEpochMs, zone)) return false
+        return lastNotifiedEpochDay != localEpochDay(nowEpochMs, zone)
+    }
+
+    fun localEpochDay(nowEpochMs: Long, zone: ZoneId = ZoneId.systemDefault()): Long =
+        Instant.ofEpochMilli(nowEpochMs).atZone(zone).toLocalDate().toEpochDay()
 
     /**
      * Pinned after this morning's digest: notify now instead of waiting until tomorrow.

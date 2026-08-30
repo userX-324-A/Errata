@@ -119,7 +119,7 @@ object CadenceCalculator {
      * Fixed anchor: next grid calendar day strictly after both now and the
      * open scheduled due (early Skip consumes that slot).
      * Weekly/monthly/nth-weekday/yearly: next matching local day strictly after
-     * [nowEpochMs] (same as Done).
+     * both [nowEpochMs] and the open scheduled due (early Skip consumes that slot).
      */
     fun nextDueAfterSkip(
         mode: CadenceMode,
@@ -170,8 +170,9 @@ object CadenceCalculator {
     }
 
     /**
-     * Next matching calendar-grid slot on a local day strictly after
-     * [afterEpochMs]'s calendar day, or null for interval tasks.
+     * Next matching calendar-grid slot on a local day strictly after both
+     * [afterEpochMs]'s calendar day and the open scheduled due's calendar day
+     * (early Done or Skip consumes that slot), or null for interval tasks.
      */
     private fun nextGridDueAfter(
         afterEpochMs: Long,
@@ -216,7 +217,9 @@ object CadenceCalculator {
                 onYearly
             }
         }
-        var date = Instant.ofEpochMilli(afterEpochMs).atZone(zone).toLocalDate().plusDays(1)
+        var date = LocalDate.ofEpochDay(
+            max(epochDayOf(afterEpochMs, zone), epochDayOf(scheduledDueAtEpochMs, zone)) + 1,
+        )
         repeat(400) {
             if (matches(date)) {
                 return atLocalDateKeepingTime(date.toEpochDay(), scheduledDueAtEpochMs, zone)
@@ -306,6 +309,11 @@ object CadenceCalculator {
         val nextDay = epochDayOf(bounded.toEpochMilli(), zone)
         val completedDay = epochDayOf(completedAtEpochMs, zone)
         val minDay = completedDay + ceil(floorDays).toLong().coerceAtLeast(1L)
-        return atLocalDateKeepingTime(max(nextDay, minDay), scheduledDueAtEpochMs, zone)
+        var next = atLocalDateKeepingTime(max(nextDay, minDay), scheduledDueAtEpochMs, zone)
+        val floorAt = floorInstant.toEpochMilli()
+        while (next < floorAt) {
+            next = atLocalDateKeepingTime(epochDayOf(next, zone) + 1, scheduledDueAtEpochMs, zone)
+        }
+        return next
     }
 }

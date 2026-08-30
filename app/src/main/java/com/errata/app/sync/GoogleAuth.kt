@@ -37,6 +37,9 @@ object GoogleAuth {
     @Volatile
     private var cachedAccessToken: String? = null
 
+    @Volatile
+    private var cachedAtElapsedMs: Long = 0
+
     fun webClientId(): String = BuildConfig.GOOGLE_WEB_CLIENT_ID
 
     fun isConfigured(): Boolean = webClientId().isNotBlank()
@@ -53,36 +56,43 @@ object GoogleAuth {
         } catch (_: GetCredentialCancellationException) {
             return GoogleLinkResult.Cancelled
         } catch (_: GetCredentialException) {
-            return GoogleLinkResult.Failed("auth")
+            return GoogleLinkResult.Failed("sign_in")
         } catch (_: Exception) {
-            return GoogleLinkResult.Failed("auth")
+            return GoogleLinkResult.Failed("sign_in")
         }
-        if (email.isBlank()) return GoogleLinkResult.Failed("auth")
+        if (email.isBlank()) return GoogleLinkResult.Failed("sign_in")
         return authorizeDrive(activity, email)
     }
 
     fun completeLinkFromIntent(activity: Activity, email: String, data: Intent?): GoogleLinkResult {
-        if (data == null) return GoogleLinkResult.Failed("auth")
+        if (data == null) return GoogleLinkResult.Failed("sign_in")
         return try {
             val result = Identity.getAuthorizationClient(activity)
                 .getAuthorizationResultFromIntent(data)
             val token = result.accessToken
             if (token.isNullOrBlank()) {
-                GoogleLinkResult.Failed("auth")
+                GoogleLinkResult.Failed("sign_in")
             } else if (!accountMatches(email, result.toGoogleSignInAccount()?.email)) {
-                GoogleLinkResult.Failed("auth")
+                GoogleLinkResult.Failed("sign_in")
             } else {
-                cachedAccessToken = token
+                rememberAccessToken(token)
                 GoogleLinkResult.Linked(email)
             }
         } catch (e: Exception) {
             Log.w(TAG, "consent result", e)
-            GoogleLinkResult.Failed("auth")
+            GoogleLinkResult.Failed("sign_in")
         }
     }
 
     suspend fun accessToken(context: Context, email: String? = null): String? {
-        cachedAccessToken?.let { return it }
+        val cached = cachedAccessToken
+        if (
+            cached != null &&
+            AccessTokenCache.isFresh(android.os.SystemClock.elapsedRealtime(), cachedAtElapsedMs)
+        ) {
+            return cached
+        }
+        cachedAccessToken = null
         if (!isConfigured() || !playServicesAvailable(context)) return null
         if (email.isNullOrBlank()) return null
         return try {
@@ -91,15 +101,20 @@ object GoogleAuth {
                 .await()
             if (result.hasResolution()) return null
             if (!accountMatches(email, result.toGoogleSignInAccount()?.email)) return null
-            result.accessToken?.also { cachedAccessToken = it }
+            result.accessToken?.also { rememberAccessToken(it) }
         } catch (e: Exception) {
             Log.w(TAG, "access token", e)
             null
         }
     }
 
-    suspend fun clearCredential(context: Context) {
+    fun clearAccessToken() {
         cachedAccessToken = null
+        cachedAtElapsedMs = 0L
+    }
+
+    suspend fun clearCredential(context: Context) {
+        clearAccessToken()
         runCatching {
             CredentialManager.create(context)
                 .clearCredentialState(ClearCredentialStateRequest())
@@ -133,20 +148,20 @@ object GoogleAuth {
             when {
                 result.hasResolution() -> {
                     val sender = result.pendingIntent?.intentSender
-                        ?: return GoogleLinkResult.Failed("auth")
+                        ?: return GoogleLinkResult.Failed("sign_in")
                     GoogleLinkResult.NeedsConsent(sender, email)
                 }
-                result.accessToken.isNullOrBlank() -> GoogleLinkResult.Failed("auth")
+                result.accessToken.isNullOrBlank() -> GoogleLinkResult.Failed("sign_in")
                 !accountMatches(email, result.toGoogleSignInAccount()?.email) ->
-                    GoogleLinkResult.Failed("auth")
+                    GoogleLinkResult.Failed("sign_in")
                 else -> {
-                    cachedAccessToken = result.accessToken
+                    rememberAccessToken(result.accessToken)
                     GoogleLinkResult.Linked(email)
                 }
             }
         } catch (e: Exception) {
             Log.w(TAG, "authorize drive", e)
-            GoogleLinkResult.Failed("auth")
+            GoogleLinkResult.Failed("sign_in")
         }
     }
 
@@ -159,5 +174,19 @@ object GoogleAuth {
     internal fun accountMatches(expected: String, authorized: String?): Boolean {
         if (authorized.isNullOrBlank()) return true
         return expected.equals(authorized, ignoreCase = true)
+    }
+
+    private fun rememberAccessToken(token: String?) {
+        cachedAccessToken = token
+        cachedAtElapsedMs = if (token.isNullOrBlank()) 0L else android.os.SystemClock.elapsedRealtime()
+    }
+}
+
+internal object AccessTokenCache {
+    const val TTL_MS = 50L * 60L * 1000L
+
+    fun isFresh(nowElapsedMs: Long, cachedAtElapsedMs: Long): Boolean {
+        val age = nowElapsedMs - cachedAtElapsedMs
+        return age in 0 until TTL_MS
     }
 }

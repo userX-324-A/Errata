@@ -71,6 +71,30 @@ interface CompletionDao {
     @Query("SELECT * FROM completions ORDER BY id ASC")
     suspend fun listAll(): List<CompletionEntity>
 
+    @Query("SELECT DISTINCT taskId FROM completions WHERE completedAtEpochMs < :cutoff")
+    suspend fun taskIdsOlderThan(cutoff: Long): List<Long>
+
+    /**
+     * Drop rows older than [cutoff] that are not among the newest [keepCount] for [taskId].
+     * Nested SELECT is required so SQLite can delete from the same table.
+     */
+    @Query(
+        """
+        DELETE FROM completions
+        WHERE taskId = :taskId
+          AND completedAtEpochMs < :cutoff
+          AND id NOT IN (
+            SELECT id FROM (
+              SELECT id FROM completions
+              WHERE taskId = :taskId
+              ORDER BY completedAtEpochMs DESC, id DESC
+              LIMIT :keepCount
+            )
+          )
+        """,
+    )
+    suspend fun deleteExpiredBeyondKeep(taskId: Long, cutoff: Long, keepCount: Int)
+
     @Query("DELETE FROM completions WHERE id IN (:ids)")
     suspend fun deleteByIds(ids: List<Long>)
 

@@ -60,4 +60,52 @@ class HistoryRetentionTest {
         assertTrue(gone.all { it in 1L..10L })
         assertTrue(11L !in gone && 12L !in gone)
     }
+
+    @Test
+    fun keepAll_shouldNotRunEvenWhenForced() {
+        assertTrue(
+            !HistoryRetention.shouldRun(
+                retentionDays = HistoryRetention.KEEP_ALL,
+                lastPruneEpochDay = null,
+                todayEpochDay = 1,
+                force = true,
+            ),
+        )
+    }
+
+    @Test
+    fun shouldRun_oncePerDayUnlessForced() {
+        assertTrue(
+            HistoryRetention.shouldRun(
+                retentionDays = HistoryRetention.DAYS_90,
+                lastPruneEpochDay = null,
+                todayEpochDay = 10,
+                force = false,
+            ),
+        )
+        assertTrue(
+            !HistoryRetention.shouldRun(
+                retentionDays = HistoryRetention.DAYS_90,
+                lastPruneEpochDay = 10,
+                todayEpochDay = 10,
+                force = false,
+            ),
+        )
+        assertTrue(
+            HistoryRetention.shouldRun(
+                retentionDays = HistoryRetention.DAYS_90,
+                lastPruneEpochDay = 10,
+                todayEpochDay = 10,
+                force = true,
+            ),
+        )
+        assertTrue(
+            HistoryRetention.shouldRun(
+                retentionDays = HistoryRetention.DAYS_90,
+                lastPruneEpochDay = 9,
+                todayEpochDay = 10,
+                force = false,
+            ),
+        )
+    }
 }

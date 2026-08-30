@@ -18,7 +18,7 @@ import kotlinx.coroutines.launch
         CompletionEntity::class,
         SettingsEntity::class,
     ],
-    version = 8,
+    version = 9,
     exportSchema = false,
 )
 @TypeConverters(Converters::class)
@@ -115,6 +115,14 @@ abstract class ErrataDatabase : RoomDatabase() {
             }
         }
 
+        private val MIGRATION_8_9 = object : Migration(8, 9) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "ALTER TABLE settings ADD COLUMN defaultReminderKind TEXT NOT NULL DEFAULT 'WHEN_DUE'",
+                )
+            }
+        }
+
         private fun fillUuids(db: SupportSQLiteDatabase, table: String) {
             db.query("SELECT id FROM $table").use { cursor ->
                 while (cursor.moveToNext()) {
@@ -137,6 +145,7 @@ abstract class ErrataDatabase : RoomDatabase() {
                     MIGRATION_5_6,
                     MIGRATION_6_7,
                     MIGRATION_7_8,
+                    MIGRATION_8_9,
                 )
                 .addCallback(
                     object : Callback() {

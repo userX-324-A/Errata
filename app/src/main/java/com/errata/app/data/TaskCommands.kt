@@ -41,10 +41,11 @@ class TaskCommands(
             scheduler.rescheduleAll()
         }
         if (previous.historyRetentionDays != entity.historyRetentionDays) {
-            repository.pruneHistory()
+            repository.pruneHistory(force = true)
         }
         val sharedChanged =
             previous.defaultCadenceMode != entity.defaultCadenceMode ||
+                previous.defaultReminderKind != entity.defaultReminderKind ||
                 previous.defaultReminderMinutesOfDay != entity.defaultReminderMinutesOfDay ||
                 previous.defaultWorkStartMinutesOfDay != entity.defaultWorkStartMinutesOfDay ||
                 previous.soonHorizonDays != entity.soonHorizonDays ||
@@ -65,7 +66,7 @@ class TaskCommands(
         val pinned = repository.pinStarters(specs)
         if (pinned > 0) {
             scheduler.rescheduleAll()
-            scheduler.notifyMissedDigestIfNeeded()
+            afterWrite()
         }
         return pinned
     }
@@ -74,14 +75,21 @@ class TaskCommands(
         taskId: Long,
         completedAtEpochMs: Long = System.currentTimeMillis(),
         expectedNextDueAtEpochMs: Long? = null,
-    ) {
-        if (!repository.complete(taskId, completedAtEpochMs, expectedNextDueAtEpochMs)) return
+    ): Boolean {
+        if (!repository.complete(taskId, completedAtEpochMs, expectedNextDueAtEpochMs)) return false
+        scheduler.dismissPostedReminder(taskId)
         scheduler.rescheduleTask(taskId)
         afterWrite()
+        return true
     }
 
-    suspend fun snooze(taskId: Long, untilEpochMs: Long) {
-        repository.snooze(taskId, untilEpochMs)
+    suspend fun snooze(
+        taskId: Long,
+        untilEpochMs: Long,
+        expectedNextDueAtEpochMs: Long? = null,
+    ) {
+        if (!repository.snooze(taskId, untilEpochMs, expectedNextDueAtEpochMs)) return
+        scheduler.dismissPostedReminder(taskId)
         scheduler.rescheduleTask(taskId)
         afterWrite()
     }
@@ -93,12 +101,14 @@ class TaskCommands(
 
     suspend fun skip(taskId: Long) {
         repository.skip(taskId)
+        scheduler.dismissPostedReminder(taskId)
         scheduler.rescheduleTask(taskId)
         afterWrite()
     }
 
     suspend fun pause(taskId: Long) {
         repository.setPaused(taskId, paused = true)
+        scheduler.dismissPostedReminder(taskId)
         scheduler.rescheduleTask(taskId)
         afterWrite()
     }
@@ -111,6 +121,7 @@ class TaskCommands(
 
     suspend fun archive(taskId: Long) {
         repository.archive(taskId)
+        scheduler.dismissPostedReminder(taskId)
         scheduler.rescheduleTask(taskId)
         afterWrite()
     }

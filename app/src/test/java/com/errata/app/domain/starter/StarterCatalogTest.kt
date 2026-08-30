@@ -5,6 +5,7 @@ import com.errata.app.domain.cadence.CadenceCalculator
 import com.errata.app.domain.cadence.CadenceMode
 import com.errata.app.domain.cadence.ScheduleKind
 import com.errata.app.domain.cadence.Weekdays
+import com.errata.app.domain.reminders.ReminderPolicy
 import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.ZoneOffset
@@ -120,6 +121,32 @@ class StarterCatalogTest {
         assertEquals(atReminder(2026, 3, 2), entity.nextDueAtEpochMs)
         assertEquals(LocalDate.of(2026, 3, 2).toEpochDay(), entity.anchorEpochDay)
         assertEquals(false, entity.isPaused)
+    }
+
+    @Test
+    fun materialize_inheritsStoredReminder() {
+        val spec = StarterCatalog.ALL.single { it.id == "bathroom" }
+        val now = noon(2026, 3, 1)
+        val silent = StarterCatalog.materialize(
+            spec = spec,
+            cadenceMode = CadenceMode.FROM_COMPLETION,
+            reminderMinutesOfDay = reminder,
+            storedReminderMinutes = ReminderPolicy.NONE,
+            nowEpochMs = now,
+            zone = zone,
+        )
+        assertEquals(ReminderPolicy.NONE, silent.reminderMinutesOfDay)
+        assertEquals(atReminder(2026, 3, 2), silent.nextDueAtEpochMs)
+        val clock = StarterCatalog.materialize(
+            spec = spec,
+            cadenceMode = CadenceMode.FROM_COMPLETION,
+            reminderMinutesOfDay = reminder,
+            storedReminderMinutes = 18 * 60,
+            nowEpochMs = now,
+            zone = zone,
+        )
+        assertEquals(18 * 60, clock.reminderMinutesOfDay)
+        assertEquals(atReminder(2026, 3, 2), clock.nextDueAtEpochMs)
     }
 
     @Test

@@ -81,7 +81,30 @@ class SnoozePresetsTest {
     }
 
     @Test
-    fun tomorrow_newYorkFallBack_isNextLocalMidnight() {
+    fun tomorrow_usesReminderClockNotMidnight() {
+        val now = at(2026, 3, 10, 22, 0)
+        val until = SnoozePresets.untilEpochMs(
+            SnoozePreset.TOMORROW,
+            nowEpochMs = now,
+            zone = zone,
+            clockMinutesOfDay = 14 * 60 + 30,
+        )
+        assertEquals(at(2026, 3, 11, 14, 30), until)
+    }
+
+    @Test
+    fun tomorrow_defaultClockIsNineAm() {
+        val now = at(2026, 3, 10, 22, 0)
+        val until = SnoozePresets.untilEpochMs(
+            SnoozePreset.TOMORROW,
+            nowEpochMs = now,
+            zone = zone,
+        )
+        assertEquals(at(2026, 3, 11, 9, 0), until)
+    }
+
+    @Test
+    fun tomorrow_newYorkFallBack_keepsNineAm() {
         val ny = java.time.ZoneId.of("America/New_York")
         val now = LocalDate.of(2026, 11, 1).atTime(23, 0).atZone(ny).toInstant().toEpochMilli()
         val until = SnoozePresets.untilEpochMs(
@@ -89,7 +112,7 @@ class SnoozePresetsTest {
             nowEpochMs = now,
             zone = ny,
         )
-        val expected = LocalDate.of(2026, 11, 2).atStartOfDay(ny).toInstant().toEpochMilli()
+        val expected = LocalDate.of(2026, 11, 2).atTime(9, 0).atZone(ny).toInstant().toEpochMilli()
         assertEquals(expected, until)
     }
 }

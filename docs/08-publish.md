@@ -87,7 +87,7 @@ Requirement: **12 distinct Google accounts**, opted into **this closed track**, 
 3. Send them the Play **opt-in URL** (not the sideload APK).
 4. Add the same Gmails as Cloud OAuth **test users** until you publish the consent screen.
 5. You + Pixel + tablet can be 1–2 of the 12 if those Google accounts opt in via Play.
-6. Ask testers: install, open, pin one fake task, leave installed. If count drops below 12, the 14-day window can restart.
+6. Ask testers: install, open, pin one fake task, leave installed. If count drops below 12, the 14-day window can restart. Friends walking a real tablet should also use the [device check matrix](./04-sideload.md#device-checks-friends--tablet).
 7. Keep a few notes (who, what they reported, what you changed) for the production-access questionnaire.
 
 ---

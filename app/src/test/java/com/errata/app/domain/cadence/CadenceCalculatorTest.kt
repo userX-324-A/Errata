@@ -1,6 +1,7 @@
 package com.errata.app.domain.cadence
 
 import java.time.DayOfWeek
+import java.time.Duration
 import java.time.Instant
 import java.time.LocalDate
 import java.time.Month
@@ -72,6 +73,24 @@ class CadenceCalculatorTest {
         val floorSoonest = day(2026, 2, 22) // Feb 15 + 7
         assertTrue("next should be before full from-completion", next < fullInterval)
         assertTrue("next should be on or after floor day", next >= floorSoonest)
+    }
+
+    @Test
+    fun catchUp_eveningDone_morningDue_doesNotLandBeforeFloorInstant() {
+        val scheduled = LocalDate.of(2026, 1, 1).atTime(9, 0).toInstant(zone).toEpochMilli()
+        val completed = LocalDate.of(2026, 1, 20).atTime(22, 0).toInstant(zone).toEpochMilli()
+        val next = CadenceCalculator.nextDueAfterCompletion(
+            mode = CadenceMode.FROM_COMPLETION_CATCH_UP,
+            intervalDays = 1,
+            completedAtEpochMs = completed,
+            scheduledDueAtEpochMs = scheduled,
+            anchorEpochDay = LocalDate.of(2026, 1, 1).toEpochDay(),
+            zone = zone,
+        )
+        val floorAt = completed + Duration.ofDays(1).toMillis()
+        val expected = LocalDate.of(2026, 1, 22).atTime(9, 0).toInstant(zone).toEpochMilli()
+        assertEquals(expected, next)
+        assertTrue(next >= floorAt)
     }
 
     @Test
@@ -309,6 +328,86 @@ class CadenceCalculatorTest {
         )
         assertEquals(noon(2026, 1, 20), afterDone)
         assertEquals(afterDone, afterSkip)
+    }
+
+    @Test
+    fun weekly_skip_beforeDueDay_consumesOpenSlot() {
+        val scheduled = noon(2026, 1, 9) // Friday
+        val now = LocalDate.of(2026, 1, 7).atTime(10, 0).toInstant(zone).toEpochMilli()
+        val afterSkip = CadenceCalculator.nextDueAfterSkip(
+            mode = CadenceMode.FROM_COMPLETION,
+            intervalDays = CadenceCalculator.GRID_INTERVAL_DAYS,
+            scheduledDueAtEpochMs = scheduled,
+            anchorEpochDay = LocalDate.of(2026, 1, 9).toEpochDay(),
+            nowEpochMs = now,
+            zone = zone,
+            scheduleKind = ScheduleKind.WEEKLY,
+            weekdaysMask = Weekdays.bit(DayOfWeek.FRIDAY),
+        )
+        val afterDone = CadenceCalculator.nextDueAfterCompletion(
+            mode = CadenceMode.FROM_COMPLETION,
+            intervalDays = CadenceCalculator.GRID_INTERVAL_DAYS,
+            completedAtEpochMs = now,
+            scheduledDueAtEpochMs = scheduled,
+            anchorEpochDay = LocalDate.of(2026, 1, 9).toEpochDay(),
+            zone = zone,
+            scheduleKind = ScheduleKind.WEEKLY,
+            weekdaysMask = Weekdays.bit(DayOfWeek.FRIDAY),
+        )
+        assertEquals(noon(2026, 1, 16), afterSkip)
+        assertEquals(afterSkip, afterDone)
+    }
+
+    @Test
+    fun monthly_skip_beforeDueDay_consumesOpenSlot() {
+        val scheduled = noon(2026, 3, 15)
+        val now = LocalDate.of(2026, 3, 10).atTime(10, 0).toInstant(zone).toEpochMilli()
+        val next = CadenceCalculator.nextDueAfterSkip(
+            mode = CadenceMode.FROM_COMPLETION,
+            intervalDays = CadenceCalculator.GRID_INTERVAL_DAYS,
+            scheduledDueAtEpochMs = scheduled,
+            anchorEpochDay = LocalDate.of(2026, 3, 15).toEpochDay(),
+            nowEpochMs = now,
+            zone = zone,
+            scheduleKind = ScheduleKind.MONTHLY,
+            monthDay = 15,
+        )
+        assertEquals(noon(2026, 4, 15), next)
+    }
+
+    @Test
+    fun nthWeekday_skip_beforeDueDay_consumesOpenSlot() {
+        val mask = Weekdays.bit(DayOfWeek.SATURDAY)
+        val scheduled = noon(2026, 5, 2)
+        val now = LocalDate.of(2026, 4, 28).atTime(10, 0).toInstant(zone).toEpochMilli()
+        val next = CadenceCalculator.nextDueAfterSkip(
+            mode = CadenceMode.FROM_COMPLETION,
+            intervalDays = CadenceCalculator.GRID_INTERVAL_DAYS,
+            scheduledDueAtEpochMs = scheduled,
+            anchorEpochDay = LocalDate.of(2026, 5, 2).toEpochDay(),
+            nowEpochMs = now,
+            zone = zone,
+            scheduleKind = ScheduleKind.NTH_WEEKDAY,
+            weekdaysMask = mask,
+            weekdayOrdinal = 1,
+        )
+        assertEquals(noon(2026, 6, 6), next)
+    }
+
+    @Test
+    fun yearly_skip_beforeDueDay_consumesOpenSlot() {
+        val next = CadenceCalculator.nextDueAfterSkip(
+            mode = CadenceMode.FROM_COMPLETION,
+            intervalDays = CadenceCalculator.GRID_INTERVAL_DAYS,
+            scheduledDueAtEpochMs = noon(2026, 3, 15),
+            anchorEpochDay = LocalDate.of(2026, 3, 15).toEpochDay(),
+            nowEpochMs = LocalDate.of(2026, 3, 10).atTime(10, 0).toInstant(zone).toEpochMilli(),
+            zone = zone,
+            scheduleKind = ScheduleKind.YEARLY,
+            monthDay = 15,
+            yearMonthsMask = YearMonths.bit(Month.MARCH),
+        )
+        assertEquals(noon(2027, 3, 15), next)
     }
 
     @Test

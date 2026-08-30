@@ -11,6 +11,8 @@ import com.errata.app.data.local.TaskEntity
 import com.errata.app.domain.digest.DigestPlanner
 import com.errata.app.widget.WidgetUpdater
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 
 class ReminderScheduler(
@@ -19,11 +21,13 @@ class ReminderScheduler(
     private val widgetUpdater: WidgetUpdater,
 ) {
     private val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
+    private val digestNotifyLock = Mutex()
+    private val alarmIdsLock = Mutex()
+    private val sessionAlarmIds = mutableSetOf<Long>()
 
     suspend fun rescheduleAll() = withContext(Dispatchers.IO) {
         val settings = repository.getSettings()
         val tasks = repository.listSchedulableTasks()
-        val previous = ScheduledAlarmStore.load(context)
         if (settings.digestEnabled && NotificationAccess.areEnabled(context)) {
             scheduleDigest(settings.defaultReminderMinutesOfDay)
         } else {
@@ -35,78 +39,146 @@ class ReminderScheduler(
                 scheduled += task.id
             }
         }
-        ScheduledAlarmStore.orphans(previous, scheduled).forEach { cancel(it) }
-        ScheduledAlarmStore.save(context, scheduled)
+        alarmIdsLock.withLock {
+            val orphans = ScheduledAlarmStore.orphans(
+                previous = ScheduledAlarmStore.load(context),
+                remaining = scheduled,
+                session = sessionAlarmIds,
+            )
+            orphans.forEach { cancel(it) }
+            sessionAlarmIds.clear()
+            sessionAlarmIds.addAll(scheduled)
+            ScheduledAlarmStore.save(context, scheduled)
+        }
         widgetUpdater.refresh()
+        notifyMissedDigestIfNeeded()
     }
 
     suspend fun rescheduleTask(taskId: Long) = withContext(Dispatchers.IO) {
-        val task = repository.getTask(taskId) ?: run {
-            cancel(taskId)
-            return@withContext
-        }
-        if (task.isArchived || task.isPaused) {
-            cancel(taskId)
+        val task = repository.getTask(taskId)
+        if (task == null || task.isArchived || task.isPaused) {
+            forgetScheduled(taskId)
             return@withContext
         }
         val settings = repository.getSettings()
-        scheduleTask(task, settings, notifyIfMissedDigest = true)
+        if (scheduleTask(task, settings, notifyIfMissedDigest = true)) {
+            rememberScheduled(taskId)
+        } else {
+            forgetScheduled(taskId)
+        }
     }
 
-    /** After pin/import of several tasks, one digest-style card if more than one missed the morning. */
+    /**
+     * If today's digest window has passed and we have not posted yet this local day,
+     * show current members (missed standing alarm). Otherwise only post-digest new pins.
+     */
     suspend fun notifyMissedDigestIfNeeded() = withContext(Dispatchers.IO) {
-        val settings = repository.getSettings()
-        if (!settings.digestEnabled || !NotificationAccess.areEnabled(context)) return@withContext
-        val now = System.currentTimeMillis()
-        val missed = repository.listSchedulableTasks().filter { task ->
-            DigestPlanner.sameDayFallback(
-                candidate = task.toDigestCandidate(),
-                defaultReminderMinutesOfDay = settings.defaultReminderMinutesOfDay,
-                nowEpochMs = now,
-            )
-        }
-        when (missed.size) {
-            0 -> Unit
-            1 -> NotificationHelper.showDueReminder(context, missed.single())
-            else -> NotificationHelper.showDigest(
-                context,
-                count = missed.size,
-                totalMinutes = DigestPlanner.totalMinutes(missed.map { it.toDigestCandidate() }),
-            )
+        digestNotifyLock.withLock {
+            val settings = repository.getSettings()
+            if (!settings.digestEnabled || !NotificationAccess.areEnabled(context)) return@withLock
+            val now = System.currentTimeMillis()
+            val minutes = settings.defaultReminderMinutesOfDay
+            if (DigestPlanner.todaysDigestPending(minutes, now)) return@withLock
+
+            val today = DigestPlanner.localEpochDay(now)
+            val tasks = repository.listSchedulableTasks()
+            if (DigestPlanner.shouldReplayMissedDigest(
+                    lastNotifiedEpochDay = DigestNotifyStore.lastNotifiedEpochDay(context),
+                    defaultReminderMinutesOfDay = minutes,
+                    nowEpochMs = now,
+                )
+            ) {
+                val members = DigestPlanner.members(
+                    candidates = tasks.map { it.toDigestCandidate() },
+                    defaultReminderMinutesOfDay = minutes,
+                    nowEpochMs = now,
+                )
+                val memberTasks = members.mapNotNull { candidate ->
+                    tasks.find { it.id == candidate.id }
+                }
+                postDigestCards(memberTasks)
+                DigestNotifyStore.markNotified(context, today)
+                return@withLock
+            }
+
+            val fallback = tasks.filter { task ->
+                DigestPlanner.sameDayFallback(
+                    candidate = task.toDigestCandidate(),
+                    defaultReminderMinutesOfDay = minutes,
+                    nowEpochMs = now,
+                )
+            }
+            postDigestCards(fallback)
         }
     }
 
     suspend fun onDigestFired() = withContext(Dispatchers.IO) {
-        val settings = repository.getSettings()
-        if (!settings.digestEnabled || !NotificationAccess.areEnabled(context)) {
-            cancelDigest()
-            return@withContext
-        }
-        val now = System.currentTimeMillis()
-        val members = DigestPlanner.members(
-            candidates = repository.listSchedulableTasks().map { it.toDigestCandidate() },
-            defaultReminderMinutesOfDay = settings.defaultReminderMinutesOfDay,
-            nowEpochMs = now,
-        )
-        when (members.size) {
-            0 -> Unit
-            1 -> {
-                val task = repository.getTask(members.single().id)
-                if (task != null) {
-                    NotificationHelper.showDueReminder(context, task)
-                }
+        digestNotifyLock.withLock {
+            val settings = repository.getSettings()
+            if (!settings.digestEnabled || !NotificationAccess.areEnabled(context)) {
+                cancelDigest()
+                return@withLock
             }
+            val now = System.currentTimeMillis()
+            val members = DigestPlanner.members(
+                candidates = repository.listSchedulableTasks().map { it.toDigestCandidate() },
+                defaultReminderMinutesOfDay = settings.defaultReminderMinutesOfDay,
+                nowEpochMs = now,
+            )
+            when (members.size) {
+                0 -> Unit
+                1 -> {
+                    val task = repository.getTask(members.single().id)
+                    if (task != null) {
+                        NotificationHelper.showDueReminder(context, task)
+                    }
+                }
+                else -> NotificationHelper.showDigest(
+                    context,
+                    count = members.size,
+                    totalMinutes = DigestPlanner.totalMinutes(members),
+                )
+            }
+            DigestNotifyStore.markNotified(context, DigestPlanner.localEpochDay(now))
+            scheduleDigest(settings.defaultReminderMinutesOfDay, nowEpochMs = now, afterFire = true)
+        }
+    }
+
+    private fun postDigestCards(tasks: List<TaskEntity>) {
+        when (tasks.size) {
+            0 -> Unit
+            1 -> NotificationHelper.showDueReminder(context, tasks.single())
             else -> NotificationHelper.showDigest(
                 context,
-                count = members.size,
-                totalMinutes = DigestPlanner.totalMinutes(members),
+                count = tasks.size,
+                totalMinutes = DigestPlanner.totalMinutes(tasks.map { it.toDigestCandidate() }),
             )
         }
-        scheduleDigest(settings.defaultReminderMinutesOfDay, nowEpochMs = now, afterFire = true)
     }
 
     fun cancel(taskId: Long) {
         alarmManager.cancel(alarmPendingIntent(taskId))
+    }
+
+    private suspend fun rememberScheduled(taskId: Long) {
+        alarmIdsLock.withLock {
+            sessionAlarmIds.add(taskId)
+            ScheduledAlarmStore.add(context, taskId)
+        }
+    }
+
+    private suspend fun forgetScheduled(taskId: Long) {
+        alarmIdsLock.withLock {
+            sessionAlarmIds.remove(taskId)
+            ScheduledAlarmStore.remove(context, taskId)
+        }
+        cancel(taskId)
+    }
+
+    /** Drop a posted per-task card and its Done/Snooze actions. Does not touch the digest. */
+    fun dismissPostedReminder(taskId: Long) {
+        NotificationHelper.dismiss(context, taskId)
+        NotificationHelper.cancelActions(context, taskId)
     }
 
     private fun scheduleTask(
@@ -141,6 +213,7 @@ class ReminderScheduler(
             task,
             settings.defaultReminderMinutesOfDay,
             nowEpochMs = now,
+            digestEnabled = settings.digestEnabled,
         ) ?: return false
         setWakeup(fireAt, alarmPendingIntent(task.id))
         return true

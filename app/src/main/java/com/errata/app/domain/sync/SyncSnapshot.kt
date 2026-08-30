@@ -21,6 +21,7 @@ data class SyncSnapshot(
 data class SyncSettings(
     val updatedAtEpochMs: Long = 0,
     val defaultCadenceMode: String = "FROM_COMPLETION_CATCH_UP",
+    val defaultReminderKind: String = "WHEN_DUE",
     val defaultReminderMinutesOfDay: Int = 9 * 60,
     val defaultWorkStartMinutesOfDay: Int? = null,
     val soonHorizonDays: Int = 7,

@@ -57,6 +57,7 @@ class BackupCodecTest {
         )
         assertEquals("SYSTEM", decoded.settings.appearanceMode)
         assertEquals(false, decoded.settings.digestEnabled)
+        assertEquals("WHEN_DUE", decoded.settings.defaultReminderKind)
         assertEquals(730, decoded.settings.historyRetentionDays)
         assertEquals(ScheduleKind.INTERVAL.name, decoded.tasks.single().scheduleKind)
         assertEquals(0, decoded.tasks.single().weekdaysMask)
@@ -112,6 +113,27 @@ class BackupCodecTest {
         )
         val decoded = BackupCodec.decode(json)
         assertEquals("SYSTEM", decoded.settings.appearanceMode)
+    }
+
+    @Test
+    fun decode_missingDefaultReminderKind_defaultsToWhenDue() {
+        val json = BackupCodec.encode(sample()).replace(
+            Regex(""",\s*"defaultReminderKind"\s*:\s*"WHEN_DUE""""),
+            "",
+        )
+        val decoded = BackupCodec.decode(json)
+        assertEquals("WHEN_DUE", decoded.settings.defaultReminderKind)
+    }
+
+    @Test
+    fun roundTrip_preservesNoneReminderAndClockKind() {
+        val original = sample().copy(
+            settings = sample().settings.copy(defaultReminderKind = "CLOCK"),
+            tasks = listOf(sample().tasks.single().copy(reminderMinutesOfDay = -1)),
+        )
+        val decoded = BackupCodec.decode(BackupCodec.encode(original))
+        assertEquals("CLOCK", decoded.settings.defaultReminderKind)
+        assertEquals(-1, decoded.tasks.single().reminderMinutesOfDay)
     }
 
     @Test

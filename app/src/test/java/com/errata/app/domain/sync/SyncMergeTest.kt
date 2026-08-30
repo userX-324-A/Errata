@@ -185,6 +185,24 @@ class SyncMergeTest {
         val out = SyncMerge.merge(a, b)
         assertEquals(9 * 60, out.settings.defaultReminderMinutesOfDay)
         assertTrue(out.settings.digestEnabled)
+        assertEquals("WHEN_DUE", out.settings.defaultReminderKind)
+    }
+
+    @Test
+    fun settingsLww_newerKindWins() {
+        val a = snapshot(
+            settings = SyncSettings(
+                updatedAtEpochMs = 10,
+                defaultReminderKind = "CLOCK",
+            ),
+        )
+        val b = snapshot(
+            settings = SyncSettings(
+                updatedAtEpochMs = 20,
+                defaultReminderKind = "NONE",
+            ),
+        )
+        assertEquals("NONE", SyncMerge.merge(a, b).settings.defaultReminderKind)
     }
 
     @Test

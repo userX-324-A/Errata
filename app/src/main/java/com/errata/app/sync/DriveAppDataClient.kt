@@ -22,6 +22,7 @@ class DriveAppDataClient(
     private val tokenProvider: suspend () -> String?,
     private val fileIdStore: (String?) -> Unit,
     private val currentFileId: () -> String?,
+    private val onUnauthorized: () -> Unit = {},
 ) : CloudStore {
     private val http = OkHttpClient.Builder()
         .connectTimeout(20, TimeUnit.SECONDS)
@@ -31,8 +32,7 @@ class DriveAppDataClient(
     private val json = Json { ignoreUnknownKeys = true }
 
     override suspend fun load(): CloudDocument = withContext(Dispatchers.IO) {
-        val token = tokenProvider() ?: throw AuthRequiredException()
-        val existingId = currentFileId() ?: findFileId(token)
+        val existingId = currentFileId() ?: findFileId()
         if (existingId == null) {
             return@withContext CloudDocument(snapshot = null, fileId = null, etag = null)
         }
@@ -42,12 +42,13 @@ class DriveAppDataClient(
             .addPathSegment(existingId)
             .addQueryParameter("alt", "media")
             .build()
-        val request = Request.Builder()
-            .url(url)
-            .header("Authorization", "Bearer $token")
-            .get()
-            .build()
-        http.newCall(request).execute().use { response ->
+        execute { token ->
+            Request.Builder()
+                .url(url)
+                .header("Authorization", "Bearer $token")
+                .get()
+                .build()
+        }.use { response ->
             when (response.code) {
                 401, 403 -> {
                     logDriveFailure("download", response)
@@ -55,27 +56,15 @@ class DriveAppDataClient(
                 }
                 404 -> {
                     fileIdStore(null)
-                    CloudDocument(null, null, null)
-                }
-                in 200..299 -> {
-                    val body = response.body?.string().orEmpty()
-                    val etag = response.header("ETag") ?: response.header("etag")
-                    val snapshot = if (body.isBlank()) {
-                        null
+                    val recovered = findFileId()
+                    if (recovered == null) {
+                        CloudDocument(null, null, null)
                     } else {
-                        try {
-                            SyncCodec.decode(body)
-                        } catch (_: Exception) {
-                            return@use CloudDocument(
-                                snapshot = null,
-                                fileId = existingId,
-                                etag = etag,
-                                unreadable = true,
-                            )
-                        }
+                        fileIdStore(recovered)
+                        downloadMedia(recovered)
                     }
-                    CloudDocument(snapshot, existingId, etag)
                 }
+                in 200..299 -> documentFromMedia(existingId, response)
                 else -> {
                     logDriveFailure("download", response)
                     throw NetworkException()
@@ -89,28 +78,32 @@ class DriveAppDataClient(
         fileId: String?,
         etag: String?,
     ): CloudSaveResult = withContext(Dispatchers.IO) {
-        val token = tokenProvider() ?: return@withContext CloudSaveResult.Failed("auth")
         val bodyJson = SyncCodec.encode(snapshot)
         if (fileId.isNullOrBlank()) {
-            createFile(token, bodyJson)
+            createFile(bodyJson)
         } else {
-            updateFile(token, fileId, etag, bodyJson)
+            val match = etag?.takeIf { it.isNotBlank() } ?: fetchEtag(fileId)
+            if (match.isNullOrBlank()) {
+                recoverMissing(bodyJson)
+            } else {
+                updateFile(fileId, match, bodyJson, recovering = false)
+            }
         }
     }
 
     override suspend fun delete(): Boolean = withContext(Dispatchers.IO) {
-        val token = tokenProvider() ?: return@withContext false
-        val id = currentFileId() ?: findFileId(token) ?: return@withContext true
+        val id = currentFileId() ?: findFileId() ?: return@withContext true
         val url = DRIVE_API_ROOT.toHttpUrl().newBuilder()
             .addPathSegment("files")
             .addPathSegment(id)
             .build()
-        val request = Request.Builder()
-            .url(url)
-            .header("Authorization", "Bearer $token")
-            .delete()
-            .build()
-        http.newCall(request).execute().use { response ->
+        execute { token ->
+            Request.Builder()
+                .url(url)
+                .header("Authorization", "Bearer $token")
+                .delete()
+                .build()
+        }.use { response ->
             if (response.code == 401 || response.code == 403) {
                 logDriveFailure("delete", response)
                 return@use false
@@ -125,19 +118,77 @@ class DriveAppDataClient(
         }
     }
 
-    private fun findFileId(token: String): String? {
+    private suspend fun downloadMedia(fileId: String): CloudDocument {
+        val url = DRIVE_API_ROOT.toHttpUrl().newBuilder()
+            .addPathSegment("files")
+            .addPathSegment(fileId)
+            .addQueryParameter("alt", "media")
+            .build()
+        return execute { token ->
+            Request.Builder()
+                .url(url)
+                .header("Authorization", "Bearer $token")
+                .get()
+                .build()
+        }.use { response ->
+            when (response.code) {
+                401, 403 -> {
+                    logDriveFailure("download", response)
+                    throw AuthRequiredException()
+                }
+                404 -> CloudDocument(null, null, null)
+                in 200..299 -> documentFromMedia(fileId, response)
+                else -> {
+                    logDriveFailure("download", response)
+                    throw NetworkException()
+                }
+            }
+        }
+    }
+
+    private fun documentFromMedia(fileId: String, response: Response): CloudDocument {
+        val body = response.body?.string().orEmpty()
+        val etag = response.header("ETag") ?: response.header("etag")
+        val snapshot = if (body.isBlank()) {
+            null
+        } else {
+            try {
+                SyncCodec.decode(body)
+            } catch (_: Exception) {
+                return CloudDocument(
+                    snapshot = null,
+                    fileId = fileId,
+                    etag = etag,
+                    unreadable = true,
+                )
+            }
+        }
+        return CloudDocument(snapshot, fileId, etag)
+    }
+
+    private suspend fun findFileId(): String? {
+        val refs = listSyncFiles()
+        val canonical = DriveSyncFiles.pickCanonical(refs) ?: return null
+        DriveSyncFiles.orphanIds(refs, canonical.id).forEach { orphan ->
+            deleteFileById(orphan)
+        }
+        return canonical.id
+    }
+
+    private suspend fun listSyncFiles(): List<DriveSyncFiles.FileRef> {
         val url = DRIVE_API_ROOT.toHttpUrl().newBuilder()
             .addPathSegment("files")
             .addQueryParameter("spaces", "appDataFolder")
             .addQueryParameter("q", QUERY)
-            .addQueryParameter("fields", "files(id)")
+            .addQueryParameter("fields", "files(id,modifiedTime)")
             .build()
-        val request = Request.Builder()
-            .url(url)
-            .header("Authorization", "Bearer $token")
-            .get()
-            .build()
-        http.newCall(request).execute().use { response ->
+        execute { token ->
+            Request.Builder()
+                .url(url)
+                .header("Authorization", "Bearer $token")
+                .get()
+                .build()
+        }.use { response ->
             if (response.code == 401 || response.code == 403) {
                 logDriveFailure("list", response)
                 throw AuthRequiredException()
@@ -149,13 +200,16 @@ class DriveAppDataClient(
             val parsed = json.decodeFromString<DriveListResponse>(
                 response.body?.string().orEmpty().ifBlank { "{}" },
             )
-            return parsed.files.firstOrNull()?.id
+            return parsed.files.mapNotNull { meta ->
+                val id = meta.id ?: return@mapNotNull null
+                DriveSyncFiles.FileRef(id, meta.modifiedTime.orEmpty())
+            }
         }
     }
 
-    private fun createFile(token: String, bodyJson: String): CloudSaveResult {
+    private suspend fun createFile(bodyJson: String): CloudSaveResult {
         val boundary = "errata_sync"
-        val metadata = """{"name":"$FILE_NAME","parents":["appDataFolder"]}"""
+        val metadata = """{"name":"${DriveSyncFiles.FILE_NAME}","parents":["appDataFolder"]}"""
         val payload = buildString {
             append("--$boundary\r\n")
             append("Content-Type: application/json; charset=UTF-8\r\n\r\n")
@@ -170,14 +224,15 @@ class DriveAppDataClient(
             .addQueryParameter("uploadType", "multipart")
             .addQueryParameter("fields", "id")
             .build()
-        val request = Request.Builder()
-            .url(url)
-            .header("Authorization", "Bearer $token")
-            .post(
-                payload.toRequestBody("multipart/related; boundary=$boundary".toMediaType()),
-            )
-            .build()
-        http.newCall(request).execute().use { response ->
+        execute { token ->
+            Request.Builder()
+                .url(url)
+                .header("Authorization", "Bearer $token")
+                .post(
+                    payload.toRequestBody("multipart/related; boundary=$boundary".toMediaType()),
+                )
+                .build()
+        }.use { response ->
             return when (response.code) {
                 401, 403 -> {
                     logDriveFailure("create", response)
@@ -202,11 +257,11 @@ class DriveAppDataClient(
         }
     }
 
-    private fun updateFile(
-        token: String,
+    private suspend fun updateFile(
         fileId: String,
-        etag: String?,
+        etag: String,
         bodyJson: String,
+        recovering: Boolean,
     ): CloudSaveResult {
         val url = DRIVE_UPLOAD_ROOT.toHttpUrl().newBuilder()
             .addPathSegment("files")
@@ -214,21 +269,28 @@ class DriveAppDataClient(
             .addQueryParameter("uploadType", "media")
             .addQueryParameter("fields", "id")
             .build()
-        val builder = Request.Builder()
-            .url(url)
-            .header("Authorization", "Bearer $token")
-            .patch(bodyJson.toRequestBody(JSON))
-        if (!etag.isNullOrBlank()) {
-            builder.header("If-Match", etag)
-        }
-        http.newCall(builder.build()).execute().use { response ->
+        execute { token ->
+            Request.Builder()
+                .url(url)
+                .header("Authorization", "Bearer $token")
+                .header("If-Match", etag)
+                .patch(bodyJson.toRequestBody(JSON))
+                .build()
+        }.use { response ->
             return when (response.code) {
                 412 -> CloudSaveResult.Stale
                 401, 403 -> {
                     logDriveFailure("update", response)
                     CloudSaveResult.Failed("auth")
                 }
-                404 -> createFile(token, bodyJson)
+                404 -> {
+                    fileIdStore(null)
+                    if (recovering) {
+                        CloudSaveResult.Failed("network")
+                    } else {
+                        recoverMissing(bodyJson)
+                    }
+                }
                 in 200..299 -> {
                     fileIdStore(fileId)
                     CloudSaveResult.Written(
@@ -244,6 +306,70 @@ class DriveAppDataClient(
         }
     }
 
+    private suspend fun recoverMissing(bodyJson: String): CloudSaveResult {
+        val existing = findFileId()
+        if (existing == null) return createFile(bodyJson)
+        val freshEtag = fetchEtag(existing)
+        if (freshEtag.isNullOrBlank()) return CloudSaveResult.Failed("conflict")
+        return updateFile(existing, freshEtag, bodyJson, recovering = true)
+    }
+
+    private suspend fun fetchEtag(fileId: String): String? {
+        val url = DRIVE_API_ROOT.toHttpUrl().newBuilder()
+            .addPathSegment("files")
+            .addPathSegment(fileId)
+            .addQueryParameter("fields", "id")
+            .build()
+        execute { token ->
+            Request.Builder()
+                .url(url)
+                .header("Authorization", "Bearer $token")
+                .get()
+                .build()
+        }.use { response ->
+            return when (response.code) {
+                401, 403 -> {
+                    logDriveFailure("etag", response)
+                    throw AuthRequiredException()
+                }
+                404 -> null
+                in 200..299 -> response.header("ETag") ?: response.header("etag")
+                else -> {
+                    logDriveFailure("etag", response)
+                    null
+                }
+            }
+        }
+    }
+
+    private suspend fun deleteFileById(id: String) {
+        val url = DRIVE_API_ROOT.toHttpUrl().newBuilder()
+            .addPathSegment("files")
+            .addPathSegment(id)
+            .build()
+        runCatching {
+            execute { token ->
+                Request.Builder()
+                    .url(url)
+                    .header("Authorization", "Bearer $token")
+                    .delete()
+                    .build()
+            }.close()
+        }
+    }
+
+    private suspend fun execute(build: (String) -> Request): Response {
+        var token = tokenProvider() ?: throw AuthRequiredException()
+        var response = http.newCall(build(token)).execute()
+        if (response.code == 401 || response.code == 403) {
+            response.close()
+            onUnauthorized()
+            token = tokenProvider() ?: throw AuthRequiredException()
+            response = http.newCall(build(token)).execute()
+        }
+        return response
+    }
+
     private fun logDriveFailure(op: String, response: Response) {
         val snippet = response.body?.string()?.take(400).orEmpty()
         Log.w(TAG, "Drive $op HTTP ${response.code} $snippet")
@@ -256,11 +382,13 @@ class DriveAppDataClient(
     private data class DriveListResponse(val files: List<DriveFileMeta> = emptyList())
 
     @Serializable
-    private data class DriveFileMeta(val id: String? = null)
+    private data class DriveFileMeta(
+        val id: String? = null,
+        val modifiedTime: String? = null,
+    )
 
     private companion object {
         const val TAG = "ErrataSync"
-        const val FILE_NAME = "errata-sync.json"
         const val QUERY = "name = 'errata-sync.json'"
         const val DRIVE_API_ROOT = "https://www.googleapis.com/drive/v3"
         const val DRIVE_UPLOAD_ROOT = "https://www.googleapis.com/upload/drive/v3"

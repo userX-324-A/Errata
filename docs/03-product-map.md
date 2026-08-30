@@ -63,7 +63,7 @@ Authority for **what** we build and **why**. Roadmap order lives in [`02-roadmap
 | **Helps** | Closing the loop |
 | **When** | In-app or from notification |
 | **Pain removed** | Completing late feels like “breaking a streak” elsewhere |
-| **Does** | Log completion; recompute `nextDueAt` from the task’s cadence mode |
+| **Does** | Log completion; recompute `nextDueAt` from the task’s cadence mode. In-app and shade Done are one-shot (in-flight + expected due) so a double tap does not skip a cycle. |
 | **Does not** | Score, badge, or scold |
 
 ### Snooze
@@ -73,7 +73,7 @@ Authority for **what** we build and **why**. Roadmap order lives in [`02-roadmap
 | **Helps** | When now isn’t possible but the task isn’t done |
 | **When** | List or notification |
 | **Pain removed** | Binary done-or-ignore; reminders that nag forever |
-| **Does** | Delay due/reminder without completing. Presets: **1 hour**, **later today**, **tomorrow**, **pick time** |
+| **Does** | Delay due/reminder without completing. Presets: **1 hour**, **later today**, **tomorrow** (next day at the task’s reminder or due clock, not midnight), **pick time** |
 | **Does not** | Count as completion or skip-the-cycle |
 
 ### Reminders
@@ -83,7 +83,7 @@ Authority for **what** we build and **why**. Roadmap order lives in [`02-roadmap
 | **Helps** | Remembering without opening the app |
 | **When** | Chosen time-of-day |
 | **Pain removed** | Silent lists; or battery-killing always-on services |
-| **Does** | Fire at the due clock by default (`reminderMinutesOfDay` null). Optional per-task clock override. Settings default seeds **new** due times and the optional morning digest — it does not retarget existing tasks. Notification shows title + duration; actions **Done** / **Snooze**; reschedule after boot |
+| **Does** | Per-task **None** (pending only, no alarm), **When due** (`reminderMinutesOfDay` null), or a clock (`0`–`1439`). Settings default kind (none / when due / clock) and due clock seed **new** pins and starters — they do not retarget existing tasks. Digest ignores None. Per-task wakeup on the due day (and one extra day if digest is off); overdue custom clocks join the digest instead of a daily RTC. Notification shows title + duration; actions **Done** / **Snooze** (same expected-due guard; leftover shade is dismissed after in-app Done/Skip/Snooze/Pause/Archive); reschedule after boot |
 | **Does not** | Sticky foreground service; high-frequency polling |
 
 **Default fire model:** **per-task** at the due clock (or the per-task override). Identical times do **not** auto-coalesce; opt-in **morning digest** is the only batch wakeup.
@@ -123,7 +123,7 @@ Authority for **what** we build and **why**. Roadmap order lives in [`02-roadmap
 | **Does not** | Sync a full work calendar product |
 
 **Candidate set:** overdue + due today + soon (7-day).  
-**Ranking:** urgency band first (overdue → due today → soon); within band prefer tasks that **fill but don’t overrun** the window; show leftover minutes. If nothing fits: calm empty state + “show anyway” / shorter snooze.
+**Ranking:** urgency band first (overdue → due today → soon); within band prefer tasks that **fill but don’t overrun** the window; show leftover minutes. If nothing fits: calm empty state + widen the window or show all.
 
 **“Leaving / committed to work”** = free-window end time (optional saved default work-start in Settings) — not a separate calendar app.
 
@@ -190,7 +190,7 @@ Authority for **what** we build and **why**. Roadmap order lives in [`02-roadmap
 | **Helps** | Mornings with many same-time dues |
 | **When** | Opt-in in Settings |
 | **Pain removed** | Ten separate wakes; notification spam |
-| **Does** | One digest: count + total minutes + open pending; per-task still available as default |
+| **Does** | One digest: count + total minutes + open pending; None stays off it; custom clocks stay per-task on the due day, then join while overdue. Per-task still available as default. Missed standing alarm (boot / force-stop / import after the window) posts once that local day |
 | **Does not** | Force digest on everyone |
 
 ### Home-screen widget
@@ -200,7 +200,7 @@ Authority for **what** we build and **why**. Roadmap order lives in [`02-roadmap
 | **Helps** | Glance without opening the app |
 | **When** | Home screen |
 | **Pain removed** | “Is anything due?” uncertainty |
-| **Does** | Pending count + total minutes due today; tap opens pending |
+| **Does** | Pending count + total minutes due today; two-row (and taller) tiles also list a few titles; tap opens pending |
 | **Does not** | Live animated engagement bait; frequent background refresh |
 
 ### History glance
@@ -218,9 +218,9 @@ Authority for **what** we build and **why**. Roadmap order lives in [`02-roadmap
 | | |
 |---|---|
 | **Helps** | Anyone who Dones for years and does not want a forever log |
-| **When** | Settings; also quietly after Done and on launch |
+| **When** | Settings; quietly on launch and at most once per local day after Done |
 | **Pain removed** | Completions accumulating with no off switch |
-| **Does** | Age cap (90 days / 1 year / 2 years / keep all) while always keeping the last eight Dones per task; purge history (tasks stay); reset all tasks (settings stay, empty app) |
+| **Does** | Age cap (90 days / 1 year / 2 years / keep all) while always keeping the last eight Dones per task; SQL prune (no full-table load); purge history (tasks stay); reset all tasks (settings stay, empty app) |
 | **Does not** | Shame, streaks, or cloud delete |
 
 ### Exact-alarm permission UX
@@ -275,10 +275,10 @@ Schedule **kind** is orthogonal to after-Done **mode**.
 | Kind | Next due after Done or Skip |
 |---|---|
 | **Every N days** (default) | After-Done mode below |
-| **Weekly** | Next selected weekday (Mon–Sun set) strictly after the event, same clock time as the due that was open |
-| **Monthly** | Next occurrence of day-of-month 1–31; if that day does not exist, clamp to the last day of the month. Same keep-time rule |
-| **Weekday of month** | Next 1st / 2nd / 3rd / 4th / last of one weekday strictly after the event. 1st–4th always exist; last is the 4th or 5th depending on the month. Same keep-time rule |
-| **Yearly** | Union of selected months (shared day 1–31, clamp missing days) and northern civil season starts (20 Mar / 21 Jun / 22 Sep / 21 Dec). Same keep-time rule |
+| **Weekly** | Next selected weekday strictly after both the event and the open due day (early Done/Skip consumes that slot), same clock time as the due that was open |
+| **Monthly** | Next occurrence of day-of-month 1–31; if that day does not exist, clamp to the last day of the month. Same consume + keep-time rule |
+| **Weekday of month** | Next 1st / 2nd / 3rd / 4th / last of one weekday strictly after both the event and the open due day. 1st–4th always exist; last is the 4th or 5th depending on the month. Same keep-time rule |
+| **Yearly** | Union of selected months (shared day 1–31, clamp missing days) and northern civil season starts (20 Mar / 21 Jun / 22 Sep / 21 Dec). Same consume + keep-time rule |
 
 ### Modes (per task; global default in Settings; interval tasks only)
 
@@ -297,7 +297,7 @@ Inputs: `intervalDays`, `completedAt`, `scheduledDueAt` (the due that was open),
    `nextDue = completedAt + max(floor, interval − catchUp)`  
    where `catchUp = min(overdue × 0.5, 0.25 × interval)`  
    and `floor = max(1 day, 0.5 × interval)`.  
-3. Never schedule `nextDue` earlier than `completedAt + floor`.  
+3. Never schedule `nextDue` earlier than `completedAt + floor`. After snapping to the scheduled time-of-day, if that instant is still before the floor, bump one local calendar day.  
 4. UI copy stays neutral (“Next due …”) — no “you were behind” framing.
 
 Exact constants may be tuned after real use; change them in this doc when code lands.

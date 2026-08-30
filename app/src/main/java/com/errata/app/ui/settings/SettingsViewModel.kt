@@ -11,6 +11,7 @@ import com.errata.app.data.TaskCommands
 import com.errata.app.data.local.SettingsEntity
 import com.errata.app.domain.cadence.CadenceMode
 import com.errata.app.domain.history.HistoryRetention
+import com.errata.app.domain.reminders.DefaultReminderKind
 import com.errata.app.domain.settings.AppearanceMode
 import com.errata.app.sync.GoogleAuth
 import com.errata.app.sync.GoogleLinkResult
@@ -26,6 +27,7 @@ import kotlinx.coroutines.launch
 data class SettingsUiState(
     val loaded: Boolean = false,
     val defaultCadenceMode: CadenceMode = CadenceMode.FROM_COMPLETION_CATCH_UP,
+    val defaultReminderKind: DefaultReminderKind = DefaultReminderKind.WHEN_DUE,
     val defaultReminderMinutesOfDay: Int = 9 * 60,
     val defaultWorkStartMinutesOfDay: Int? = null,
     val appearanceMode: AppearanceMode = AppearanceMode.SYSTEM,
@@ -48,6 +50,7 @@ class SettingsViewModel(
 ) : ViewModel() {
 
     private var pendingLinkEmail: String? = null
+    private var lastPermissionFlags: Pair<Boolean, Boolean>? = null
 
     val uiState: StateFlow<SettingsUiState> = combine(
         commands.observeSettings,
@@ -57,6 +60,7 @@ class SettingsViewModel(
         SettingsUiState(
             loaded = true,
             defaultCadenceMode = s.defaultCadenceMode,
+            defaultReminderKind = s.defaultReminderKind,
             defaultReminderMinutesOfDay = s.defaultReminderMinutesOfDay,
             defaultWorkStartMinutesOfDay = s.defaultWorkStartMinutesOfDay,
             appearanceMode = s.appearanceMode,
@@ -77,6 +81,10 @@ class SettingsViewModel(
             playServices = playServicesAvailable,
         ),
     )
+
+    fun setDefaultReminderKind(kind: DefaultReminderKind) {
+        persist { it.copy(defaultReminderKind = kind) }
+    }
 
     fun setDefaultReminderMinutes(minutes: Int) {
         persist { it.copy(defaultReminderMinutesOfDay = minutes) }
@@ -119,6 +127,17 @@ class SettingsViewModel(
         viewModelScope.launch { commands.rescheduleReminders() }
     }
 
+    /**
+     * Settings resume: rebuild alarms if notification or exact-alarm access
+     * changed (including the first visit this process, when last known is unset).
+     */
+    fun onResumePermissionFlags(canNotify: Boolean, canExact: Boolean) {
+        val next = canNotify to canExact
+        if (lastPermissionFlags == next) return
+        lastPermissionFlags = next
+        rescheduleReminders()
+    }
+
     fun syncNow() {
         viewModelScope.launch { syncScheduler.requestNow() }
     }
@@ -142,7 +161,7 @@ class SettingsViewModel(
         viewModelScope.launch {
             when (val result = GoogleAuth.completeLinkFromIntent(activity, email, data)) {
                 is GoogleLinkResult.Linked -> onLinked(result.email)
-                is GoogleLinkResult.NeedsConsent -> syncPrefs.markError("auth")
+                is GoogleLinkResult.NeedsConsent -> syncPrefs.markError("sign_in")
                 GoogleLinkResult.Cancelled -> Unit
                 is GoogleLinkResult.Failed -> syncPrefs.markError(result.reason)
             }
@@ -152,8 +171,9 @@ class SettingsViewModel(
 
     fun unlink(context: Context, wipeCloud: Boolean) {
         viewModelScope.launch {
-            if (wipeCloud) {
-                coordinator.wipeCloud()
+            if (wipeCloud && !coordinator.wipeCloud()) {
+                syncPrefs.markError("wipe")
+                return@launch
             }
             syncScheduler.cancelAll()
             GoogleAuth.clearCredential(context)

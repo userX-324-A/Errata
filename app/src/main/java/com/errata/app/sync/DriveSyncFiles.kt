@@ -1,0 +1,24 @@
+package com.errata.app.sync
+
+/**
+ * One hidden errata-sync.json in appDataFolder. If two devices create at once,
+ * keep the newest and drop the rest.
+ */
+object DriveSyncFiles {
+    const val FILE_NAME = "errata-sync.json"
+
+    data class FileRef(
+        val id: String,
+        val modifiedTime: String = "",
+    )
+
+    fun pickCanonical(files: List<FileRef>): FileRef? {
+        if (files.isEmpty()) return null
+        return files.maxWithOrNull(
+            compareBy<FileRef> { it.modifiedTime }.thenBy { it.id },
+        )
+    }
+
+    fun orphanIds(files: List<FileRef>, canonicalId: String): List<String> =
+        files.map { it.id }.filter { it != canonicalId }
+}

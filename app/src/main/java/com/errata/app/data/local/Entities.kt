@@ -6,6 +6,7 @@ import androidx.room.Index
 import androidx.room.PrimaryKey
 import com.errata.app.domain.cadence.CadenceMode
 import com.errata.app.domain.cadence.ScheduleKind
+import com.errata.app.domain.reminders.DefaultReminderKind
 import com.errata.app.domain.settings.AppearanceMode
 
 @Entity(
@@ -35,7 +36,7 @@ data class TaskEntity(
     val anchorEpochDay: Long,
     val nextDueAtEpochMs: Long,
     val lastCompletedAtEpochMs: Long? = null,
-    /** null = fire at the due clock time */
+    /** null = When due; -1 = none; 0–1439 = clock. See [com.errata.app.domain.reminders.ReminderPolicy]. */
     val reminderMinutesOfDay: Int? = null,
     val snoozedUntilEpochMs: Long? = null,
     val area: String? = null,
@@ -70,6 +71,8 @@ data class CompletionEntity(
 data class SettingsEntity(
     @PrimaryKey val id: Int = 1,
     val defaultCadenceMode: CadenceMode = CadenceMode.FROM_COMPLETION_CATCH_UP,
+    /** Seeds new-task reminder: none / when due / clock. Does not retarget existing tasks. */
+    val defaultReminderKind: DefaultReminderKind = DefaultReminderKind.WHEN_DUE,
     val defaultReminderMinutesOfDay: Int = 9 * 60,
     val defaultWorkStartMinutesOfDay: Int? = null,
     val soonHorizonDays: Int = 7,

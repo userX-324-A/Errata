@@ -55,6 +55,7 @@ fun AllTasksScreen(
     viewModel: AllTasksViewModel,
     onOpenTask: (Long) -> Unit,
     onAddTask: () -> Unit,
+    selectedTaskId: Long? = null,
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     var archiveTargetId by remember { mutableStateOf<Long?>(null) }
@@ -117,6 +118,7 @@ fun AllTasksScreen(
                 items(state.items, key = { it.task.id }) { item ->
                     LibraryRow(
                         item = item,
+                        selected = item.task.id == selectedTaskId,
                         onOpen = { onOpenTask(item.task.id) },
                         onPause = { viewModel.pause(item.task.id) },
                         onResume = { viewModel.resume(item.task.id) },
@@ -168,6 +170,7 @@ fun AllTasksScreen(
 @Composable
 private fun LibraryRow(
     item: LibraryItem,
+    selected: Boolean,
     onOpen: () -> Unit,
     onPause: () -> Unit,
     onResume: () -> Unit,
@@ -180,7 +183,11 @@ private fun LibraryRow(
             .fillMaxWidth()
             .clickable(onClick = onOpen),
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainer,
+            containerColor = if (selected) {
+                MaterialTheme.colorScheme.primaryContainer
+            } else {
+                MaterialTheme.colorScheme.surfaceContainer
+            },
         ),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
         shape = RoundedCornerShape(16.dp),

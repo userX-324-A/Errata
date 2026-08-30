@@ -108,6 +108,7 @@ object SyncMerge {
     private fun settingsTieBreak(s: SyncSettings): String =
         listOf(
             s.defaultCadenceMode,
+            s.defaultReminderKind,
             s.defaultReminderMinutesOfDay.toString(),
             s.defaultWorkStartMinutesOfDay?.toString().orEmpty(),
             s.soonHorizonDays.toString(),

@@ -31,6 +31,7 @@ class ErrataApp : Application() {
             tokenProvider = { GoogleAuth.accessToken(this, syncPreferences.snapshot().email) },
             fileIdStore = { syncPreferences.setFileId(it) },
             currentFileId = { syncPreferences.snapshot().fileId },
+            onUnauthorized = { GoogleAuth.clearAccessToken() },
         )
     }
     val syncScheduler: SyncScheduler by lazy { SyncScheduler(this, syncPreferences) }

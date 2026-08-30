@@ -2,6 +2,7 @@ package com.errata.app.data.backup
 
 import com.errata.app.domain.cadence.CadenceMode
 import com.errata.app.domain.cadence.ScheduleKind
+import com.errata.app.domain.reminders.DefaultReminderKind
 import com.errata.app.domain.settings.AppearanceMode
 import kotlinx.serialization.Serializable
 
@@ -19,6 +20,7 @@ data class ErrataBackup(
 @Serializable
 data class SettingsBackup(
     val defaultCadenceMode: String,
+    val defaultReminderKind: String = DefaultReminderKind.WHEN_DUE.name,
     val defaultReminderMinutesOfDay: Int,
     val defaultWorkStartMinutesOfDay: Int? = null,
     val soonHorizonDays: Int,
@@ -83,6 +85,13 @@ fun parseAppearanceMode(value: String): AppearanceMode =
         AppearanceMode.valueOf(value)
     } catch (_: IllegalArgumentException) {
         AppearanceMode.SYSTEM
+    }
+
+fun parseDefaultReminderKind(value: String): DefaultReminderKind =
+    try {
+        DefaultReminderKind.valueOf(value)
+    } catch (_: IllegalArgumentException) {
+        DefaultReminderKind.WHEN_DUE
     }
 
 fun parseScheduleKind(value: String): ScheduleKind =

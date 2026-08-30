@@ -38,13 +38,33 @@ object HistoryRetention {
         retentionDays,
     )
 
+    fun cutoffEpochMs(nowEpochMs: Long, retentionDays: Int): Long? {
+        if (retentionDays <= KEEP_ALL) return null
+        return nowEpochMs - Duration.ofDays(retentionDays.toLong()).toMillis()
+    }
+
+    /**
+     * Age-trim at most once per local day unless [force] (retention setting changed).
+     * [KEEP_ALL] never scans.
+     */
+    fun shouldRun(
+        retentionDays: Int,
+        lastPruneEpochDay: Long?,
+        todayEpochDay: Long,
+        force: Boolean,
+    ): Boolean {
+        if (retentionDays <= KEEP_ALL) return false
+        if (force) return true
+        return lastPruneEpochDay != todayEpochDay
+    }
+
     fun <T : Comparable<T>> sampleIdsToDelete(
         rows: List<Sample<T>>,
         nowEpochMs: Long,
         retentionDays: Int,
     ): List<T> {
-        if (retentionDays <= KEEP_ALL || rows.isEmpty()) return emptyList()
-        val cutoff = nowEpochMs - Duration.ofDays(retentionDays.toLong()).toMillis()
+        val cutoff = cutoffEpochMs(nowEpochMs, retentionDays) ?: return emptyList()
+        if (rows.isEmpty()) return emptyList()
         val protectedIds = rows
             .groupBy { it.taskKey }
             .flatMap { (_, group) ->

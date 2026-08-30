@@ -15,11 +15,13 @@ import com.errata.app.domain.cadence.Weekdays
 import com.errata.app.domain.cadence.YearMonths
 import com.errata.app.domain.cadence.Yearly
 import com.errata.app.domain.history.HistoryGlance
+import com.errata.app.domain.reminders.ReminderPolicy
 import com.errata.app.domain.starter.StarterCatalog
 import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.Month
 import java.time.ZoneId
+import java.util.concurrent.atomic.AtomicBoolean
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -47,7 +49,7 @@ data class TaskEditorUiState(
     val existingUuid: String = "",
     val createdAtEpochMs: Long = 0L,
     val lastCompletedAtEpochMs: Long? = null,
-    /** null = remind at the due clock time */
+    /** null = When due; [ReminderPolicy.NONE] = none; 0–1439 = clock. */
     val reminderMinutesOfDay: Int? = null,
     val defaultReminderMinutesOfDay: Int = 9 * 60,
     val snoozedUntilEpochMs: Long? = null,
@@ -58,6 +60,7 @@ data class TaskEditorUiState(
     val loaded: Boolean = false,
     val errorMessage: String? = null,
     val saved: Boolean = false,
+    val saving: Boolean = false,
 )
 
 /** Fields the editor can change. Used to decide discard-on-back. */
@@ -79,19 +82,36 @@ fun TaskEditorUiState.editFingerprint(): List<Any?> = listOf(
     area,
 )
 
-/** New blank task: When due; due clock from Settings default. */
+/** New blank task: reminder from Settings kind; due clock from Settings default time. */
 fun TaskEditorUiState.withBlankNew(
     cadenceMode: CadenceMode,
     todayEpochDay: Long,
     dueMinutes: Int,
+    storedReminderMinutes: Int? = null,
 ): TaskEditorUiState = copy(
     cadenceMode = cadenceMode,
     dueEpochDay = todayEpochDay,
     dueMinuteOfDay = dueMinutes,
     anchorEpochDay = todayEpochDay,
     defaultReminderMinutesOfDay = dueMinutes,
-    reminderMinutesOfDay = null,
+    reminderMinutesOfDay = storedReminderMinutes,
     loaded = true,
+)
+
+fun TaskEditorUiState.shouldSkipSave(): Boolean = saved || saving
+
+fun TaskEditorUiState.adoptSavedRow(
+    id: Long,
+    uuid: String,
+    createdAtEpochMs: Long,
+): TaskEditorUiState = copy(
+    saved = true,
+    saving = false,
+    errorMessage = null,
+    existingId = id,
+    existingUuid = uuid,
+    isNew = false,
+    createdAtEpochMs = createdAtEpochMs,
 )
 
 class TaskEditorViewModel(
@@ -104,6 +124,7 @@ class TaskEditorViewModel(
     private val _uiState = MutableStateFlow(TaskEditorUiState(isNew = taskId == 0L))
     val uiState: StateFlow<TaskEditorUiState> = _uiState.asStateFlow()
     private var baselineFingerprint: List<Any?>? = null
+    private val saveGate = AtomicBoolean(false)
 
     init {
         viewModelScope.launch {
@@ -116,6 +137,10 @@ class TaskEditorViewModel(
                         spec = spec,
                         cadenceMode = settings.defaultCadenceMode,
                         reminderMinutesOfDay = settings.defaultReminderMinutesOfDay,
+                        storedReminderMinutes = ReminderPolicy.storedFor(
+                            settings.defaultReminderKind,
+                            settings.defaultReminderMinutesOfDay,
+                        ),
                         nowEpochMs = now,
                         zone = zone,
                     )
@@ -140,7 +165,7 @@ class TaskEditorViewModel(
                             ),
                             anchorEpochDay = entity.anchorEpochDay,
                             defaultReminderMinutesOfDay = settings.defaultReminderMinutesOfDay,
-                            reminderMinutesOfDay = null,
+                            reminderMinutesOfDay = entity.reminderMinutesOfDay,
                             area = entity.area,
                             loaded = true,
                         )
@@ -153,6 +178,10 @@ class TaskEditorViewModel(
                             cadenceMode = settings.defaultCadenceMode,
                             todayEpochDay = today,
                             dueMinutes = settings.defaultReminderMinutesOfDay,
+                            storedReminderMinutes = ReminderPolicy.storedFor(
+                                settings.defaultReminderKind,
+                                settings.defaultReminderMinutesOfDay,
+                            ),
                         )
                     }
                     markBaseline()
@@ -303,6 +332,9 @@ class TaskEditorViewModel(
         it.copy(dueMinuteOfDay = minutes.coerceIn(0, 24 * 60 - 1))
     }
     fun useWhenDueReminder() = _uiState.update { it.copy(reminderMinutesOfDay = null) }
+    fun useNoneReminder() = _uiState.update {
+        it.copy(reminderMinutesOfDay = ReminderPolicy.NONE)
+    }
     fun updateReminderMinutes(minutes: Int) = _uiState.update {
         it.copy(reminderMinutesOfDay = minutes.coerceIn(0, 24 * 60 - 1))
     }
@@ -320,7 +352,11 @@ class TaskEditorViewModel(
     }
 
     fun save() {
+        if (_uiState.value.shouldSkipSave()) return
+        if (!saveGate.compareAndSet(false, true)) return
+        _uiState.update { it.copy(saving = true) }
         viewModelScope.launch {
+            try {
             val state = _uiState.value
             val title = state.title.trim()
             val estimate = state.estimateMinutes.toIntOrNull() ?: 0
@@ -402,8 +438,21 @@ class TaskEditorViewModel(
                         createdAtEpochMs = state.createdAtEpochMs.takeIf { it != 0L } ?: now,
                         updatedAtEpochMs = now,
                     )
-                    commands.upsert(entity)
-                    _uiState.update { it.copy(saved = true, errorMessage = null) }
+                    val id = commands.upsert(entity)
+                    val row = commands.getTask(id)
+                    _uiState.update {
+                        it.adoptSavedRow(
+                            id = id,
+                            uuid = row?.uuid.orEmpty(),
+                            createdAtEpochMs = row?.createdAtEpochMs ?: state.createdAtEpochMs,
+                        )
+                    }
+                }
+            }
+            } finally {
+                if (!_uiState.value.saved) {
+                    saveGate.set(false)
+                    _uiState.update { it.copy(saving = false) }
                 }
             }
         }

@@ -248,6 +248,7 @@ object StarterCatalog {
         spec: StarterSpec,
         cadenceMode: CadenceMode,
         reminderMinutesOfDay: Int,
+        storedReminderMinutes: Int? = null,
         nowEpochMs: Long,
         zone: ZoneId,
     ): TaskEntity {
@@ -293,7 +294,7 @@ object StarterCatalog {
             cadenceMode = cadenceMode,
             anchorEpochDay = CadenceCalculator.epochDayOf(nextDue, zone),
             nextDueAtEpochMs = nextDue,
-            reminderMinutesOfDay = null,
+            reminderMinutesOfDay = storedReminderMinutes,
             area = TaskAreas.normalize(spec.area),
             createdAtEpochMs = nowEpochMs,
             updatedAtEpochMs = nowEpochMs,

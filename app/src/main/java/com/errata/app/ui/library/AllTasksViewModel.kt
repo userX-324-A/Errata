@@ -3,6 +3,8 @@ package com.errata.app.ui.library
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import android.content.Context
+import com.errata.app.ErrataApp
 import com.errata.app.data.TaskCommands
 import com.errata.app.data.local.TaskEntity
 import com.errata.app.domain.area.TaskAreas
@@ -11,6 +13,7 @@ import com.errata.app.domain.cadence.ScheduleKind
 import com.errata.app.domain.cadence.Weekdays
 import com.errata.app.domain.cadence.Yearly
 import com.errata.app.domain.starter.StarterSpec
+import com.errata.app.ui.common.formatClock
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -37,11 +40,11 @@ data class AllTasksUiState(
 
 class AllTasksViewModel(
     private val commands: TaskCommands,
+    private val appContext: Context,
     private val zone: ZoneId = ZoneId.systemDefault(),
 ) : ViewModel() {
 
     private val dayFormatter = DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM)
-    private val timeFormatter = DateTimeFormatter.ofLocalizedTime(FormatStyle.SHORT)
 
     private val activeArea = MutableStateFlow<String?>(null)
 
@@ -100,7 +103,7 @@ class AllTasksViewModel(
         }
         val zoned = Instant.ofEpochMilli(task.nextDueAtEpochMs).atZone(zone)
         val date = dayFormatter.format(zoned.toLocalDate())
-        val time = timeFormatter.format(zoned.toLocalTime())
+        val time = formatClock(appContext, zoned.hour * 60 + zoned.minute)
         val due = "Next due $date · $time · ~${task.estimateMinutes} min"
         val kind = when (task.scheduleKind) {
             ScheduleKind.INTERVAL -> null
@@ -119,7 +122,7 @@ class AllTasksViewModel(
             object : ViewModelProvider.Factory {
                 @Suppress("UNCHECKED_CAST")
                 override fun <T : ViewModel> create(modelClass: Class<T>): T =
-                    AllTasksViewModel(commands) as T
+                    AllTasksViewModel(commands, ErrataApp.instance) as T
             }
     }
 }

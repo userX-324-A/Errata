@@ -1,34 +1,33 @@
 package com.errata.app.ui
 
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.List
 import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarItem
-import androidx.compose.material3.NavigationBarItemDefaults
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.adaptive.currentWindowAdaptiveInfo
+import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteScaffold
+import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteScaffoldDefaults
+import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteType
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateMapOf
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavGraph.Companion.findStartDestination
-import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
-import androidx.navigation.navArgument
 import com.errata.app.ErrataApp
 import com.errata.app.R
+import com.errata.app.ui.adaptive.ErrataListDetail
+import com.errata.app.ui.adaptive.PaneDest
 import com.errata.app.ui.backup.BackupScreen
 import com.errata.app.ui.backup.BackupViewModel
 import com.errata.app.ui.library.AllTasksScreen
@@ -41,7 +40,6 @@ import com.errata.app.ui.settings.SettingsViewModel
 import com.errata.app.ui.starter.StarterCatalogScreen
 import com.errata.app.ui.task.TaskEditorScreen
 import com.errata.app.ui.task.TaskEditorViewModel
-import com.errata.app.ui.theme.ErrataBottomInsets
 
 object Routes {
     const val PENDING = "pending"
@@ -76,105 +74,92 @@ fun ErrataNavHost(modifier: Modifier = Modifier) {
     val commands = ErrataApp.instance.taskCommands
     val backStack by navController.currentBackStackEntryAsState()
     val currentRoute = backStack?.destination?.route
-    val showBottomBar = currentRoute in setOf(Routes.PENDING, Routes.LIBRARY, Routes.SETTINGS)
+    val compactDetailByTab = remember { mutableStateMapOf<String, Boolean>() }
+    val adaptiveInfo = currentWindowAdaptiveInfo()
+    val defaultSuite = NavigationSuiteScaffoldDefaults.calculateFromAdaptiveInfo(adaptiveInfo)
+    val coverTab = currentRoute?.takeIf { it in compactDetailByTab.keys }
+    val layoutType = if (coverTab != null && compactDetailByTab[coverTab] == true) {
+        NavigationSuiteType.None
+    } else {
+        defaultSuite
+    }
 
-    Scaffold(
-        modifier = modifier.fillMaxSize(),
-        bottomBar = {
-            if (showBottomBar) {
-                NavigationBar(
-                    containerColor = MaterialTheme.colorScheme.surfaceContainer,
-                    contentColor = MaterialTheme.colorScheme.onSurface,
-                    windowInsets = ErrataBottomInsets,
-                ) {
-                    val dest = backStack?.destination
-                    Tabs.forEach { tab ->
-                        val selected = dest?.hierarchy?.any { it.route == tab.route } == true
-                        NavigationBarItem(
-                            selected = selected,
-                            onClick = {
-                                navController.navigate(tab.route) {
-                                    popUpTo(navController.graph.findStartDestination().id) {
-                                        saveState = true
-                                    }
-                                    launchSingleTop = true
-                                    restoreState = true
-                                }
-                            },
-                            icon = {
-                                Icon(
-                                    imageVector = tab.icon,
-                                    contentDescription = stringResource(tab.labelRes),
-                                )
-                            },
-                            label = { Text(stringResource(tab.labelRes)) },
-                            colors = NavigationBarItemDefaults.colors(
-                                selectedIconColor = MaterialTheme.colorScheme.primary,
-                                selectedTextColor = MaterialTheme.colorScheme.primary,
-                                indicatorColor = MaterialTheme.colorScheme.primaryContainer,
-                                unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                                unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                            ),
+    NavigationSuiteScaffold(
+        modifier = modifier,
+        layoutType = layoutType,
+        containerColor = MaterialTheme.colorScheme.background,
+        navigationSuiteItems = {
+            val dest = backStack?.destination
+            Tabs.forEach { tab ->
+                val selected = dest?.hierarchy?.any { it.route == tab.route } == true
+                item(
+                    selected = selected,
+                    onClick = {
+                        navController.navigate(tab.route) {
+                            popUpTo(navController.graph.findStartDestination().id) {
+                                saveState = true
+                            }
+                            launchSingleTop = true
+                            restoreState = true
+                        }
+                    },
+                    icon = {
+                        Icon(
+                            imageVector = tab.icon,
+                            contentDescription = stringResource(tab.labelRes),
                         )
-                    }
-                }
+                    },
+                    label = { Text(stringResource(tab.labelRes)) },
+                )
             }
         },
-        containerColor = MaterialTheme.colorScheme.background,
-        contentWindowInsets = WindowInsets(0, 0, 0, 0),
-    ) { innerPadding ->
+    ) {
         NavHost(
             navController = navController,
             startDestination = Routes.PENDING,
-            modifier = Modifier.padding(innerPadding),
         ) {
             composable(Routes.PENDING) {
                 val vm: PendingQueueViewModel = viewModel(
                     factory = PendingQueueViewModel.factory(commands),
                 )
-                PendingQueueScreen(
-                    viewModel = vm,
-                    onAddTask = { navController.navigate(Routes.STARTERS) },
-                    onOpenTask = { id -> navController.navigate(Routes.task(id)) },
-                )
-            }
-            composable(Routes.STARTERS) {
-                StarterCatalogScreen(
-                    onBack = { navController.popBackStack() },
-                    onBlankTask = { navController.navigate(Routes.task(0L)) },
-                    onPickStarter = { id -> navController.navigate(Routes.task(0L, id)) },
-                )
-            }
-            composable(
-                route = Routes.TASK,
-                arguments = listOf(
-                    navArgument("taskId") { type = NavType.LongType },
-                    navArgument("starterId") {
-                        type = NavType.StringType
-                        defaultValue = ""
+                ErrataListDetail(
+                    emptyMessage = stringResource(R.string.pane_empty_task),
+                    onCompactDetailChanged = { covered ->
+                        compactDetailByTab[Routes.PENDING] = covered
                     },
-                ),
-            ) { entry ->
-                val taskId = entry.arguments?.getLong("taskId") ?: 0L
-                val starterId = entry.arguments?.getString("starterId").orEmpty()
-                val vm: TaskEditorViewModel = viewModel(
-                    key = "task-$taskId-$starterId",
-                    factory = TaskEditorViewModel.factory(commands, taskId, starterId),
-                )
-                TaskEditorScreen(
-                    viewModel = vm,
-                    onBack = { navController.popBackStack() },
-                    onSaved = { EditorSaveNav.popAfterSave(navController) },
+                    list = { actions, selectedKey ->
+                        PendingQueueScreen(
+                            viewModel = vm,
+                            onAddTask = { actions.open(PaneDest.CATALOG) },
+                            onOpenTask = { id -> actions.open(PaneDest.task(id)) },
+                            selectedTaskId = PaneDest.taskId(selectedKey),
+                        )
+                    },
+                    detail = { key, actions ->
+                        TaskPaneDetail(key = key, actions = actions, commands = commands)
+                    },
                 )
             }
             composable(Routes.LIBRARY) {
                 val vm: AllTasksViewModel = viewModel(
                     factory = AllTasksViewModel.factory(commands),
                 )
-                AllTasksScreen(
-                    viewModel = vm,
-                    onOpenTask = { id -> navController.navigate(Routes.task(id)) },
-                    onAddTask = { navController.navigate(Routes.STARTERS) },
+                ErrataListDetail(
+                    emptyMessage = stringResource(R.string.pane_empty_task),
+                    onCompactDetailChanged = { covered ->
+                        compactDetailByTab[Routes.LIBRARY] = covered
+                    },
+                    list = { actions, selectedKey ->
+                        AllTasksScreen(
+                            viewModel = vm,
+                            onOpenTask = { id -> actions.open(PaneDest.task(id)) },
+                            onAddTask = { actions.open(PaneDest.CATALOG) },
+                            selectedTaskId = PaneDest.taskId(selectedKey),
+                        )
+                    },
+                    detail = { key, actions ->
+                        TaskPaneDetail(key = key, actions = actions, commands = commands)
+                    },
                 )
             }
             composable(Routes.SETTINGS) {
@@ -188,26 +173,62 @@ fun ErrataNavHost(modifier: Modifier = Modifier) {
                         com.errata.app.sync.GoogleAuth.playServicesAvailable(app),
                     ),
                 )
-                SettingsScreen(
-                    viewModel = vm,
-                    onOpenBackup = { navController.navigate(Routes.BACKUP) },
-                    onOpenPrivacy = { navController.navigate(Routes.PRIVACY) },
+                ErrataListDetail(
+                    emptyMessage = stringResource(R.string.pane_empty_settings),
+                    onCompactDetailChanged = { covered ->
+                        compactDetailByTab[Routes.SETTINGS] = covered
+                    },
+                    list = { actions, _ ->
+                        SettingsScreen(
+                            viewModel = vm,
+                            onOpenBackup = { actions.open(PaneDest.BACKUP) },
+                            onOpenPrivacy = { actions.open(PaneDest.PRIVACY) },
+                        )
+                    },
+                    detail = { key, actions ->
+                        when (key) {
+                            PaneDest.BACKUP -> {
+                                val backupVm: BackupViewModel = viewModel(
+                                    factory = BackupViewModel.factory(commands),
+                                )
+                                BackupScreen(
+                                    viewModel = backupVm,
+                                    onBack = actions.back,
+                                )
+                            }
+                            PaneDest.PRIVACY -> PrivacyScreen(onBack = actions.back)
+                            else -> Unit
+                        }
+                    },
                 )
             }
-            composable(Routes.BACKUP) {
-                val vm: BackupViewModel = viewModel(
-                    factory = BackupViewModel.factory(commands),
-                )
-                BackupScreen(
-                    viewModel = vm,
-                    onBack = { navController.popBackStack() },
-                )
-            }
-            composable(Routes.PRIVACY) {
-                PrivacyScreen(
-                    onBack = { navController.popBackStack() },
-                )
-            }
+        }
+    }
+}
+
+@Composable
+private fun TaskPaneDetail(
+    key: String,
+    actions: com.errata.app.ui.adaptive.PaneActions,
+    commands: com.errata.app.data.TaskCommands,
+) {
+    when {
+        key == PaneDest.CATALOG -> StarterCatalogScreen(
+            onBack = actions.back,
+            onBlankTask = { actions.open(PaneDest.task(0L)) },
+            onPickStarter = { id -> actions.open(PaneDest.task(0L, id)) },
+        )
+        PaneDest.isTask(key) -> {
+            val (taskId, starterId) = PaneDest.parseTask(key) ?: return
+            val vm: TaskEditorViewModel = viewModel(
+                key = "task-$taskId-$starterId",
+                factory = TaskEditorViewModel.factory(commands, taskId, starterId),
+            )
+            TaskEditorScreen(
+                viewModel = vm,
+                onBack = actions.back,
+                onSaved = actions.popToList,
+            )
         }
     }
 }

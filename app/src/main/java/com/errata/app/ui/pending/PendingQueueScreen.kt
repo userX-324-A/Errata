@@ -34,6 +34,8 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberTimePickerState
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -48,7 +50,11 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.repeatOnLifecycle
 import com.errata.app.R
 import com.errata.app.domain.due.DueBucket
 import com.errata.app.ui.common.AreaFilterChips
@@ -62,6 +68,7 @@ import com.errata.app.ui.theme.ErrataTopInsets
 import com.errata.app.ui.theme.ErrataWordmark
 import com.errata.app.ui.theme.errataContentWidth
 import java.time.LocalTime
+import kotlinx.coroutines.delay
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -69,8 +76,25 @@ fun PendingQueueScreen(
     viewModel: PendingQueueViewModel,
     onAddTask: () -> Unit,
     onOpenTask: (Long) -> Unit,
+    selectedTaskId: Long? = null,
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) viewModel.refreshNow()
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+    LaunchedEffect(lifecycleOwner) {
+        lifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
+            while (true) {
+                delay(60_000)
+                viewModel.refreshNow()
+            }
+        }
+    }
     var snoozeTaskId by remember { mutableStateOf<Long?>(null) }
     var skipConfirmTaskId by remember { mutableStateOf<Long?>(null) }
     var showCustomWindow by remember { mutableStateOf(false) }
@@ -90,7 +114,7 @@ fun PendingQueueScreen(
             )
         },
         floatingActionButton = {
-            if (!state.hasNoPinnedTasks) {
+            if (!state.hasNoPinnedTasks && !state.isEmpty) {
                 FloatingActionButton(
                     onClick = onAddTask,
                     containerColor = MaterialTheme.colorScheme.primary,
@@ -151,7 +175,7 @@ fun PendingQueueScreen(
                         )
                     }
                 }
-                if (state.areaFilterEmpty && state.activeWindowMinutes == null) {
+                if (state.areaFilterEmpty) {
                     item {
                         Text(
                             text = stringResource(
@@ -170,7 +194,7 @@ fun PendingQueueScreen(
                     item {
                         FreeWindowHeader(state = state, onClear = viewModel::clearWindow)
                     }
-                    if (state.fits.isEmpty()) {
+                    if (!state.areaFilterEmpty && state.fits.isEmpty()) {
                         item {
                             Text(
                                 text = stringResource(R.string.free_window_empty),
@@ -179,10 +203,12 @@ fun PendingQueueScreen(
                                 modifier = Modifier.padding(vertical = 8.dp),
                             )
                         }
-                    } else {
+                    } else if (!state.areaFilterEmpty) {
                         items(state.fits, key = { "fit-${it.task.id}" }) { item ->
                             PendingRow(
                                 item = item,
+                                selected = item.task.id == selectedTaskId,
+                                actionsEnabled = item.task.id !in state.busyTaskIds,
                                 onOpen = { onOpenTask(item.task.id) },
                                 onDone = { viewModel.complete(item.task.id) },
                                 onSnooze = { snoozeTaskId = item.task.id },
@@ -196,6 +222,8 @@ fun PendingQueueScreen(
                         items(state.overdue, key = { it.task.id }) { item ->
                             PendingRow(
                                 item = item,
+                                selected = item.task.id == selectedTaskId,
+                                actionsEnabled = item.task.id !in state.busyTaskIds,
                                 onOpen = { onOpenTask(item.task.id) },
                                 onDone = { viewModel.complete(item.task.id) },
                                 onSnooze = { snoozeTaskId = item.task.id },
@@ -208,6 +236,8 @@ fun PendingQueueScreen(
                         items(state.dueToday, key = { it.task.id }) { item ->
                             PendingRow(
                                 item = item,
+                                selected = item.task.id == selectedTaskId,
+                                actionsEnabled = item.task.id !in state.busyTaskIds,
                                 onOpen = { onOpenTask(item.task.id) },
                                 onDone = { viewModel.complete(item.task.id) },
                                 onSnooze = { snoozeTaskId = item.task.id },
@@ -220,6 +250,8 @@ fun PendingQueueScreen(
                         items(state.soon, key = { it.task.id }) { item ->
                             PendingRow(
                                 item = item,
+                                selected = item.task.id == selectedTaskId,
+                                actionsEnabled = item.task.id !in state.busyTaskIds,
                                 onOpen = { onOpenTask(item.task.id) },
                                 onDone = { viewModel.complete(item.task.id) },
                                 onSnooze = { snoozeTaskId = item.task.id },
@@ -489,6 +521,8 @@ private fun SectionHeader(title: String) {
 @Composable
 private fun PendingRow(
     item: PendingItem,
+    selected: Boolean,
+    actionsEnabled: Boolean,
     onOpen: () -> Unit,
     onDone: () -> Unit,
     onSnooze: () -> Unit,
@@ -515,7 +549,11 @@ private fun PendingRow(
                 },
             ),
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainer,
+            containerColor = if (selected) {
+                MaterialTheme.colorScheme.primaryContainer
+            } else {
+                MaterialTheme.colorScheme.surfaceContainer
+            },
         ),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
         shape = RoundedCornerShape(16.dp),
@@ -538,13 +576,13 @@ private fun PendingRow(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalArrangement = Arrangement.spacedBy(4.dp),
             ) {
-                Button(onClick = onDone) {
+                Button(onClick = onDone, enabled = actionsEnabled) {
                     Text(stringResource(R.string.action_done))
                 }
-                TextButton(onClick = onSnooze) {
+                TextButton(onClick = onSnooze, enabled = actionsEnabled) {
                     Text(stringResource(R.string.action_snooze))
                 }
-                TextButton(onClick = onSkip) {
+                TextButton(onClick = onSkip, enabled = actionsEnabled) {
                     Text(stringResource(R.string.action_skip))
                 }
             }

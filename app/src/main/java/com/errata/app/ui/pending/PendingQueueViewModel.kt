@@ -3,13 +3,19 @@ package com.errata.app.ui.pending
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import android.content.Context
+import com.errata.app.ErrataApp
 import com.errata.app.data.TaskCommands
 import com.errata.app.data.local.SettingsEntity
 import com.errata.app.data.local.TaskEntity
+import com.errata.app.domain.cadence.CadenceCalculator
 import com.errata.app.domain.due.DueBucket
 import com.errata.app.domain.estimate.EstimateAdjuster
 import com.errata.app.domain.estimate.EstimateHonesty
+import com.errata.app.domain.reminders.ReminderPolicy
 import com.errata.app.domain.starter.StarterSpec
+import com.errata.app.reminders.ReminderActionGuard
+import com.errata.app.ui.common.formatClock
 import com.errata.app.ui.snooze.SnoozePreset
 import com.errata.app.ui.snooze.SnoozePresets
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -51,10 +57,13 @@ data class PendingQueueUiState(
     val hasNoPinnedTasks: Boolean = true,
     /** Show after pinning starters if the due queue is still empty. */
     val startersPinnedHint: Boolean = false,
+    /** Cycle actions in flight for these ids (Done/Skip/Snooze). */
+    val busyTaskIds: Set<Long> = emptySet(),
 )
 
 class PendingQueueViewModel(
     private val commands: TaskCommands,
+    private val appContext: Context,
 ) : ViewModel() {
 
     private val nowTick = MutableStateFlow(System.currentTimeMillis())
@@ -62,18 +71,34 @@ class PendingQueueViewModel(
     private val honestyPrompt = MutableStateFlow<PendingHonestyPrompt?>(null)
     private val activeArea = MutableStateFlow<String?>(null)
     private val startersPinnedHint = MutableStateFlow(false)
+    private val busyIds = MutableStateFlow<Set<Long>>(emptySet())
+
+    private data class QueueExtras(
+        val honesty: PendingHonestyPrompt?,
+        val area: String?,
+        val hint: Boolean,
+        val busy: Set<Long>,
+    )
 
     val uiState: StateFlow<PendingQueueUiState> = combine(
         commands.observeActiveTasks,
         commands.observeSettings,
         nowTick,
         activeWindowMinutes,
-        combine(honestyPrompt, activeArea, startersPinnedHint) { honesty, area, hint ->
-            Triple(honesty, area, hint)
+        combine(honestyPrompt, activeArea, startersPinnedHint, busyIds) { honesty, area, hint, busy ->
+            QueueExtras(honesty, area, hint, busy)
         },
     ) { tasks, settings, now, window, extras ->
-        val (honesty, area, hint) = extras
-        PendingQueueState.build(tasks, settings ?: SettingsEntity(), now, window, honesty, area, hint)
+        PendingQueueState.build(
+            tasks,
+            settings ?: SettingsEntity(),
+            now,
+            window,
+            extras.honesty,
+            extras.area,
+            extras.hint,
+            formatTime = { time -> formatClock(appContext, time.hour * 60 + time.minute) },
+        ).copy(busyTaskIds = extras.busy)
     }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5_000),
@@ -101,16 +126,21 @@ class PendingQueueViewModel(
 
     fun complete(taskId: Long) {
         viewModelScope.launch {
-            val task = commands.getTask(taskId)
-            commands.complete(taskId)
-            if (task != null) {
-                honestyPrompt.value = PendingHonestyPrompt(
-                    taskId = task.id,
-                    title = task.title,
-                    estimateMinutes = task.estimateMinutes,
+            withTaskBusy(taskId) {
+                val task = commands.getTask(taskId) ?: return@withTaskBusy
+                val applied = commands.complete(
+                    taskId,
+                    expectedNextDueAtEpochMs = task.nextDueAtEpochMs,
                 )
+                if (applied) {
+                    honestyPrompt.value = PendingHonestyPrompt(
+                        taskId = task.id,
+                        title = task.title,
+                        estimateMinutes = task.estimateMinutes,
+                    )
+                }
+                refreshNow()
             }
-            refreshNow()
         }
     }
 
@@ -132,22 +162,51 @@ class PendingQueueViewModel(
 
     fun snooze(taskId: Long, preset: SnoozePreset) {
         viewModelScope.launch {
-            commands.snooze(taskId, SnoozePresets.untilEpochMs(preset))
-            refreshNow()
+            withTaskBusy(taskId) {
+                val task = commands.getTask(taskId)
+                val clock = if (task != null) {
+                    ReminderPolicy.displayMinutes(
+                        task.reminderMinutesOfDay,
+                        CadenceCalculator.minutesOfDay(task.nextDueAtEpochMs),
+                    )
+                } else {
+                    SnoozePresets.DEFAULT_TOMORROW_MINUTES
+                }
+                commands.snooze(
+                    taskId,
+                    SnoozePresets.untilEpochMs(preset, clockMinutesOfDay = clock),
+                )
+                refreshNow()
+            }
         }
     }
 
     fun snoozeUntil(taskId: Long, untilEpochMs: Long) {
         viewModelScope.launch {
-            commands.snooze(taskId, untilEpochMs)
-            refreshNow()
+            withTaskBusy(taskId) {
+                commands.snooze(taskId, untilEpochMs)
+                refreshNow()
+            }
         }
     }
 
     fun skip(taskId: Long) {
         viewModelScope.launch {
-            commands.skip(taskId)
-            refreshNow()
+            withTaskBusy(taskId) {
+                commands.skip(taskId)
+                refreshNow()
+            }
+        }
+    }
+
+    private suspend fun withTaskBusy(taskId: Long, block: suspend () -> Unit) {
+        if (!ReminderActionGuard.tryBegin(taskId)) return
+        busyIds.value = busyIds.value + taskId
+        try {
+            block()
+        } finally {
+            busyIds.value = busyIds.value - taskId
+            ReminderActionGuard.end(taskId)
         }
     }
 
@@ -169,7 +228,7 @@ class PendingQueueViewModel(
             object : ViewModelProvider.Factory {
                 @Suppress("UNCHECKED_CAST")
                 override fun <T : ViewModel> create(modelClass: Class<T>): T =
-                    PendingQueueViewModel(commands) as T
+                    PendingQueueViewModel(commands, ErrataApp.instance) as T
             }
     }
 }

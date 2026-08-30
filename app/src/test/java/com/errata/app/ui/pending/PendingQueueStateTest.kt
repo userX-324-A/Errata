@@ -55,6 +55,25 @@ class PendingQueueStateTest {
     }
 
     @Test
+    fun areaFilter_kitchenEmpty_withWindow_stillAreaEmpty() {
+        val bathroomDue = task(1, "Bins", "Bathroom", LocalDate.of(2026, 4, 10))
+        val kitchenLater = task(2, "Sponge", "Kitchen", LocalDate.of(2026, 5, 1))
+        val state = PendingQueueState.build(
+            tasks = listOf(bathroomDue, kitchenLater),
+            settings = SettingsEntity(),
+            now = now,
+            windowMinutes = 30,
+            honesty = null,
+            requestedArea = "Kitchen",
+            hint = false,
+        )
+        assertTrue(state.areaFilterEmpty)
+        assertEquals("Kitchen", state.activeArea)
+        assertEquals(30, state.activeWindowMinutes)
+        assertTrue(state.fits.isEmpty())
+    }
+
+    @Test
     fun areaFilter_paddedAreaStillMatches() {
         val kitchenDue = task(1, "Sponge", " Kitchen ", LocalDate.of(2026, 4, 10))
         val bathroomDue = task(2, "Bins", "Bathroom", LocalDate.of(2026, 4, 10))

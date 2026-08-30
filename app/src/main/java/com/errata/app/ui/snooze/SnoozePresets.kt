@@ -15,11 +15,13 @@ enum class SnoozePreset {
 object SnoozePresets {
 
     private const val ONE_MINUTE_MS = 60L * 1000L
+    const val DEFAULT_TOMORROW_MINUTES = 9 * 60
 
     fun untilEpochMs(
         preset: SnoozePreset,
         nowEpochMs: Long = System.currentTimeMillis(),
         zone: ZoneId = ZoneId.systemDefault(),
+        clockMinutesOfDay: Int = DEFAULT_TOMORROW_MINUTES,
     ): Long {
         val now = Instant.ofEpochMilli(nowEpochMs).atZone(zone)
         return when (preset) {
@@ -32,10 +34,14 @@ object SnoozePresets {
                 if (sixPm > nowEpochMs) sixPm else nowEpochMs + 2L * 60L * 60L * 1000L
             }
             SnoozePreset.TOMORROW -> {
+                val minutes = clockMinutesOfDay.coerceIn(0, 24 * 60 - 1)
+                val time = LocalTime.of(minutes / 60, minutes % 60)
                 now.toLocalDate().plusDays(1)
-                    .atStartOfDay(zone)
+                    .atTime(time)
+                    .atZone(zone)
                     .toInstant()
                     .toEpochMilli()
+                    .let { maxOf(it, nowEpochMs + ONE_MINUTE_MS) }
             }
         }
     }

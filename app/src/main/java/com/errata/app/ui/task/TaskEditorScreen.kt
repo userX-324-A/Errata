@@ -4,7 +4,9 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
@@ -49,6 +51,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.errata.app.R
+import com.errata.app.ui.common.formatDeviceClock
 import com.errata.app.ui.common.isDevice24Hour
 import com.errata.app.domain.area.TaskAreas
 import com.errata.app.domain.cadence.CadenceMode
@@ -58,14 +61,15 @@ import com.errata.app.domain.cadence.Seasons
 import com.errata.app.domain.cadence.Weekdays
 import com.errata.app.domain.cadence.YearMonths
 import com.errata.app.domain.history.TypicalLateness
+import com.errata.app.domain.reminders.ReminderPolicy
 import com.errata.app.reminders.ExactAlarmAccess
+import com.errata.app.ui.theme.ERRATA_EDITOR_TWO_COLUMN_MIN_DP
 import com.errata.app.ui.theme.ErrataScreenInsets
 import com.errata.app.ui.theme.ErrataTopInsets
 import com.errata.app.ui.theme.errataContentWidth
 import java.time.DayOfWeek
 import java.time.Instant
 import java.time.LocalDate
-import java.time.LocalTime
 import java.time.Month
 import java.time.ZoneId
 import java.time.ZoneOffset
@@ -141,7 +145,10 @@ fun TaskEditorScreen(
                     }
                 },
                 actions = {
-                    TextButton(onClick = viewModel::save) {
+                    TextButton(
+                        onClick = viewModel::save,
+                        enabled = !state.saved && !state.saving,
+                    ) {
                         Text(stringResource(R.string.action_save))
                     }
                 },
@@ -159,21 +166,30 @@ fun TaskEditorScreen(
             return@Scaffold
         }
 
+        BoxWithConstraints(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(innerPadding),
+        ) {
+        val twoColumn = maxWidth >= ERRATA_EDITOR_TWO_COLUMN_MIN_DP.dp
         val dueDateLabel = DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM)
             .format(LocalDate.ofEpochDay(state.dueEpochDay))
-        val dueTimeLabel = formatMinutes(state.dueMinuteOfDay)
-        val reminderMinutes = state.reminderMinutesOfDay ?: state.dueMinuteOfDay
-        val reminderLabel = formatMinutes(reminderMinutes)
+        val dueTimeLabel = formatDeviceClock(state.dueMinuteOfDay)
+        val reminderMinutes = ReminderPolicy.displayMinutes(
+            state.reminderMinutesOfDay,
+            state.dueMinuteOfDay,
+        )
+        val reminderLabel = formatDeviceClock(reminderMinutes)
 
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(innerPadding)
-                .errataContentWidth()
+                .then(if (twoColumn) Modifier else Modifier.errataContentWidth())
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 20.dp, vertical = 12.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
         ) {
+            MaybeTwoColumn(twoColumn = twoColumn, first = {
             OutlinedTextField(
                 value = state.title,
                 onValueChange = viewModel::updateTitle,
@@ -245,7 +261,7 @@ fun TaskEditorScreen(
                 modifier = Modifier.fillMaxWidth(),
                 isError = state.errorMessage == "estimate",
             )
-
+            }, second = {
             Text(
                 text = stringResource(R.string.field_schedule),
                 style = MaterialTheme.typography.labelLarge,
@@ -525,15 +541,23 @@ fun TaskEditorScreen(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             Text(
-                text = if (state.reminderMinutesOfDay == null) {
-                    stringResource(R.string.reminder_when_due_summary, reminderLabel)
-                } else {
-                    stringResource(R.string.reminder_custom, reminderLabel)
+                text = when {
+                    ReminderPolicy.isNone(state.reminderMinutesOfDay) ->
+                        stringResource(R.string.reminder_none_summary)
+                    state.reminderMinutesOfDay == null ->
+                        stringResource(R.string.reminder_when_due_summary, reminderLabel)
+                    else -> stringResource(R.string.reminder_custom, reminderLabel)
                 },
                 style = MaterialTheme.typography.bodyLarge,
             )
             Text(
-                text = stringResource(R.string.reminder_when_due_hint),
+                text = stringResource(
+                    if (ReminderPolicy.isNone(state.reminderMinutesOfDay)) {
+                        R.string.reminder_none_hint
+                    } else {
+                        R.string.reminder_when_due_hint
+                    },
+                ),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -541,6 +565,11 @@ fun TaskEditorScreen(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
+                FilterChip(
+                    selected = ReminderPolicy.isNone(state.reminderMinutesOfDay),
+                    onClick = viewModel::useNoneReminder,
+                    label = { Text(stringResource(R.string.reminder_none)) },
+                )
                 FilterChip(
                     selected = state.reminderMinutesOfDay == null,
                     onClick = viewModel::useWhenDueReminder,
@@ -553,7 +582,7 @@ fun TaskEditorScreen(
                     FilterChip(
                         selected = state.reminderMinutesOfDay == minutes,
                         onClick = { viewModel.updateReminderMinutes(minutes) },
-                        label = { Text(formatMinutes(minutes)) },
+                        label = { Text(formatDeviceClock(minutes)) },
                     )
                 }
             }
@@ -592,7 +621,9 @@ fun TaskEditorScreen(
                 "missing" -> ErrorText(stringResource(R.string.error_missing_task))
             }
 
+            })
             Spacer(modifier = Modifier.height(24.dp))
+        }
         }
     }
 
@@ -630,7 +661,10 @@ fun TaskEditorScreen(
         val initialMinutes = when (target) {
             TimePickerTarget.DUE -> state.dueMinuteOfDay
             TimePickerTarget.REMINDER ->
-                state.reminderMinutesOfDay ?: state.dueMinuteOfDay
+                ReminderPolicy.displayMinutes(
+                    state.reminderMinutesOfDay,
+                    state.dueMinuteOfDay,
+                )
         }
         val timeState = rememberTimePickerState(
             initialHour = initialMinutes / 60,
@@ -750,17 +784,40 @@ fun TaskEditorScreen(
 }
 
 @Composable
+private fun ColumnScope.MaybeTwoColumn(
+    twoColumn: Boolean,
+    first: @Composable ColumnScope.() -> Unit,
+    second: @Composable ColumnScope.() -> Unit,
+) {
+    if (twoColumn) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(24.dp),
+        ) {
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+                content = first,
+            )
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+                content = second,
+            )
+        }
+    } else {
+        first()
+        second()
+    }
+}
+
+@Composable
 private fun CadenceChip(label: String, selected: Boolean, onClick: () -> Unit) {
     FilterChip(
         selected = selected,
         onClick = onClick,
         label = { Text(label) },
     )
-}
-
-private fun formatMinutes(minutesOfDay: Int): String {
-    val time = LocalTime.of(minutesOfDay / 60, minutesOfDay % 60)
-    return DateTimeFormatter.ofLocalizedTime(FormatStyle.SHORT).format(time)
 }
 
 private fun formatHistoryDate(epochMs: Long): String {

@@ -1,6 +1,7 @@
 package com.errata.app.domain.digest
 
 import com.errata.app.domain.cadence.CadenceCalculator
+import com.errata.app.domain.reminders.ReminderPolicy
 import java.time.LocalDate
 import java.time.ZoneOffset
 import org.junit.Assert.assertEquals
@@ -138,6 +139,31 @@ class DigestPlannerTest {
     }
 
     @Test
+    fun members_includesOverdueCustomClock() {
+        val now = LocalDate.of(2026, 4, 10).atTime(9, 0).toInstant(zone).toEpochMilli()
+        val members = DigestPlanner.members(
+            candidates = listOf(
+                candidate(
+                    id = 1,
+                    reminderMinutes = 18 * 60,
+                    dueDay = LocalDate.of(2026, 4, 8),
+                    dueMinutes = 18 * 60,
+                ),
+                candidate(
+                    id = 2,
+                    reminderMinutes = 18 * 60,
+                    dueDay = LocalDate.of(2026, 4, 10),
+                    dueMinutes = 18 * 60,
+                ),
+            ),
+            defaultReminderMinutesOfDay = defaultMinutes,
+            nowEpochMs = now,
+            zone = zone,
+        )
+        assertEquals(listOf(1L), members.map { it.id })
+    }
+
+    @Test
     fun coveredByDigest_defaultAndExplicitSameMinutes() {
         val now = LocalDate.of(2026, 4, 10).atTime(8, 0).toInstant(zone).toEpochMilli()
         val due = LocalDate.of(2026, 4, 20)
@@ -178,6 +204,43 @@ class DigestPlannerTest {
                 candidate(reminderMinutes = null, dueDay = due, dueMinutes = 18 * 60),
                 defaultMinutes,
                 now,
+                zone,
+            ),
+        )
+        assertFalse(
+            DigestPlanner.coveredByDigest(
+                candidate(
+                    reminderMinutes = ReminderPolicy.NONE,
+                    dueDay = due,
+                    dueMinutes = defaultMinutes,
+                ),
+                defaultMinutes,
+                now,
+                zone,
+            ),
+        )
+        val overdueNow = LocalDate.of(2026, 4, 12).atTime(8, 0).toInstant(zone).toEpochMilli()
+        assertTrue(
+            DigestPlanner.coveredByDigest(
+                candidate(
+                    reminderMinutes = 18 * 60,
+                    dueDay = LocalDate.of(2026, 4, 10),
+                    dueMinutes = 18 * 60,
+                ),
+                defaultMinutes,
+                overdueNow,
+                zone,
+            ),
+        )
+        assertFalse(
+            DigestPlanner.coveredByDigest(
+                candidate(
+                    reminderMinutes = ReminderPolicy.NONE,
+                    dueDay = LocalDate.of(2026, 4, 10),
+                    dueMinutes = 18 * 60,
+                ),
+                defaultMinutes,
+                overdueNow,
                 zone,
             ),
         )
@@ -228,6 +291,26 @@ class DigestPlannerTest {
         )
         assertFalse(
             DigestPlanner.sameDayFallback(dueNextWeek, defaultMinutes, nowAfternoon, zone),
+        )
+    }
+
+    @Test
+    fun shouldReplayMissedDigest_afterWindowIfNotMarkedToday() {
+        val today = LocalDate.of(2026, 4, 10)
+        val morning = today.atTime(8, 0).toInstant(zone).toEpochMilli()
+        val afternoon = today.atTime(14, 0).toInstant(zone).toEpochMilli()
+        val todayDay = today.toEpochDay()
+        assertFalse(
+            DigestPlanner.shouldReplayMissedDigest(null, defaultMinutes, morning, zone),
+        )
+        assertTrue(
+            DigestPlanner.shouldReplayMissedDigest(null, defaultMinutes, afternoon, zone),
+        )
+        assertTrue(
+            DigestPlanner.shouldReplayMissedDigest(todayDay - 1, defaultMinutes, afternoon, zone),
+        )
+        assertFalse(
+            DigestPlanner.shouldReplayMissedDigest(todayDay, defaultMinutes, afternoon, zone),
         )
     }
 }

@@ -4,7 +4,6 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import com.errata.app.ErrataApp
-import java.util.concurrent.ConcurrentHashMap
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -14,7 +13,7 @@ class ReminderActionReceiver : BroadcastReceiver() {
         val action = intent?.action ?: return
         val taskId = intent.getLongExtra(ReminderScheduler.EXTRA_TASK_ID, -1L)
         if (taskId < 0) return
-        if (!ReminderActionGuard.tryBegin(inFlight, taskId)) return
+        if (!ReminderActionGuard.tryBegin(taskId)) return
 
         NotificationHelper.dismiss(context, taskId)
         NotificationHelper.cancelActions(context, taskId)
@@ -33,11 +32,15 @@ class ReminderActionReceiver : BroadcastReceiver() {
                     )
                     ACTION_SNOOZE -> {
                         val until = System.currentTimeMillis() + 60L * 60L * 1000L
-                        app.taskCommands.snooze(taskId, until)
+                        app.taskCommands.snooze(
+                            taskId,
+                            until,
+                            expectedNextDueAtEpochMs = expectedDue,
+                        )
                     }
                 }
             } finally {
-                ReminderActionGuard.end(inFlight, taskId)
+                ReminderActionGuard.end(taskId)
                 pending.finish()
             }
         }
@@ -46,7 +49,5 @@ class ReminderActionReceiver : BroadcastReceiver() {
     companion object {
         const val ACTION_DONE = "com.errata.app.action.REMINDER_DONE"
         const val ACTION_SNOOZE = "com.errata.app.action.REMINDER_SNOOZE"
-
-        private val inFlight: MutableSet<Long> = ConcurrentHashMap.newKeySet()
     }
 }

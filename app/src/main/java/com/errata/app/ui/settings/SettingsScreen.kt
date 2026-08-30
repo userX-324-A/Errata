@@ -51,19 +51,17 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.errata.app.R
+import com.errata.app.ui.common.formatDeviceClock
+import com.errata.app.ui.common.formatDeviceDateTime
 import com.errata.app.ui.common.isDevice24Hour
 import com.errata.app.domain.cadence.CadenceMode
 import com.errata.app.domain.history.HistoryRetention
+import com.errata.app.domain.reminders.DefaultReminderKind
 import com.errata.app.domain.settings.AppearanceMode
 import com.errata.app.reminders.ExactAlarmAccess
 import com.errata.app.reminders.NotificationAccess
 import com.errata.app.ui.theme.ErrataTopInsets
 import com.errata.app.ui.theme.errataContentWidth
-import java.time.Instant
-import java.time.LocalTime
-import java.time.ZoneId
-import java.time.format.DateTimeFormatter
-import java.time.format.FormatStyle
 
 private enum class TimeTarget {
     REMINDER,
@@ -112,8 +110,11 @@ fun SettingsScreen(
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
-                canExact = ExactAlarmAccess.canExact(context)
-                canNotify = NotificationAccess.areEnabled(context)
+                val nextExact = ExactAlarmAccess.canExact(context)
+                val nextNotify = NotificationAccess.areEnabled(context)
+                canExact = nextExact
+                canNotify = nextNotify
+                viewModel.onResumePermissionFlags(nextNotify, nextExact)
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
@@ -174,9 +175,39 @@ fun SettingsScreen(
                 modifier = Modifier.padding(top = 8.dp),
             )
 
+            Label(stringResource(R.string.settings_default_reminder_kind))
+            FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                CadenceChip(
+                    label = stringResource(R.string.reminder_none),
+                    selected = state.defaultReminderKind == DefaultReminderKind.NONE,
+                    onClick = { viewModel.setDefaultReminderKind(DefaultReminderKind.NONE) },
+                )
+                CadenceChip(
+                    label = stringResource(R.string.reminder_when_due),
+                    selected = state.defaultReminderKind == DefaultReminderKind.WHEN_DUE,
+                    onClick = { viewModel.setDefaultReminderKind(DefaultReminderKind.WHEN_DUE) },
+                )
+                CadenceChip(
+                    label = stringResource(
+                        R.string.reminder_at_clock,
+                        formatDeviceClock(state.defaultReminderMinutesOfDay),
+                    ),
+                    selected = state.defaultReminderKind == DefaultReminderKind.CLOCK,
+                    onClick = { viewModel.setDefaultReminderKind(DefaultReminderKind.CLOCK) },
+                )
+            }
+            Text(
+                text = stringResource(R.string.settings_default_reminder_kind_hint),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+
             Label(stringResource(R.string.settings_default_reminder))
             Text(
-                text = formatMinutes(state.defaultReminderMinutesOfDay),
+                text = formatDeviceClock(state.defaultReminderMinutesOfDay),
                 style = MaterialTheme.typography.bodyLarge,
             )
             Text(
@@ -279,7 +310,7 @@ fun SettingsScreen(
 
             Label(stringResource(R.string.settings_work_start))
             Text(
-                text = state.defaultWorkStartMinutesOfDay?.let { formatMinutes(it) }
+                text = state.defaultWorkStartMinutesOfDay?.let { formatDeviceClock(it) }
                     ?: stringResource(R.string.settings_work_start_unset),
                 style = MaterialTheme.typography.bodyLarge,
             )
@@ -643,7 +674,9 @@ private fun syncStatusText(state: SettingsUiState): String {
     if (!error.isNullOrBlank()) {
         return stringResource(
             when (error) {
-                "auth", "sign_in" -> R.string.settings_google_error_sign_in
+                "auth" -> R.string.settings_google_error_auth
+                "sign_in" -> R.string.settings_google_error_sign_in
+                "wipe" -> R.string.settings_google_error_wipe
                 "conflict" -> R.string.settings_google_error_conflict
                 "corrupt" -> R.string.settings_google_error_corrupt
                 "not_configured" -> R.string.settings_google_not_configured
@@ -655,9 +688,7 @@ private fun syncStatusText(state: SettingsUiState): String {
     if (state.lastSyncEpochMs <= 0L) {
         return stringResource(R.string.settings_google_sync_pending)
     }
-    val formatted = DateTimeFormatter.ofLocalizedDateTime(FormatStyle.SHORT)
-        .withZone(ZoneId.systemDefault())
-        .format(Instant.ofEpochMilli(state.lastSyncEpochMs))
+    val formatted = formatDeviceDateTime(state.lastSyncEpochMs)
     return stringResource(R.string.settings_google_last_sync, formatted)
 }
 
@@ -686,9 +717,4 @@ private fun AppearanceChip(label: String, selected: Boolean, onClick: () -> Unit
         onClick = onClick,
         label = { Text(label) },
     )
-}
-
-private fun formatMinutes(minutesOfDay: Int): String {
-    val time = LocalTime.of(minutesOfDay / 60, minutesOfDay % 60)
-    return DateTimeFormatter.ofLocalizedTime(FormatStyle.SHORT).format(time)
 }

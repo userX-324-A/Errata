@@ -5,6 +5,7 @@ import com.errata.app.domain.due.DueBucket
 import com.errata.app.domain.due.PendingClassifier
 import java.time.Instant
 import java.time.LocalDate
+import java.time.LocalTime
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 import java.time.format.FormatStyle
@@ -14,8 +15,9 @@ object DueCopy {
 
     private val dayFormatter: DateTimeFormatter =
         DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM)
-    private val timeFormatter: DateTimeFormatter =
-        DateTimeFormatter.ofLocalizedTime(FormatStyle.SHORT)
+
+    fun formatTimeDefault(time: LocalTime): String =
+        DateTimeFormatter.ofLocalizedTime(FormatStyle.SHORT).format(time)
 
     fun subtitle(
         bucket: DueBucket,
@@ -24,10 +26,11 @@ object DueCopy {
         estimateMinutes: Int,
         nowEpochMs: Long = System.currentTimeMillis(),
         zone: ZoneId = ZoneId.systemDefault(),
+        formatTime: (LocalTime) -> String = DueCopy::formatTimeDefault,
     ): String {
         val effective = PendingClassifier.effectiveDueEpochMs(nextDueAtEpochMs, snoozedUntilEpochMs)
         val zoned = Instant.ofEpochMilli(effective).atZone(zone)
-        val timeLabel = timeFormatter.format(zoned.toLocalTime())
+        val timeLabel = formatTime(zoned.toLocalTime())
         val duePhrase = when (bucket) {
             DueBucket.OVERDUE -> {
                 val days = ChronoUnit.DAYS.between(

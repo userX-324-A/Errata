@@ -29,6 +29,22 @@ class DueCopyTest {
     }
 
     @Test
+    fun dueToday_usesInjectedTimeFormat() {
+        val due = LocalDate.of(2026, 3, 10).atTime(15, 30).toInstant(zone).toEpochMilli()
+        val now = LocalDate.of(2026, 3, 10).atTime(12, 0).toInstant(zone).toEpochMilli()
+        val text = DueCopy.subtitle(
+            bucket = DueBucket.DUE_TODAY,
+            nextDueAtEpochMs = due,
+            snoozedUntilEpochMs = null,
+            estimateMinutes = 15,
+            nowEpochMs = now,
+            zone = zone,
+            formatTime = { "24h-label" },
+        )
+        assertTrue(text.contains("24h-label"))
+    }
+
+    @Test
     fun overdue_countsDays() {
         val due = CadenceCalculator.startOfDayEpochMs(LocalDate.of(2026, 3, 7).toEpochDay(), zone)
         val now = LocalDate.of(2026, 3, 10).atTime(12, 0).toInstant(zone).toEpochMilli()
