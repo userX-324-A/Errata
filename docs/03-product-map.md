@@ -73,7 +73,7 @@ Authority for **what** we build and **why**. Roadmap order lives in [`02-roadmap
 | **Helps** | When now isn’t possible but the task isn’t done |
 | **When** | List or notification |
 | **Pain removed** | Binary done-or-ignore; reminders that nag forever |
-| **Does** | Delay due/reminder without completing. Presets: **1 hour**, **later today**, **tomorrow** (next day at the task’s reminder or due clock, not midnight), **pick time**. Pause, resume, and due/grid edits clear it. |
+| **Does** | Delay due/reminder without completing. Presets: **1 hour**, **later today**, **tomorrow** (next day at the task’s reminder or due clock, not midnight), **pick time**. Pause, resume, and due/grid edits clear it. In-app Snooze is one-shot like Done (expected due captured when the sheet opens). |
 | **Does not** | Count as completion or skip-the-cycle |
 
 ### Reminders
@@ -83,7 +83,7 @@ Authority for **what** we build and **why**. Roadmap order lives in [`02-roadmap
 | **Helps** | Remembering without opening the app |
 | **When** | Chosen time-of-day |
 | **Pain removed** | Silent lists; or battery-killing always-on services |
-| **Does** | Per-task **None** (pending only, no alarm), **When due** (`reminderMinutesOfDay` null), or a clock (`0`–`1439`). Settings default kind (none / when due / clock) and due clock seed **new** pins and starters — they do not retarget existing tasks. Digest ignores None. Per-task wakeup on the due day (and one extra day if digest is off); overdue custom clocks join the digest instead of a daily RTC. Notification shows title + duration; actions **Done** / **Snooze** (same expected-due guard; leftover shade is dismissed after in-app Done/Skip/Snooze/Pause/Archive); reschedule after boot |
+| **Does** | Per-task **None** (pending only, no alarm), **When due** (`reminderMinutesOfDay` null), or a clock (`0`–`1439`). Settings default kind (none / when due / clock) and due clock seed **new** pins and starters — they do not retarget existing tasks. Digest ignores None. Per-task wakeup on the due day (and one extra day if digest is off); overdue custom clocks join the digest instead of a daily RTC. Notification shows title + duration; actions **Done** / **Snooze** (same expected-due guard; leftover shade is dismissed after in-app Done/Skip/Snooze/Pause/Archive); standing digest posts at most once per local day even if process-start miss-replay and the RTC both run; reschedule after boot |
 | **Does not** | Sticky foreground service; high-frequency polling |
 
 **Default fire model:** **per-task** at the due clock (or the per-task override). Identical times do **not** auto-coalesce; opt-in **morning digest** is the only batch wakeup.
@@ -123,7 +123,7 @@ Authority for **what** we build and **why**. Roadmap order lives in [`02-roadmap
 | **Does not** | Pack several tasks into N minutes; sync a full work calendar product |
 
 **Candidate set:** overdue + due today + soon (7-day).  
-**Ranking:** urgency band first (overdue → due today → soon); within band prefer the largest estimate that still fits (each ≤ window). Leftover is after that best pick, not after packing the list. If nothing fits: calm empty state + widen the window or show all.
+**Ranking:** urgency band first (overdue → due today → soon); within band prefer the longest estimate that still fits (each ≤ window). Header leftover is minutes left after that pick, not after packing the list. Until-work / stop-by after that clock: “that clock has passed,” not “0 min.” If nothing fits: calm empty state + widen the window or show all.
 
 **“Leaving / committed to work”** = free-window end time (optional saved default work-start in Settings) — not a separate calendar app.
 
@@ -144,7 +144,7 @@ Authority for **what** we build and **why**. Roadmap order lives in [`02-roadmap
 | **Helps** | Future free-window quality |
 | **When** | Right after Done |
 | **Pain removed** | Estimates that forever lie; recommendations that overrun |
-| **Does** | Lightweight “took longer / shorter?” adjust `estimateMinutes` — no guilt copy |
+| **Does** | Lightweight “took longer / shorter?” after in-app Done when the estimate is at least 10 minutes; shorter chores and shade Done skip it — no guilt copy |
 | **Does not** | Time-tracking stopwatch as core loop |
 
 ### Pause / archive
@@ -250,7 +250,7 @@ Authority for **what** we build and **why**. Roadmap order lives in [`02-roadmap
 | Feature | Purpose |
 |---|---|
 | Richer cadence | Weekly weekday sets, monthly day-of-month, weekday of month (1st–4th / last), yearly months and civil seasons |
-| Templates / starters | Catalog on every Add task (area groups + blank); empty-state still multi-check pin; user-chosen, not auto-seed |
+| Templates / starters | Catalog on every Add task (area groups + blank); empty-state tap-a-row opens the editor, checkboxes still multi-pin; user-chosen, not auto-seed |
 | Multi-device via file | Export/import plus optional user-chosen folder (`errata-backup.json`, last write wins). Drive via the system picker |
 | Optional Google Drive | Opt-in Google sign-in; hidden Drive **appDataFolder**; merge across devices; WorkManager, no FGS. SAF stays |
 | Play Store packaging | Privacy policy + listing/Data safety copy |
@@ -307,7 +307,7 @@ Inputs: `intervalDays`, `completedAt`, `scheduledDueAt` (the due that was open),
    `nextDue = completedAt + max(floor, interval − catchUp)`  
    where `catchUp = min(overdue × 0.5, 0.25 × interval)`  
    and `floor = max(1 day, 0.5 × interval)`.  
-3. Never schedule `nextDue` earlier than `completedAt + floor`. After snapping to the scheduled time-of-day, if that instant is still before the floor, bump one local calendar day.  
+3. Never schedule `nextDue` earlier than `completedAt + floor` (duration). After snapping to the scheduled time-of-day, if that instant is still before the floor, bump one local calendar day. Do not ceil a half-day floor into an extra calendar day.  
 4. UI copy stays neutral (“Next due …”) — no “you were behind” framing.
 
 Exact constants may be tuned after real use; change them in this doc when code lands.
@@ -324,7 +324,7 @@ Always allowed. Missing a reminder must not corrupt cadence math (snooze/skip/pa
 Open app → Pending queue (home)
          → Set free window (minutes and/or stop-by time)
          → Rank candidates (overdue → due today → soon)
-         → Show each ≤ window + leftover after best
+         → Show each ≤ window + minutes left after the longest that fits
          → Done / Snooze → back to queue
 ```
 
@@ -333,7 +333,7 @@ Open app → Pending queue (home)
 | Candidates | Overdue + due today + soon (7 days) |
 | Overrun | Do not recommend tasks whose estimate exceeds the **remaining** window. Until work / stop-by keep the clock and shrink remaining each tick; 15/30/45 stay a fixed pocket. |
 | Packing | List every individual fit. Leftover after the best pick, not after summing the list |
-| Empty fit | Calm message; offer show-unfiltered pending or adjust window |
+| Empty fit | Calm message; offer show-unfiltered pending or adjust window. Past a stop-by clock: that clock has passed. |
 | Work-start | Optional saved default for “until work” chip |
 
 ---

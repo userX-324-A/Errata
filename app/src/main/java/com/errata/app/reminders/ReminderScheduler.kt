@@ -25,7 +25,7 @@ class ReminderScheduler(
     private val alarmIdsLock = Mutex()
     private val sessionAlarmIds = mutableSetOf<Long>()
 
-    suspend fun rescheduleAll() = withContext(Dispatchers.IO) {
+    suspend fun rescheduleAll(sameDayAppearedAtEpochMs: Long = 0L) = withContext(Dispatchers.IO) {
         val settings = repository.getSettings()
         val tasks = repository.listSchedulableTasks()
         if (settings.digestEnabled && NotificationAccess.areEnabled(context)) {
@@ -60,7 +60,7 @@ class ReminderScheduler(
         }
         // Owns the widget pass; callers that also afterWrite skip a second refresh.
         widgetUpdater.refresh()
-        notifyMissedDigestIfNeeded()
+        notifyMissedDigestIfNeeded(sameDayAppearedAtEpochMs)
     }
 
     suspend fun rescheduleTask(taskId: Long) = withContext(Dispatchers.IO) {
@@ -81,7 +81,7 @@ class ReminderScheduler(
      * If today's digest window has passed and we have not posted yet this local day,
      * show current members (missed standing alarm). Otherwise only post-digest new pins.
      */
-    suspend fun notifyMissedDigestIfNeeded() = withContext(Dispatchers.IO) {
+    suspend fun notifyMissedDigestIfNeeded(sameDayAppearedAtEpochMs: Long = 0L) = withContext(Dispatchers.IO) {
         digestNotifyLock.withLock {
             val settings = repository.getSettings()
             if (!settings.digestEnabled || !NotificationAccess.areEnabled(context)) return@withLock
@@ -115,6 +115,7 @@ class ReminderScheduler(
                     candidate = task.toDigestCandidate(),
                     defaultReminderMinutesOfDay = minutes,
                     nowEpochMs = now,
+                    appearedAtEpochMs = sameDayAppearedAtEpochMs,
                 ) && !DigestNotifyStore.alreadyPostedFallback(context, today, task.id)
             }
             postDigestCards(fallback)
@@ -130,6 +131,20 @@ class ReminderScheduler(
                 return@withLock
             }
             val now = System.currentTimeMillis()
+            // Miss-replay in rescheduleAll can mark this local day first when a
+            // retained digest RTC starts a dead process. Do not post a second card.
+            if (DigestPlanner.alreadyPostedToday(
+                    DigestNotifyStore.lastNotifiedEpochDay(context),
+                    now,
+                )
+            ) {
+                scheduleDigest(
+                    settings.defaultReminderMinutesOfDay,
+                    nowEpochMs = now,
+                    afterFire = true,
+                )
+                return@withLock
+            }
             val members = DigestPlanner.members(
                 candidates = repository.listSchedulableTasks().map { it.toDigestCandidate() },
                 defaultReminderMinutesOfDay = settings.defaultReminderMinutesOfDay,

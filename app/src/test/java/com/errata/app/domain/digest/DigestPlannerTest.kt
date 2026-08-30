@@ -295,6 +295,28 @@ class DigestPlannerTest {
     }
 
     @Test
+    fun sameDayFallback_importAfterDigest_usesAppearedAt() {
+        val digestAt = LocalDate.of(2026, 4, 10).atTime(9, 0).toInstant(zone).toEpochMilli()
+        val now = LocalDate.of(2026, 4, 10).atTime(14, 0).toInstant(zone).toEpochMilli()
+        val restored = candidate(
+            dueDay = LocalDate.of(2026, 4, 10),
+            createdAtEpochMs = digestAt - 86_400_000L,
+        )
+        assertFalse(
+            DigestPlanner.sameDayFallback(restored, defaultMinutes, now, zone),
+        )
+        assertTrue(
+            DigestPlanner.sameDayFallback(
+                restored,
+                defaultMinutes,
+                now,
+                zone,
+                appearedAtEpochMs = now,
+            ),
+        )
+    }
+
+    @Test
     fun shouldReplayMissedDigest_afterWindowIfNotMarkedToday() {
         val today = LocalDate.of(2026, 4, 10)
         val morning = today.atTime(8, 0).toInstant(zone).toEpochMilli()
@@ -321,5 +343,18 @@ class DigestPlannerTest {
         assertTrue(DigestPlanner.alreadyPostedToday(today, afternoon, zone))
         assertFalse(DigestPlanner.alreadyPostedToday(today - 1, afternoon, zone))
         assertFalse(DigestPlanner.alreadyPostedToday(null, afternoon, zone))
+    }
+
+    @Test
+    fun alreadyPostedToday_standingFireRefusesAfterMissReplaySameDay() {
+        val afternoon = LocalDate.of(2026, 4, 10).atTime(9, 1).toInstant(zone).toEpochMilli()
+        val today = LocalDate.of(2026, 4, 10).toEpochDay()
+        assertTrue(
+            DigestPlanner.shouldReplayMissedDigest(null, defaultMinutes, afternoon, zone),
+        )
+        assertFalse(
+            DigestPlanner.shouldReplayMissedDigest(today, defaultMinutes, afternoon, zone),
+        )
+        assertTrue(DigestPlanner.alreadyPostedToday(today, afternoon, zone))
     }
 }

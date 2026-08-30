@@ -76,6 +76,24 @@ class CadenceCalculatorTest {
     }
 
     @Test
+    fun catchUp_durationFloor_notCeilHalfDays() {
+        // Interval 1: wait is the 1-day floor. Done at midnight, due clock 23:00.
+        // Duration floor is next midnight; 23:00 that calendar day is after it (not +ceil extra).
+        val scheduled = LocalDate.of(2026, 1, 1).atTime(23, 0).toInstant(zone).toEpochMilli()
+        val completed = LocalDate.of(2026, 1, 20).atTime(0, 0).toInstant(zone).toEpochMilli()
+        val next = CadenceCalculator.nextDueAfterCompletion(
+            mode = CadenceMode.FROM_COMPLETION_CATCH_UP,
+            intervalDays = 1,
+            completedAtEpochMs = completed,
+            scheduledDueAtEpochMs = scheduled,
+            anchorEpochDay = LocalDate.of(2026, 1, 1).toEpochDay(),
+            zone = zone,
+        )
+        val expected = LocalDate.of(2026, 1, 21).atTime(23, 0).toInstant(zone).toEpochMilli()
+        assertEquals(expected, next)
+    }
+
+    @Test
     fun catchUp_eveningDone_morningDue_doesNotLandBeforeFloorInstant() {
         val scheduled = LocalDate.of(2026, 1, 1).atTime(9, 0).toInstant(zone).toEpochMilli()
         val completed = LocalDate.of(2026, 1, 20).atTime(22, 0).toInstant(zone).toEpochMilli()

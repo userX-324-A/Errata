@@ -40,4 +40,11 @@ class DriveSyncFilesTest {
         assertEquals(true, DriveSyncFiles.wipeComplete(files, setOf("a", "b")))
         assertEquals(false, DriveSyncFiles.wipeComplete(files, setOf("a")))
     }
+
+    @Test
+    fun mediaUnreadable_blankIsCorrupt() {
+        assertEquals(true, DriveSyncFiles.mediaUnreadable(""))
+        assertEquals(true, DriveSyncFiles.mediaUnreadable("  \n"))
+        assertEquals(false, DriveSyncFiles.mediaUnreadable("{}"))
+    }
 }

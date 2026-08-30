@@ -1,11 +1,11 @@
 # Privacy — Errata
 
-Play-usable policy. Must match the APK. Hosted at [https://userX-324-A.github.io/Errata/privacy.html](https://userX-324-A.github.io/Errata/privacy.html). Paste that URL in Play Console and Cloud OAuth consent. The in-app Privacy screen states the same facts offline.
+Play-usable policy. Must match the APK. Hosted at [https://userX-324-A.github.io/Errata/privacy.html](https://userX-324-A.github.io/Errata/privacy.html). Paste that URL in Play Console and Cloud OAuth consent. The in-app Privacy screen covers the same topics offline (shorter copy).
 
 **Publisher:** Ordinary Tools  
 **Contact:** [ordinary.tools.apps@gmail.com](mailto:ordinary.tools.apps@gmail.com)
 
-Last updated: 23 August 2026.
+Last updated: 30 August 2026.
 
 ## Who we are
 
@@ -17,7 +17,7 @@ On **this device** (local database and app preferences):
 
 - Tasks you pin (title, notes, schedule, estimates, optional area label)
 - Completion history  
-- Settings (appearance, default reminder time, digest, cadence default, work-start, how long to keep completion history)
+- Settings (appearance, default reminder kind and time, digest, cadence default, work-start, how long to keep completion history)
 - A persistable folder URI if you choose a backup folder (that URI is not included in exported JSON)
 - If you link Google: the email you signed in with, and sync status, on this device only
 

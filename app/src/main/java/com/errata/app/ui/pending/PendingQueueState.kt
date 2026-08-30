@@ -89,6 +89,8 @@ object PendingQueueState {
         val workStart = settings.defaultWorkStartMinutesOfDay
         val untilWorkSelected =
             window is FreeWindowSelection.UntilClock && window.minutesOfDay == workStart
+        val clockWindowPassed =
+            window is FreeWindowSelection.UntilClock && windowMinutes == 0
         val customWindowSelected = when (window) {
             is FreeWindowSelection.Duration -> window.minutes !in setOf(15, 30, 45)
             is FreeWindowSelection.UntilClock -> !untilWorkSelected
@@ -126,6 +128,7 @@ object PendingQueueState {
             leftoverAfterBestMinutes = leftover,
             untilWorkMinutes = untilWork,
             untilWorkSelected = untilWorkSelected,
+            clockWindowPassed = clockWindowPassed,
             workStartMinutesOfDay = workStart,
             customWindowSelected = customWindowSelected,
             honesty = honesty,

@@ -5,9 +5,11 @@ import com.errata.app.domain.cadence.CadenceCalculator
 import com.errata.app.domain.cadence.CadenceMode
 import com.errata.app.domain.cadence.ScheduleKind
 import com.errata.app.domain.cadence.Weekdays
+import com.errata.app.domain.cadence.YearMonths
 import com.errata.app.domain.reminders.ReminderPolicy
 import java.time.DayOfWeek
 import java.time.LocalDate
+import java.time.Month
 import java.time.ZoneOffset
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -46,6 +48,7 @@ class StarterCatalogTest {
         val oil = StarterCatalog.ALL.single { it.id == "oil" }
         assertEquals("Oil change", oil.title)
         assertEquals(60, oil.estimateMinutes)
+        assertEquals(180, oil.intervalDays)
         val bins = StarterCatalog.ALL.single { it.id == "bins" }
         assertEquals(Weekdays.bit(DayOfWeek.TUESDAY), bins.weekdaysMask)
         assertEquals("bill", StarterCatalog.ALL.single { it.id == "bill" }.id)
@@ -113,10 +116,25 @@ class StarterCatalogTest {
         assertEquals(90, minutes("deep_kitchen"))
         assertEquals(40, minutes("bedding"))
         assertEquals(45, minutes("grout"))
-        assertEquals(25, minutes("mattress"))
+        assertEquals(40, minutes("mattress"))
         assertEquals(90, minutes("gutters"))
         assertEquals(35, minutes("car"))
         assertEquals(40, minutes("lights"))
+        assertEquals(50, minutes("laundry"))
+        assertEquals(35, minutes("towels"))
+        assertEquals(90, minutes("windows"))
+    }
+
+    @Test
+    fun lights_packsInJanuaryNotWinterSolstice() {
+        val spec = StarterCatalog.ALL.single { it.id == "lights" }
+        assertEquals(ScheduleKind.YEARLY, spec.scheduleKind)
+        assertEquals(0, spec.seasonMask)
+        assertEquals(YearMonths.bit(Month.JANUARY), spec.yearMonthsMask)
+        assertEquals(1, spec.monthDay)
+        val now = noon(2026, 8, 30)
+        val due = StarterCatalog.firstDueEpochMs(spec, reminder, now, zone)
+        assertEquals(atReminder(2027, 1, 1), due)
     }
 
     @Test

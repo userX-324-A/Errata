@@ -141,21 +141,24 @@ class DriveAppDataClient(
     private fun documentFromMedia(fileId: String, response: Response): CloudDocument {
         val body = response.body?.string().orEmpty()
         val etag = response.header("ETag") ?: response.header("etag")
-        val snapshot = if (body.isBlank()) {
-            null
-        } else {
-            try {
-                SyncCodec.decode(body)
-            } catch (_: Exception) {
-                return CloudDocument(
-                    snapshot = null,
-                    fileId = fileId,
-                    etag = etag,
-                    unreadable = true,
-                )
-            }
+        if (DriveSyncFiles.mediaUnreadable(body)) {
+            return CloudDocument(
+                snapshot = null,
+                fileId = fileId,
+                etag = etag,
+                unreadable = true,
+            )
         }
-        return CloudDocument(snapshot, fileId, etag)
+        return try {
+            CloudDocument(SyncCodec.decode(body), fileId, etag)
+        } catch (_: Exception) {
+            CloudDocument(
+                snapshot = null,
+                fileId = fileId,
+                etag = etag,
+                unreadable = true,
+            )
+        }
     }
 
     private suspend fun findFileId(): String? {
@@ -168,11 +171,33 @@ class DriveAppDataClient(
     }
 
     private suspend fun listSyncFiles(): List<DriveSyncFiles.FileRef> {
+        val acc = mutableListOf<DriveSyncFiles.FileRef>()
+        var pageToken: String? = null
+        var pages = 0
+        do {
+            val page = listSyncFilesPage(pageToken)
+            acc += page.files.mapNotNull { meta ->
+                val id = meta.id ?: return@mapNotNull null
+                DriveSyncFiles.FileRef(id, meta.modifiedTime.orEmpty())
+            }
+            pageToken = page.nextPageToken?.takeIf { it.isNotBlank() }
+            pages += 1
+        } while (pageToken != null && pages < MAX_LIST_PAGES)
+        return acc
+    }
+
+    private suspend fun listSyncFilesPage(pageToken: String?): DriveListResponse {
         val url = DRIVE_API_ROOT.toHttpUrl().newBuilder()
             .addPathSegment("files")
             .addQueryParameter("spaces", "appDataFolder")
             .addQueryParameter("q", QUERY)
-            .addQueryParameter("fields", "files(id,modifiedTime)")
+            .addQueryParameter("fields", "nextPageToken,files(id,modifiedTime)")
+            .addQueryParameter("pageSize", "100")
+            .apply {
+                if (!pageToken.isNullOrBlank()) {
+                    addQueryParameter("pageToken", pageToken)
+                }
+            }
             .build()
         execute { token ->
             Request.Builder()
@@ -189,13 +214,9 @@ class DriveAppDataClient(
                 logDriveFailure("list", response)
                 throw NetworkException()
             }
-            val parsed = json.decodeFromString<DriveListResponse>(
+            return json.decodeFromString<DriveListResponse>(
                 response.body?.string().orEmpty().ifBlank { "{}" },
             )
-            return parsed.files.mapNotNull { meta ->
-                val id = meta.id ?: return@mapNotNull null
-                DriveSyncFiles.FileRef(id, meta.modifiedTime.orEmpty())
-            }
         }
     }
 
@@ -389,7 +410,10 @@ class DriveAppDataClient(
     class NetworkException : Exception()
 
     @Serializable
-    private data class DriveListResponse(val files: List<DriveFileMeta> = emptyList())
+    private data class DriveListResponse(
+        val files: List<DriveFileMeta> = emptyList(),
+        val nextPageToken: String? = null,
+    )
 
     @Serializable
     private data class DriveFileMeta(
@@ -403,5 +427,6 @@ class DriveAppDataClient(
         const val DRIVE_API_ROOT = "https://www.googleapis.com/drive/v3"
         const val DRIVE_UPLOAD_ROOT = "https://www.googleapis.com/upload/drive/v3"
         val JSON = "application/json; charset=UTF-8".toMediaType()
+        const val MAX_LIST_PAGES = 20
     }
 }

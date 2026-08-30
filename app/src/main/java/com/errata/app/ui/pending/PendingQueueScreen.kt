@@ -81,6 +81,7 @@ import kotlinx.coroutines.delay
 fun PendingQueueScreen(
     viewModel: PendingQueueViewModel,
     onAddTask: () -> Unit,
+    onPickStarter: (String) -> Unit,
     onOpenTask: (Long) -> Unit,
     selectedTaskId: Long? = null,
 ) {
@@ -119,7 +120,7 @@ fun PendingQueueScreen(
             }
         }
     }
-    var snoozeTaskId by remember { mutableStateOf<Long?>(null) }
+    var snoozeTarget by remember { mutableStateOf<PendingSnoozeTarget?>(null) }
     var skipConfirmTaskId by remember { mutableStateOf<Long?>(null) }
     var showCustomWindow by remember { mutableStateOf(false) }
     var showStopByPicker by remember { mutableStateOf(false) }
@@ -146,7 +147,7 @@ fun PendingQueueScreen(
             )
         },
         floatingActionButton = {
-            if (!state.hasNoPinnedTasks && !state.isEmpty) {
+            if (!state.hasNoPinnedTasks) {
                 FloatingActionButton(
                     onClick = onAddTask,
                     containerColor = MaterialTheme.colorScheme.primary,
@@ -168,6 +169,7 @@ fun PendingQueueScreen(
                 title = stringResource(R.string.starters_empty_title),
                 body = stringResource(R.string.starters_body),
                 onAddTask = onAddTask,
+                onPickStarter = onPickStarter,
                 onPin = viewModel::pinStarters,
                 onRescheduleReminders = viewModel::rescheduleReminders,
                 modifier = Modifier.padding(innerPadding).errataContentWidth(),
@@ -178,7 +180,6 @@ fun PendingQueueScreen(
                     NotifyOffBanner(onAllow = onNotifyCta)
                 }
                 PendingEmptyState(
-                    onAddTask = onAddTask,
                     pinnedHint = state.startersPinnedHint,
                 )
             }
@@ -239,7 +240,13 @@ fun PendingQueueScreen(
                     if (!state.areaFilterEmpty && state.fits.isEmpty()) {
                         item {
                             Text(
-                                text = stringResource(R.string.free_window_empty),
+                                text = stringResource(
+                                    if (state.clockWindowPassed) {
+                                        R.string.free_window_empty_clock_passed
+                                    } else {
+                                        R.string.free_window_empty
+                                    },
+                                ),
                                 style = MaterialTheme.typography.bodyLarge,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 modifier = Modifier.padding(vertical = 8.dp),
@@ -253,7 +260,12 @@ fun PendingQueueScreen(
                                 actionsEnabled = item.task.id !in state.busyTaskIds,
                                 onOpen = { onOpenTask(item.task.id) },
                                 onDone = { viewModel.complete(item.task.id) },
-                                onSnooze = { snoozeTaskId = item.task.id },
+                                onSnooze = {
+                                    snoozeTarget = PendingSnoozeTarget(
+                                        taskId = item.task.id,
+                                        expectedNextDueAtEpochMs = item.task.nextDueAtEpochMs,
+                                    )
+                                },
                                 onSkip = { skipConfirmTaskId = item.task.id },
                             )
                         }
@@ -268,7 +280,12 @@ fun PendingQueueScreen(
                                 actionsEnabled = item.task.id !in state.busyTaskIds,
                                 onOpen = { onOpenTask(item.task.id) },
                                 onDone = { viewModel.complete(item.task.id) },
-                                onSnooze = { snoozeTaskId = item.task.id },
+                                onSnooze = {
+                                    snoozeTarget = PendingSnoozeTarget(
+                                        taskId = item.task.id,
+                                        expectedNextDueAtEpochMs = item.task.nextDueAtEpochMs,
+                                    )
+                                },
                                 onSkip = { skipConfirmTaskId = item.task.id },
                             )
                         }
@@ -282,7 +299,12 @@ fun PendingQueueScreen(
                                 actionsEnabled = item.task.id !in state.busyTaskIds,
                                 onOpen = { onOpenTask(item.task.id) },
                                 onDone = { viewModel.complete(item.task.id) },
-                                onSnooze = { snoozeTaskId = item.task.id },
+                                onSnooze = {
+                                    snoozeTarget = PendingSnoozeTarget(
+                                        taskId = item.task.id,
+                                        expectedNextDueAtEpochMs = item.task.nextDueAtEpochMs,
+                                    )
+                                },
                                 onSkip = { skipConfirmTaskId = item.task.id },
                             )
                         }
@@ -296,7 +318,12 @@ fun PendingQueueScreen(
                                 actionsEnabled = item.task.id !in state.busyTaskIds,
                                 onOpen = { onOpenTask(item.task.id) },
                                 onDone = { viewModel.complete(item.task.id) },
-                                onSnooze = { snoozeTaskId = item.task.id },
+                                onSnooze = {
+                                    snoozeTarget = PendingSnoozeTarget(
+                                        taskId = item.task.id,
+                                        expectedNextDueAtEpochMs = item.task.nextDueAtEpochMs,
+                                    )
+                                },
                                 onSkip = { skipConfirmTaskId = item.task.id },
                             )
                         }
@@ -320,17 +347,25 @@ fun PendingQueueScreen(
         )
     }
 
-    snoozeTaskId?.let { id ->
+    snoozeTarget?.let { target ->
         SnoozeSheet(
             onPreset = { preset ->
-                viewModel.snooze(id, preset)
-                snoozeTaskId = null
+                viewModel.snooze(
+                    target.taskId,
+                    preset,
+                    expectedNextDueAtEpochMs = target.expectedNextDueAtEpochMs,
+                )
+                snoozeTarget = null
             },
             onCustomUntil = { until ->
-                viewModel.snoozeUntil(id, until)
-                snoozeTaskId = null
+                viewModel.snoozeUntil(
+                    target.taskId,
+                    until,
+                    expectedNextDueAtEpochMs = target.expectedNextDueAtEpochMs,
+                )
+                snoozeTarget = null
             },
-            onDismiss = { snoozeTaskId = null },
+            onDismiss = { snoozeTarget = null },
         )
     }
 
@@ -542,7 +577,7 @@ private fun FreeWindowHeader(
     state: PendingQueueUiState,
     onClear: () -> Unit,
 ) {
-    val window = state.activeWindowMinutes ?: return
+    if (state.activeWindowMinutes == null) return
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -551,11 +586,22 @@ private fun FreeWindowHeader(
         horizontalArrangement = Arrangement.SpaceBetween,
     ) {
         Text(
-            text = if (state.fits.isEmpty()) {
-                stringResource(R.string.free_window_header_empty, window)
-            } else {
-                val leftover = state.leftoverAfterBestMinutes ?: 0
-                stringResource(R.string.free_window_header_fits, window, leftover)
+            text = when {
+                state.clockWindowPassed ->
+                    stringResource(R.string.free_window_header_clock_passed)
+                state.fits.isEmpty() ->
+                    stringResource(
+                        R.string.free_window_header_empty,
+                        state.activeWindowMinutes,
+                    )
+                else -> {
+                    val leftover = state.leftoverAfterBestMinutes ?: 0
+                    stringResource(
+                        R.string.free_window_header_fits,
+                        state.activeWindowMinutes,
+                        leftover,
+                    )
+                }
             },
             style = MaterialTheme.typography.titleMedium,
             color = MaterialTheme.colorScheme.onBackground,
@@ -653,7 +699,6 @@ private fun PendingRow(
 @Composable
 private fun PendingEmptyState(
     modifier: Modifier = Modifier,
-    onAddTask: () -> Unit,
     pinnedHint: Boolean = false,
 ) {
     Column(
@@ -682,9 +727,6 @@ private fun PendingEmptyState(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center,
             )
-        }
-        TextButton(onClick = onAddTask) {
-            Text(stringResource(R.string.add_task))
         }
     }
 }

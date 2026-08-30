@@ -106,20 +106,35 @@ fun TaskEditorUiState.snoozeOnSave(prior: TaskEditorUiState?): Long? {
 }
 
 /** New blank task: reminder from Settings kind; due clock from Settings default time. */
+fun blankFirstDueEpochDay(
+    todayEpochDay: Long,
+    dueMinutes: Int,
+    nowEpochMs: Long,
+    zone: ZoneId,
+): Long {
+    val todayFire = CadenceCalculator.atLocalDateMinutes(todayEpochDay, dueMinutes, zone)
+    return if (todayFire > nowEpochMs) todayEpochDay else todayEpochDay + 1
+}
+
 fun TaskEditorUiState.withBlankNew(
     cadenceMode: CadenceMode,
     todayEpochDay: Long,
     dueMinutes: Int,
     storedReminderMinutes: Int? = null,
-): TaskEditorUiState = copy(
-    cadenceMode = cadenceMode,
-    dueEpochDay = todayEpochDay,
-    dueMinuteOfDay = dueMinutes,
-    anchorEpochDay = todayEpochDay,
-    defaultReminderMinutesOfDay = dueMinutes,
-    reminderMinutesOfDay = storedReminderMinutes,
-    loaded = true,
-)
+    nowEpochMs: Long = System.currentTimeMillis(),
+    zone: ZoneId = ZoneId.systemDefault(),
+): TaskEditorUiState {
+    val dueDay = blankFirstDueEpochDay(todayEpochDay, dueMinutes, nowEpochMs, zone)
+    return copy(
+        cadenceMode = cadenceMode,
+        dueEpochDay = dueDay,
+        dueMinuteOfDay = dueMinutes,
+        anchorEpochDay = dueDay,
+        defaultReminderMinutesOfDay = dueMinutes,
+        reminderMinutesOfDay = storedReminderMinutes,
+        loaded = true,
+    )
+}
 
 fun TaskEditorUiState.shouldSkipSave(): Boolean = saved || saving
 
@@ -197,6 +212,7 @@ class TaskEditorViewModel(
                     markBaseline()
                 } else {
                     val today = LocalDate.now(zone).toEpochDay()
+                    val now = System.currentTimeMillis()
                     _uiState.update {
                         it.withBlankNew(
                             cadenceMode = settings.defaultCadenceMode,
@@ -206,6 +222,8 @@ class TaskEditorViewModel(
                                 settings.defaultReminderKind,
                                 settings.defaultReminderMinutesOfDay,
                             ),
+                            nowEpochMs = now,
+                            zone = zone,
                         )
                     }
                     markBaseline()

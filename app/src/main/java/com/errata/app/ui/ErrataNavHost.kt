@@ -122,6 +122,7 @@ fun ErrataNavHost(modifier: Modifier = Modifier) {
                         PendingQueueScreen(
                             viewModel = vm,
                             onAddTask = { actions.open(PaneDest.CATALOG) },
+                            onPickStarter = { id -> actions.open(PaneDest.task(0L, id)) },
                             onOpenTask = { id -> actions.open(PaneDest.task(id)) },
                             selectedTaskId = PaneDest.taskId(selectedKey),
                         )
@@ -145,6 +146,7 @@ fun ErrataNavHost(modifier: Modifier = Modifier) {
                             viewModel = vm,
                             onOpenTask = { id -> actions.open(PaneDest.task(id)) },
                             onAddTask = { actions.open(PaneDest.CATALOG) },
+                            onPickStarter = { id -> actions.open(PaneDest.task(0L, id)) },
                             selectedTaskId = PaneDest.taskId(selectedKey),
                         )
                     },

@@ -116,14 +116,16 @@ object DigestPlanner {
     ): Boolean = lastNotifiedEpochDay == localEpochDay(nowEpochMs, zone)
 
     /**
-     * Pinned after this morning's digest: notify now instead of waiting until tomorrow.
-     * Tasks that were already due at digest fire stay silent (they were in the digest).
+     * Pinned or restored after this morning's digest: notify now instead of waiting until tomorrow.
+     * Tasks that were already due at digest fire stay silent (they were in the digest)
+     * unless [appearedAtEpochMs] is after that window (import replace).
      */
     fun sameDayFallback(
         candidate: Candidate,
         defaultReminderMinutesOfDay: Int,
         nowEpochMs: Long,
         zone: ZoneId = ZoneId.systemDefault(),
+        appearedAtEpochMs: Long = 0L,
     ): Boolean {
         if (!coveredByDigest(candidate, defaultReminderMinutesOfDay, nowEpochMs, zone)) {
             return false
@@ -132,7 +134,7 @@ object DigestPlanner {
         if (!dueTodayOrOverdue(candidate, nowEpochMs, zone)) return false
         val today = Instant.ofEpochMilli(nowEpochMs).atZone(zone).toLocalDate().toEpochDay()
         val digestToday = atLocalDateMinutes(today, defaultReminderMinutesOfDay, zone)
-        return candidate.createdAtEpochMs > digestToday
+        return maxOf(candidate.createdAtEpochMs, appearedAtEpochMs) > digestToday
     }
 
     fun nextDigestEpochMs(

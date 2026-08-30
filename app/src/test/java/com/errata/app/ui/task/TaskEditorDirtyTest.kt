@@ -1,13 +1,20 @@
 package com.errata.app.ui.task
 
+import com.errata.app.domain.cadence.CadenceCalculator
 import com.errata.app.domain.cadence.CadenceMode
 import com.errata.app.domain.cadence.ScheduleKind
 import com.errata.app.domain.reminders.ReminderPolicy
+import java.time.ZoneOffset
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
 import org.junit.Test
 
 class TaskEditorDirtyTest {
+
+    private val zone = ZoneOffset.UTC
+
+    private fun beforeDue(day: Long, minutes: Int): Long =
+        CadenceCalculator.atLocalDateMinutes(day, minutes, zone) - 1
 
     private fun state(
         title: String = "Bins",
@@ -43,17 +50,37 @@ class TaskEditorDirtyTest {
     }
 
     @Test
-    fun blankNew_whenDueAndDueClockFromSettings() {
+    fun blankNew_dueTodayIfClockStillAhead() {
         val dueMinutes = 8 * 60
+        val today = 20_000L
         val state = TaskEditorUiState().withBlankNew(
             cadenceMode = CadenceMode.FROM_COMPLETION,
-            todayEpochDay = 20_000L,
+            todayEpochDay = today,
             dueMinutes = dueMinutes,
+            nowEpochMs = beforeDue(today, dueMinutes),
+            zone = zone,
         )
         assertEquals(null, state.reminderMinutesOfDay)
         assertEquals(dueMinutes, state.dueMinuteOfDay)
         assertEquals(dueMinutes, state.defaultReminderMinutesOfDay)
-        assertEquals(20_000L, state.dueEpochDay)
+        assertEquals(today, state.dueEpochDay)
+        assertEquals(today, state.anchorEpochDay)
+    }
+
+    @Test
+    fun blankNew_dueTomorrowIfClockPassed() {
+        val dueMinutes = 8 * 60
+        val today = 20_000L
+        val after = CadenceCalculator.atLocalDateMinutes(today, dueMinutes, zone) + 1
+        val state = TaskEditorUiState().withBlankNew(
+            cadenceMode = CadenceMode.FROM_COMPLETION,
+            todayEpochDay = today,
+            dueMinutes = dueMinutes,
+            nowEpochMs = after,
+            zone = zone,
+        )
+        assertEquals(today + 1, state.dueEpochDay)
+        assertEquals(today + 1, state.anchorEpochDay)
     }
 
     @Test
@@ -64,6 +91,8 @@ class TaskEditorDirtyTest {
             todayEpochDay = 20_000L,
             dueMinutes = dueMinutes,
             storedReminderMinutes = ReminderPolicy.NONE,
+            nowEpochMs = beforeDue(20_000L, dueMinutes),
+            zone = zone,
         )
         assertEquals(ReminderPolicy.NONE, none.reminderMinutesOfDay)
         assertEquals(dueMinutes, none.dueMinuteOfDay)
@@ -72,6 +101,8 @@ class TaskEditorDirtyTest {
             todayEpochDay = 20_000L,
             dueMinutes = dueMinutes,
             storedReminderMinutes = dueMinutes,
+            nowEpochMs = beforeDue(20_000L, dueMinutes),
+            zone = zone,
         )
         assertEquals(dueMinutes, clock.reminderMinutesOfDay)
         assertEquals("", clock.estimateMinutes)
@@ -83,6 +114,8 @@ class TaskEditorDirtyTest {
             cadenceMode = CadenceMode.FROM_COMPLETION,
             todayEpochDay = 20_000L,
             dueMinutes = 9 * 60,
+            nowEpochMs = beforeDue(20_000L, 9 * 60),
+            zone = zone,
         )
         assertEquals("", state.estimateMinutes)
         assertEquals("", TaskEditorUiState().estimateMinutes)

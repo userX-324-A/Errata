@@ -116,6 +116,7 @@ class PendingQueueStateTest {
         )
         assertEquals(60, early.activeWindowMinutes)
         assertTrue(early.untilWorkSelected)
+        assertFalse(early.clockWindowPassed)
         assertEquals(setOf("Sheets", "Bins"), early.fits.map { it.task.title }.toSet())
 
         val later = PendingQueueState.build(
@@ -150,6 +151,7 @@ class PendingQueueStateTest {
         )
         assertEquals(0, later.activeWindowMinutes)
         assertTrue(later.untilWorkSelected)
+        assertTrue(later.clockWindowPassed)
         assertTrue(later.fits.isEmpty())
     }
 

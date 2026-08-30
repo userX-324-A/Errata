@@ -63,6 +63,7 @@ Unit tests cover cadence, reminder fire times, digest membership, backup, sync m
 - [ ] Pin a task with a reminder; when the card appears, **Done** once — next due advances; the card is gone
 - [ ] Double-tap shade **Done** before it dismisses — one completion, not two cycles
 - [ ] Complete in-app, leftover shade **Snooze** — refused / gone; does not snooze the new cycle
+- [ ] Open in-app Snooze, leftover shade **Done**, then confirm Snooze — refused; no wakeup on the next cycle
 - [ ] Pause or archive, leftover shade Done/Snooze — refused
 
 ### Digest (Settings → morning digest on)
@@ -73,7 +74,15 @@ Unit tests cover cadence, reminder fire times, digest membership, backup, sync m
 - [ ] Force-stop overnight past the digest clock, open the app — one missed digest that local day, not a second card
 - [ ] Pin a due-today task after the window, then open Settings — still one same-day card, not a second
 - [ ] After today’s digest, change the default clock to later today — no second digest this local day
+- [ ] Digest RTC with the app process dead (not force-stop) around the default clock — one card, not two
 - [ ] Digest N≥2, Done in-app — the digest card is gone (count/minutes do not linger)
+- [ ] After today’s digest, import a backup with due-today tasks — one same-day card, not silence until tomorrow
+
+### Pending home
+
+- [ ] Until work after that clock — “that clock has passed,” not “Nothing fits in 0 min”; Show all still works
+- [ ] Caught-up empty (pins exist, nothing due) — Add FAB still there
+- [ ] In-app Done on a 5-minute chore — no honesty sheet; 10+ minutes still asks
 
 ### Import and Google
 
@@ -82,7 +91,8 @@ Unit tests cover cadence, reminder fire times, digest membership, backup, sync m
 
 ### Catalog Save
 
-- [ ] Compact: Add task → starter → Save returns to Pending, not the catalog. Back from the editor still shows the catalog
+- [ ] Compact: Add task → starter → Save returns to Pending, not the catalog. If the notify/exact prompt appears, Back or Not now still returns to Pending. Back from the editor before Save still shows the catalog
+- [ ] Empty state: tap a starter row opens the editor (minutes); checkbox + Pin selected still pins several as-is
 - [ ] Two-pane: same Save keeps the list visible; detail clears
 
 ### Tablet layout

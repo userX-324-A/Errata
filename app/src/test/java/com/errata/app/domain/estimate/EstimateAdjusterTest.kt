@@ -41,4 +41,12 @@ class EstimateAdjusterTest {
         assertEquals(1, EstimateAdjuster.adjust(0, EstimateHonesty.SAME))
         assertEquals(1, EstimateAdjuster.adjust(-5, EstimateHonesty.SHORTER))
     }
+
+    @Test
+    fun shouldAskAfterDone_skipsShortChores() {
+        assertEquals(false, EstimateAdjuster.shouldAskAfterDone(5))
+        assertEquals(false, EstimateAdjuster.shouldAskAfterDone(9))
+        assertEquals(true, EstimateAdjuster.shouldAskAfterDone(10))
+        assertEquals(true, EstimateAdjuster.shouldAskAfterDone(40))
+    }
 }

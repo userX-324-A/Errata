@@ -143,7 +143,7 @@ class SettingsViewModel(
     }
 
     fun syncNow() {
-        viewModelScope.launch { syncScheduler.requestNow() }
+        viewModelScope.launch { syncScheduler.requestNow(force = true) }
     }
 
     fun linkGoogle(activity: Activity, onNeedsConsent: (IntentSender) -> Unit) {

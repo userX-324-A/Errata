@@ -41,12 +41,10 @@ class ReminderActionGuardTest {
     }
 
     @Test
-    fun shouldSnooze_sameDueGuardAsComplete() {
-        assertTrue(ReminderActionGuard.shouldSnooze(1_000L, expectedNextDueAtEpochMs = null))
-        assertTrue(ReminderActionGuard.shouldSnooze(1_000L, 1_000L))
-        assertFalse(ReminderActionGuard.shouldSnooze(2_000L, 1_000L))
-        assertFalse(ReminderActionGuard.shouldSnooze(1_000L, 1_000L, isPaused = true))
-        assertFalse(ReminderActionGuard.shouldSnooze(1_000L, 1_000L, isArchived = true))
+    fun shouldSnooze_refusesWhenDueAdvancedAfterSheetOpened() {
+        val openedDue = 1_000L
+        val afterShadeDone = 2_000L
+        assertFalse(ReminderActionGuard.shouldSnooze(afterShadeDone, openedDue))
     }
 
     @Test

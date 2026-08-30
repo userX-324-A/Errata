@@ -38,6 +38,12 @@ data class PendingHonestyPrompt(
     val estimateMinutes: Int,
 )
 
+/** In-app snooze expected due is captured when the sheet opens, not at confirm. */
+data class PendingSnoozeTarget(
+    val taskId: Long,
+    val expectedNextDueAtEpochMs: Long,
+)
+
 data class PendingQueueUiState(
     val overdue: List<PendingItem> = emptyList(),
     val dueToday: List<PendingItem> = emptyList(),
@@ -49,6 +55,8 @@ data class PendingQueueUiState(
     val leftoverAfterBestMinutes: Int? = null,
     val untilWorkMinutes: Int? = null,
     val untilWorkSelected: Boolean = false,
+    /** Until-work / stop-by clock is selected but that time has already passed today. */
+    val clockWindowPassed: Boolean = false,
     val workStartMinutesOfDay: Int? = null,
     val customWindowSelected: Boolean = false,
     val honesty: PendingHonestyPrompt? = null,
@@ -141,7 +149,7 @@ class PendingQueueViewModel(
                     taskId,
                     expectedNextDueAtEpochMs = task.nextDueAtEpochMs,
                 )
-                if (applied) {
+                if (applied && EstimateAdjuster.shouldAskAfterDone(task.estimateMinutes)) {
                     honestyPrompt.value = PendingHonestyPrompt(
                         taskId = task.id,
                         title = task.title,
@@ -169,7 +177,11 @@ class PendingQueueViewModel(
         honestyPrompt.value = null
     }
 
-    fun snooze(taskId: Long, preset: SnoozePreset) {
+    fun snooze(
+        taskId: Long,
+        preset: SnoozePreset,
+        expectedNextDueAtEpochMs: Long,
+    ) {
         viewModelScope.launch {
             withTaskBusy(taskId) {
                 val task = commands.getTask(taskId)
@@ -184,16 +196,25 @@ class PendingQueueViewModel(
                 commands.snooze(
                     taskId,
                     SnoozePresets.untilEpochMs(preset, clockMinutesOfDay = clock),
+                    expectedNextDueAtEpochMs = expectedNextDueAtEpochMs,
                 )
                 refreshNow()
             }
         }
     }
 
-    fun snoozeUntil(taskId: Long, untilEpochMs: Long) {
+    fun snoozeUntil(
+        taskId: Long,
+        untilEpochMs: Long,
+        expectedNextDueAtEpochMs: Long,
+    ) {
         viewModelScope.launch {
             withTaskBusy(taskId) {
-                commands.snooze(taskId, untilEpochMs)
+                commands.snooze(
+                    taskId,
+                    untilEpochMs,
+                    expectedNextDueAtEpochMs = expectedNextDueAtEpochMs,
+                )
                 refreshNow()
             }
         }

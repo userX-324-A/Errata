@@ -5,7 +5,6 @@ import java.time.Instant
 import java.time.LocalDate
 import java.time.LocalTime
 import java.time.ZoneId
-import kotlin.math.ceil
 import kotlin.math.max
 import kotlin.math.min
 
@@ -361,9 +360,7 @@ object CadenceCalculator {
         val bounded = if (rawNext.isBefore(floorInstant)) floorInstant else rawNext
 
         val nextDay = epochDayOf(bounded.toEpochMilli(), zone)
-        val completedDay = epochDayOf(completedAtEpochMs, zone)
-        val minDay = completedDay + ceil(floorDays).toLong().coerceAtLeast(1L)
-        var next = atLocalDateKeepingTime(max(nextDay, minDay), scheduledDueAtEpochMs, zone)
+        var next = atLocalDateKeepingTime(nextDay, scheduledDueAtEpochMs, zone)
         val floorAt = floorInstant.toEpochMilli()
         while (next < floorAt) {
             next = atLocalDateKeepingTime(epochDayOf(next, zone) + 1, scheduledDueAtEpochMs, zone)

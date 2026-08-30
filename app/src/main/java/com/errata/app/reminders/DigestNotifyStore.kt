@@ -19,8 +19,10 @@ object DigestNotifyStore {
         return prefs.getLong(KEY_DAY, Long.MIN_VALUE)
     }
 
+    @Suppress("ApplySharedPref")
     fun markNotified(context: Context, epochDay: Long) {
-        prefs(context).edit().putLong(KEY_DAY, epochDay).apply()
+        // commit: a kill between post and flush must not miss-replay the same day.
+        prefs(context).edit().putLong(KEY_DAY, epochDay).commit()
     }
 
     fun fallbackIds(context: Context, todayEpochDay: Long): Set<Long> {
@@ -36,13 +38,14 @@ object DigestNotifyStore {
     fun alreadyPostedFallback(context: Context, todayEpochDay: Long, taskId: Long): Boolean =
         taskId in fallbackIds(context, todayEpochDay)
 
+    @Suppress("ApplySharedPref")
     fun markFallbackPosted(context: Context, todayEpochDay: Long, ids: Collection<Long>) {
         if (ids.isEmpty()) return
         val merged = fallbackIds(context, todayEpochDay) + ids
         prefs(context).edit()
             .putLong(KEY_FALLBACK_DAY, todayEpochDay)
             .putStringSet(KEY_FALLBACK_IDS, merged.map { it.toString() }.toSet())
-            .apply()
+            .commit()
     }
 
     fun idsForDay(storedDay: Long?, storedIds: Set<Long>, todayEpochDay: Long): Set<Long> =

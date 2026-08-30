@@ -6,9 +6,9 @@
     <string name="pending_empty_body">When something’s due, it’ll show up here with how long it should take.</string>
     <string name="starters_empty_title">Pin a few tasks</string>
     <string name="starters_heading">Starters</string>
-    <string name="starters_body">Pick what you actually do. Check the minutes — Pending uses them for time chips.</string>
+    <string name="starters_body">Pick what you actually do. Tap a row to change minutes, or check several and pin. Pending uses those minutes.</string>
     <string name="starters_pin">Pin selected</string>
-    <string name="starters_pinned_hint">Pinned. Due today or soon shows here; the rest are in All tasks.</string>
+    <string name="starters_pinned_hint">Pinned. Due today or soon shows here; the rest are in All tasks. Edit minutes there if a duration feels off.</string>
     <string name="catalog_title">Add a task</string>
     <string name="catalog_blank">Blank task</string>
     <string name="catalog_blank_hint">Title, minutes, and cadence from scratch</string>
@@ -22,9 +22,11 @@
     <string name="free_window_until_work">Until work</string>
     <string name="free_window_custom">Custom</string>
     <string name="free_window_show_all">Show all</string>
-    <string name="free_window_header_fits">Each %1$d min or less · leftover after best %2$d</string>
+    <string name="free_window_header_fits">Each %1$d min or less · %2$d left after the longest that fits</string>
     <string name="free_window_header_empty">Nothing fits in %1$d min</string>
+    <string name="free_window_header_clock_passed">That clock has passed</string>
     <string name="free_window_empty">Nothing on the list fits this window. Widen it or show all.</string>
+    <string name="free_window_empty_clock_passed">Show all to see what’s due, or pick another window.</string>
     <string name="free_window_custom_title">How much time?</string>
     <string name="free_window_custom_minutes">Minutes</string>
     <string name="free_window_stop_by">Stop by a clock time…</string>
@@ -68,6 +70,7 @@
     <string name="area_filter_empty">Nothing in %1$s.</string>
     <string name="field_estimate">Estimated minutes</string>
     <string name="field_estimate_hint">Used for Pending and time chips.</string>
+    <string name="estimate_chip">%1$d min</string>
     <string name="field_schedule">Schedule</string>
     <string name="schedule_interval">Every N days</string>
     <string name="schedule_weekly">Weekly</string>
@@ -140,7 +143,8 @@
     <string name="reminder_custom">Custom · %1$s</string>
     <string name="reminder_at_clock">At %1$s</string>
     <string name="editor_discard_title">Discard changes?</string>
-    <string name="editor_discard_body">This task will not be saved.</string>
+    <string name="editor_discard_body_new">This task will not be created.</string>
+    <string name="editor_discard_body_edit">Unsaved edits will be dropped.</string>
     <string name="editor_discard_confirm">Discard</string>
 
     <string name="menu_more">More</string>
@@ -210,7 +214,7 @@
     <string name="privacy_hint">What’s stored on this device</string>
     <string name="privacy_intro">Errata is published by Ordinary Tools. Your upkeep list stays on this device. There is no Errata account and no Ordinary Tools servers. Linking Google is optional. Contact: ordinary.tools.apps@gmail.com</string>
     <string name="privacy_heading_stored">What’s stored</string>
-    <string name="privacy_stored">Tasks, completion history, and settings live in the app’s local database. History can be trimmed or cleared in Settings. If you choose a backup folder, that folder’s address is remembered on this device only (it is not inside the exported JSON). If you link Google, a copy also lives in your Drive app folder.</string>
+    <string name="privacy_stored">Tasks, completion history, and settings live in the app’s local database. Settings include appearance, default reminder kind and time, digest, cadence, work-start, and how long to keep completion history. History can be trimmed or cleared in Settings. If you choose a backup folder, that folder’s address is remembered on this device only (it is not inside the exported JSON). If you link Google, a copy also lives in your Drive app folder.</string>
     <string name="privacy_heading_not">What isn’t collected</string>
     <string name="privacy_not">No ads, analytics, or crash reporters. There is no Errata server. If you link Google, task titles, notes, and history are sent to Google Drive app data over HTTPS. Unlink stops that. Uninstall does not delete the Drive copy unless you choose to delete it in Settings.</string>
     <string name="privacy_heading_permissions">Permissions</string>

@@ -56,6 +56,7 @@ fun StarterPackEmpty(
     title: String,
     body: String,
     onAddTask: () -> Unit,
+    onPickStarter: (String) -> Unit,
     onPin: (List<StarterSpec>) -> Unit,
     onRescheduleReminders: () -> Unit,
     modifier: Modifier = Modifier,
@@ -119,6 +120,7 @@ fun StarterPackEmpty(
                             selectedIds + spec.id
                         }
                     },
+                    onOpen = { onPickStarter(spec.id) },
                 )
             },
         )
@@ -284,6 +286,7 @@ private fun StarterCheckboxRow(
     spec: StarterSpec,
     selected: Boolean,
     onToggle: () -> Unit,
+    onOpen: () -> Unit,
 ) {
     Row(
         modifier = Modifier
@@ -299,7 +302,7 @@ private fun StarterCheckboxRow(
             spec = spec,
             modifier = Modifier
                 .weight(1f)
-                .clickable(onClick = onToggle),
+                .clickable(onClick = onOpen),
         )
     }
 }

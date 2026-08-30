@@ -12,6 +12,11 @@ enum class EstimateHonesty {
 object EstimateAdjuster {
 
     const val MAX_ESTIMATE_MINUTES = 480 // 8 hours soft ceiling
+    /** Skip the post-Done nudge for chores shorter than this (glasses, lint, compost). */
+    const val HONESTY_MIN_MINUTES = 10
+
+    fun shouldAskAfterDone(estimateMinutes: Int): Boolean =
+        estimateMinutes >= HONESTY_MIN_MINUTES
 
     fun adjust(estimateMinutes: Int, choice: EstimateHonesty): Int {
         val base = estimateMinutes.coerceAtLeast(1)

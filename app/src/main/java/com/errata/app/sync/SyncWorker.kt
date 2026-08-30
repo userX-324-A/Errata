@@ -11,6 +11,7 @@ import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
 import androidx.work.WorkerParameters
 import com.errata.app.ErrataApp
+import com.errata.app.domain.sync.SyncErrorPolicy
 import java.util.concurrent.TimeUnit
 
 class SyncWorker(
@@ -42,8 +43,11 @@ class SyncScheduler(
 ) {
     private val workManager = WorkManager.getInstance(context.applicationContext)
 
+    private fun allowsBackgroundSync(): Boolean =
+        prefs.isLinked() && !SyncErrorPolicy.blocksBackground(prefs.snapshot().lastError)
+
     fun requestDebounced() {
-        if (!prefs.isLinked()) return
+        if (!allowsBackgroundSync()) return
         retireLegacyOneShots()
         workManager.enqueueUniqueWork(
             ONE_SHOT_WORK,
@@ -55,8 +59,9 @@ class SyncScheduler(
         )
     }
 
-    fun requestNow() {
+    fun requestNow(force: Boolean = false) {
         if (!prefs.isLinked()) return
+        if (!force && SyncErrorPolicy.blocksBackground(prefs.snapshot().lastError)) return
         retireLegacyOneShots()
         workManager.enqueueUniqueWork(
             ONE_SHOT_WORK,
@@ -68,7 +73,7 @@ class SyncScheduler(
     }
 
     fun ensurePeriodic() {
-        if (!prefs.isLinked()) return
+        if (!allowsBackgroundSync()) return
         retireLegacyOneShots()
         workManager.enqueueUniquePeriodicWork(
             PERIODIC_WORK,

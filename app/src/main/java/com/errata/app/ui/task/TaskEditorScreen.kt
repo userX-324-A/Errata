@@ -120,21 +120,31 @@ fun TaskEditorScreen(
         if (granted) viewModel.rescheduleReminders()
         finishAfterNotify()
     }
-
-    val requestLeave = {
-        if (viewModel.isDirty()) {
-            confirmDiscard = true
+    val leaveAfterSavePrompt = {
+        if (showNotifyPrompt) {
+            NotificationAccess.markPrompted(context)
+            showNotifyPrompt = false
+            finishAfterNotify()
         } else {
-            onBack()
+            ExactAlarmAccess.markPrompted(context)
+            onSaved()
         }
     }
-    BackHandler(onBack = {
-        if (confirmDiscard) {
-            confirmDiscard = false
-        } else {
-            requestLeave()
+    val applyEditorBack = {
+        when (
+            editorBackAction(
+                discardOpen = confirmDiscard,
+                promptingAfterSave = showNotifyPrompt || showExactPrompt,
+                dirty = viewModel.isDirty(),
+            )
+        ) {
+            EditorBackAction.DismissDiscard -> confirmDiscard = false
+            EditorBackAction.FinishAfterSavePrompt -> leaveAfterSavePrompt()
+            EditorBackAction.ConfirmDiscard -> confirmDiscard = true
+            EditorBackAction.PopOnce -> onBack()
         }
-    })
+    }
+    BackHandler(onBack = { applyEditorBack() })
 
     LaunchedEffect(state.saved) {
         if (!state.saved) return@LaunchedEffect
@@ -158,7 +168,7 @@ fun TaskEditorScreen(
                     )
                 },
                 navigationIcon = {
-                    IconButton(onClick = { requestLeave() }) {
+                    IconButton(onClick = { applyEditorBack() }) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                             contentDescription = stringResource(R.string.action_back),
@@ -233,6 +243,18 @@ fun TaskEditorScreen(
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
+            FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                listOf(10, 15, 20, 30, 45).forEach { minutes ->
+                    FilterChip(
+                        selected = state.estimateMinutes.toIntOrNull() == minutes,
+                        onClick = { viewModel.updateEstimate(minutes.toString()) },
+                        label = { Text(stringResource(R.string.estimate_chip, minutes)) },
+                    )
+                }
+            }
             OutlinedTextField(
                 value = state.notes,
                 onValueChange = viewModel::updateNotes,
@@ -735,7 +757,17 @@ fun TaskEditorScreen(
         AlertDialog(
             onDismissRequest = { confirmDiscard = false },
             title = { Text(stringResource(R.string.editor_discard_title)) },
-            text = { Text(stringResource(R.string.editor_discard_body)) },
+            text = {
+                Text(
+                    stringResource(
+                        if (state.isNew) {
+                            R.string.editor_discard_body_new
+                        } else {
+                            R.string.editor_discard_body_edit
+                        },
+                    ),
+                )
+            },
             confirmButton = {
                 TextButton(
                     onClick = {

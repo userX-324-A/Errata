@@ -55,6 +55,7 @@ fun AllTasksScreen(
     viewModel: AllTasksViewModel,
     onOpenTask: (Long) -> Unit,
     onAddTask: () -> Unit,
+    onPickStarter: (String) -> Unit,
     selectedTaskId: Long? = null,
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
@@ -94,6 +95,7 @@ fun AllTasksScreen(
                 title = stringResource(R.string.library_empty_title),
                 body = stringResource(R.string.library_empty_body),
                 onAddTask = onAddTask,
+                onPickStarter = onPickStarter,
                 onPin = viewModel::pinStarters,
                 onRescheduleReminders = viewModel::rescheduleReminders,
                 modifier = Modifier.padding(innerPadding).errataContentWidth(),

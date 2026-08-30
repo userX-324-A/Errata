@@ -141,7 +141,7 @@ class TaskCommands(
     suspend fun importJsonReplace(json: String): Boolean = withContext(Dispatchers.IO) {
         val decoded = BackupCodec.inspect(json)
         repository.importReplace(decoded.backup, followCloud = isGoogleLinked())
-        scheduler.rescheduleAll()
+        scheduler.rescheduleAll(sameDayAppearedAtEpochMs = System.currentTimeMillis())
         syncScheduler?.requestNow()
         decoded.mintedStableIds
     }
