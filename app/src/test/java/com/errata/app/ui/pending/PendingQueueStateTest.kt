@@ -4,6 +4,7 @@ import com.errata.app.data.local.SettingsEntity
 import com.errata.app.data.local.TaskEntity
 import com.errata.app.domain.cadence.CadenceCalculator
 import com.errata.app.domain.cadence.CadenceMode
+import com.errata.app.domain.due.DueBucket
 import com.errata.app.domain.freewindow.FreeWindowSelection
 import java.time.LocalDate
 import java.time.LocalTime
@@ -225,5 +226,21 @@ class PendingQueueStateTest {
         assertTrue(state.customWindowSelected)
         assertFalse(state.untilWorkSelected)
         assertEquals(20, state.activeWindowMinutes)
+    }
+
+    @Test
+    fun expectedDueTarget_keepsDueFromOpenIfTaskAdvances() {
+        val item = PendingItem(
+            task = task(1, "Bins", null, LocalDate.of(2026, 4, 10)),
+            bucket = DueBucket.DUE_TODAY,
+            subtitle = "",
+        )
+        val opened = item.toExpectedDueTarget()
+        val afterDone = item.copy(
+            task = item.task.copy(nextDueAtEpochMs = item.task.nextDueAtEpochMs + 7L * 86_400_000L),
+        )
+        assertEquals(item.task.id, opened.taskId)
+        assertEquals(item.task.nextDueAtEpochMs, opened.expectedNextDueAtEpochMs)
+        assertTrue(afterDone.task.nextDueAtEpochMs != opened.expectedNextDueAtEpochMs)
     }
 }

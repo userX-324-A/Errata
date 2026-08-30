@@ -38,10 +38,15 @@ data class PendingHonestyPrompt(
     val estimateMinutes: Int,
 )
 
-/** In-app snooze expected due is captured when the sheet opens, not at confirm. */
-data class PendingSnoozeTarget(
+/** In-app Snooze / Skip expected due is captured when the sheet or confirm opens. */
+data class PendingExpectedDueTarget(
     val taskId: Long,
     val expectedNextDueAtEpochMs: Long,
+)
+
+fun PendingItem.toExpectedDueTarget() = PendingExpectedDueTarget(
+    taskId = task.id,
+    expectedNextDueAtEpochMs = task.nextDueAtEpochMs,
 )
 
 data class PendingQueueUiState(
@@ -220,13 +225,12 @@ class PendingQueueViewModel(
         }
     }
 
-    fun skip(taskId: Long) {
+    fun skip(taskId: Long, expectedNextDueAtEpochMs: Long) {
         viewModelScope.launch {
             withTaskBusy(taskId) {
-                val task = commands.getTask(taskId) ?: return@withTaskBusy
                 commands.skip(
                     taskId,
-                    expectedNextDueAtEpochMs = task.nextDueAtEpochMs,
+                    expectedNextDueAtEpochMs = expectedNextDueAtEpochMs,
                 )
                 refreshNow()
             }

@@ -171,6 +171,45 @@ class TaskEditorDirtyTest {
     }
 
     @Test
+    fun releaseAfterLeave_existing_clearsSavedSoReopenDoesNotSkipSave() {
+        val saved = state().copy(
+            isNew = false,
+            existingId = 7L,
+            saved = true,
+            saving = false,
+        )
+        val next = saved.releaseAfterLeave(openedAsNew = false)
+        assertEquals(false, next.saved)
+        assertEquals(false, next.saving)
+        assertEquals(7L, next.existingId)
+        assertEquals(false, next.isNew)
+        assertEquals(false, next.shouldSkipSave())
+    }
+
+    @Test
+    fun releaseAfterLeave_create_dropsAdoptedRow() {
+        val saved = TaskEditorUiState(isNew = true, saving = true, title = "Bins").adoptSavedRow(
+            id = 7L,
+            uuid = "11111111-1111-1111-1111-111111111111",
+            createdAtEpochMs = 99L,
+        )
+        val next = saved.releaseAfterLeave(openedAsNew = true)
+        assertEquals(true, next.isNew)
+        assertEquals(0L, next.existingId)
+        assertEquals("", next.existingUuid)
+        assertEquals("", next.title)
+        assertEquals(false, next.saved)
+        assertEquals(false, next.shouldSkipSave())
+    }
+
+    @Test
+    fun releaseAfterLeave_notSaved_noop() {
+        val draft = state().copy(isNew = true, title = "Draft")
+        assertEquals(draft, draft.releaseAfterLeave(openedAsNew = true))
+        assertEquals(draft, draft.releaseAfterLeave(openedAsNew = false))
+    }
+
+    @Test
     fun existingFixedAnchor_dueOrIntervalEdit_retargetsGrid() {
         val loaded = state().copy(
             isNew = false,

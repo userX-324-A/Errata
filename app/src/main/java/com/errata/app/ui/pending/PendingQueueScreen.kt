@@ -120,8 +120,8 @@ fun PendingQueueScreen(
             }
         }
     }
-    var snoozeTarget by remember { mutableStateOf<PendingSnoozeTarget?>(null) }
-    var skipConfirmTaskId by remember { mutableStateOf<Long?>(null) }
+    var snoozeTarget by remember { mutableStateOf<PendingExpectedDueTarget?>(null) }
+    var skipTarget by remember { mutableStateOf<PendingExpectedDueTarget?>(null) }
     var showCustomWindow by remember { mutableStateOf(false) }
     var showStopByPicker by remember { mutableStateOf(false) }
     var customMinutesText by remember { mutableStateOf("") }
@@ -260,13 +260,8 @@ fun PendingQueueScreen(
                                 actionsEnabled = item.task.id !in state.busyTaskIds,
                                 onOpen = { onOpenTask(item.task.id) },
                                 onDone = { viewModel.complete(item.task.id) },
-                                onSnooze = {
-                                    snoozeTarget = PendingSnoozeTarget(
-                                        taskId = item.task.id,
-                                        expectedNextDueAtEpochMs = item.task.nextDueAtEpochMs,
-                                    )
-                                },
-                                onSkip = { skipConfirmTaskId = item.task.id },
+                                onSnooze = { snoozeTarget = item.toExpectedDueTarget() },
+                                onSkip = { skipTarget = item.toExpectedDueTarget() },
                             )
                         }
                     }
@@ -280,13 +275,8 @@ fun PendingQueueScreen(
                                 actionsEnabled = item.task.id !in state.busyTaskIds,
                                 onOpen = { onOpenTask(item.task.id) },
                                 onDone = { viewModel.complete(item.task.id) },
-                                onSnooze = {
-                                    snoozeTarget = PendingSnoozeTarget(
-                                        taskId = item.task.id,
-                                        expectedNextDueAtEpochMs = item.task.nextDueAtEpochMs,
-                                    )
-                                },
-                                onSkip = { skipConfirmTaskId = item.task.id },
+                                onSnooze = { snoozeTarget = item.toExpectedDueTarget() },
+                                onSkip = { skipTarget = item.toExpectedDueTarget() },
                             )
                         }
                     }
@@ -299,13 +289,8 @@ fun PendingQueueScreen(
                                 actionsEnabled = item.task.id !in state.busyTaskIds,
                                 onOpen = { onOpenTask(item.task.id) },
                                 onDone = { viewModel.complete(item.task.id) },
-                                onSnooze = {
-                                    snoozeTarget = PendingSnoozeTarget(
-                                        taskId = item.task.id,
-                                        expectedNextDueAtEpochMs = item.task.nextDueAtEpochMs,
-                                    )
-                                },
-                                onSkip = { skipConfirmTaskId = item.task.id },
+                                onSnooze = { snoozeTarget = item.toExpectedDueTarget() },
+                                onSkip = { skipTarget = item.toExpectedDueTarget() },
                             )
                         }
                     }
@@ -318,13 +303,8 @@ fun PendingQueueScreen(
                                 actionsEnabled = item.task.id !in state.busyTaskIds,
                                 onOpen = { onOpenTask(item.task.id) },
                                 onDone = { viewModel.complete(item.task.id) },
-                                onSnooze = {
-                                    snoozeTarget = PendingSnoozeTarget(
-                                        taskId = item.task.id,
-                                        expectedNextDueAtEpochMs = item.task.nextDueAtEpochMs,
-                                    )
-                                },
-                                onSkip = { skipConfirmTaskId = item.task.id },
+                                onSnooze = { snoozeTarget = item.toExpectedDueTarget() },
+                                onSkip = { skipTarget = item.toExpectedDueTarget() },
                             )
                         }
                     }
@@ -369,23 +349,26 @@ fun PendingQueueScreen(
         )
     }
 
-    skipConfirmTaskId?.let { id ->
+    skipTarget?.let { target ->
         AlertDialog(
-            onDismissRequest = { skipConfirmTaskId = null },
+            onDismissRequest = { skipTarget = null },
             title = { Text(stringResource(R.string.skip_confirm_title)) },
             text = { Text(stringResource(R.string.skip_confirm_body)) },
             confirmButton = {
                 TextButton(
                     onClick = {
-                        viewModel.skip(id)
-                        skipConfirmTaskId = null
+                        viewModel.skip(
+                            target.taskId,
+                            expectedNextDueAtEpochMs = target.expectedNextDueAtEpochMs,
+                        )
+                        skipTarget = null
                     },
                 ) {
                     Text(stringResource(R.string.action_skip))
                 }
             },
             dismissButton = {
-                TextButton(onClick = { skipConfirmTaskId = null }) {
+                TextButton(onClick = { skipTarget = null }) {
                     Text(stringResource(R.string.action_cancel))
                 }
             },

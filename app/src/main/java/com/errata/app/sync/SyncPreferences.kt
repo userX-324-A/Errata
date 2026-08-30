@@ -49,6 +49,19 @@ class SyncPreferences(context: Context) {
         publish()
     }
 
+    fun pendingLinkEmail(): String? = prefs.getString(KEY_PENDING_EMAIL, null)
+
+    fun setPendingLinkEmail(email: String?) {
+        val trimmed = email?.trim()?.takeIf { it.isNotEmpty() }
+        val edit = prefs.edit()
+        if (trimmed == null) {
+            edit.remove(KEY_PENDING_EMAIL)
+        } else {
+            edit.putString(KEY_PENDING_EMAIL, trimmed)
+        }
+        edit.apply()
+    }
+
     fun clearLink() {
         prefs.edit().clear().apply()
         publish()
@@ -73,5 +86,6 @@ class SyncPreferences(context: Context) {
         const val KEY_FILE_ID = "file_id"
         const val KEY_LAST_SYNC = "last_sync"
         const val KEY_ERROR = "last_error"
+        const val KEY_PENDING_EMAIL = "pending_link_email"
     }
 }

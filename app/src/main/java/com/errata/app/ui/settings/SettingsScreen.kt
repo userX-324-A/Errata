@@ -89,6 +89,8 @@ fun SettingsScreen(
     ) { result ->
         if (result.resultCode == Activity.RESULT_OK) {
             viewModel.completeGoogleConsent(activity, result.data)
+        } else {
+            viewModel.cancelGoogleConsent()
         }
     }
     val lifecycleOwner = LocalLifecycleOwner.current

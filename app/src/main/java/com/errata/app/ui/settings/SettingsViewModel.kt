@@ -52,7 +52,6 @@ class SettingsViewModel(
     initialExact: Boolean,
 ) : ViewModel() {
 
-    private var pendingLinkEmail: String? = null
     private var lastPermissionFlags: Pair<Boolean, Boolean> = initialNotify to initialExact
 
     val uiState: StateFlow<SettingsUiState> = combine(
@@ -151,7 +150,7 @@ class SettingsViewModel(
             when (val result = GoogleAuth.beginLink(activity)) {
                 is GoogleLinkResult.Linked -> onLinked(result.email)
                 is GoogleLinkResult.NeedsConsent -> {
-                    pendingLinkEmail = result.email
+                    syncPrefs.setPendingLinkEmail(result.email)
                     onNeedsConsent(result.sender)
                 }
                 GoogleLinkResult.Cancelled -> Unit
@@ -161,16 +160,25 @@ class SettingsViewModel(
     }
 
     fun completeGoogleConsent(activity: Activity, data: Intent?) {
-        val email = pendingLinkEmail ?: return
         viewModelScope.launch {
-            when (val result = GoogleAuth.completeLinkFromIntent(activity, email, data)) {
+            when (
+                val result = GoogleAuth.completeLinkFromIntent(
+                    activity,
+                    syncPrefs.pendingLinkEmail(),
+                    data,
+                )
+            ) {
                 is GoogleLinkResult.Linked -> onLinked(result.email)
                 is GoogleLinkResult.NeedsConsent -> syncPrefs.markError("sign_in")
                 GoogleLinkResult.Cancelled -> Unit
                 is GoogleLinkResult.Failed -> syncPrefs.markError(result.reason)
             }
-            pendingLinkEmail = null
+            syncPrefs.setPendingLinkEmail(null)
         }
+    }
+
+    fun cancelGoogleConsent() {
+        syncPrefs.setPendingLinkEmail(null)
     }
 
     fun unlink(context: Context, wipeCloud: Boolean) {

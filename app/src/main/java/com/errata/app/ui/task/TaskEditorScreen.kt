@@ -101,17 +101,21 @@ fun TaskEditorScreen(
     var showNotifyPrompt by remember { mutableStateOf(false) }
     var confirmDiscard by remember { mutableStateOf(false) }
     val context = LocalContext.current
+    val popAfterSave = {
+        viewModel.releaseAfterLeave()
+        onSaved()
+    }
     val exactLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.StartActivityForResult(),
     ) {
         viewModel.rescheduleReminders()
-        onSaved()
+        popAfterSave()
     }
     val finishAfterNotify = {
         if (ExactAlarmAccess.shouldPrompt(context)) {
             showExactPrompt = true
         } else {
-            onSaved()
+            popAfterSave()
         }
     }
     val notifyLauncher = rememberLauncherForActivityResult(
@@ -127,7 +131,7 @@ fun TaskEditorScreen(
             finishAfterNotify()
         } else {
             ExactAlarmAccess.markPrompted(context)
-            onSaved()
+            popAfterSave()
         }
     }
     val applyEditorBack = {
@@ -153,7 +157,7 @@ fun TaskEditorScreen(
         when (afterPinPrompt(notify, ExactAlarmAccess.shouldPrompt(context))) {
             AfterPinPrompt.Notifications -> showNotifyPrompt = true
             AfterPinPrompt.Exact -> showExactPrompt = true
-            AfterPinPrompt.None -> onSaved()
+            AfterPinPrompt.None -> popAfterSave()
         }
     }
 
@@ -832,7 +836,7 @@ fun TaskEditorScreen(
         AlertDialog(
             onDismissRequest = {
                 ExactAlarmAccess.markPrompted(context)
-                onSaved()
+                popAfterSave()
             },
             title = { Text(stringResource(R.string.exact_prompt_title)) },
             text = { Text(stringResource(R.string.exact_prompt_body)) },
@@ -849,7 +853,7 @@ fun TaskEditorScreen(
                 TextButton(
                     onClick = {
                         ExactAlarmAccess.markPrompted(context)
-                        onSaved()
+                        popAfterSave()
                     },
                 ) { Text(stringResource(R.string.exact_prompt_not_now)) }
             },

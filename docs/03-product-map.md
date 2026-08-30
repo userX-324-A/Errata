@@ -164,7 +164,7 @@ Authority for **what** we build and **why**. Roadmap order lives in [`02-roadmap
 | **Helps** | Rare “not this time” without lying via Done |
 | **When** | Task is due but intentionally won’t happen this cycle |
 | **Pain removed** | Fake completions that wreck cadence math |
-| **Does** | Advances/postpones per cadence mode without a completion record; confirm copy so it isn’t a trash can; same expected-due one-shot as Done |
+| **Does** | Advances/postpones per cadence mode without a completion record; confirm copy so it isn’t a trash can; expected due captured when the confirm opens (same leftover-shade race as in-app Snooze) |
 | **Does not** | Replace Snooze (temporary) or Pause (indefinite) |
 
 **Boundary:** Snooze = later still this obligation; Skip = abandon this cycle; Pause = freeze the task; Done = you did it. Skip ships **without** a reason field; skip-with-reason is not a goal.

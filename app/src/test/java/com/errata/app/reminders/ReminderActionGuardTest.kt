@@ -48,6 +48,13 @@ class ReminderActionGuardTest {
     }
 
     @Test
+    fun shouldSkip_refusesWhenDueAdvancedAfterConfirmOpened() {
+        val openedDue = 1_000L
+        val afterShadeDone = 2_000L
+        assertFalse(ReminderActionGuard.shouldSkip(afterShadeDone, openedDue))
+    }
+
+    @Test
     fun shouldSkip_sameDueGuardAsComplete() {
         assertTrue(ReminderActionGuard.shouldSkip(1_000L, expectedNextDueAtEpochMs = null))
         assertTrue(ReminderActionGuard.shouldSkip(1_000L, 1_000L))

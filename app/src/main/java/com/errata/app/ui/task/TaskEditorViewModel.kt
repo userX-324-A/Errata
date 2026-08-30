@@ -152,6 +152,17 @@ fun TaskEditorUiState.adoptSavedRow(
     createdAtEpochMs = createdAtEpochMs,
 )
 
+/**
+ * After popToList the keyed VM stays on the list tab. Clear [saved] so the
+ * next open of this pane key does not immediately leave. A create (blank or
+ * starter) drops the adopted row so the same key is a fresh draft.
+ */
+fun TaskEditorUiState.releaseAfterLeave(openedAsNew: Boolean): TaskEditorUiState {
+    if (!saved) return this
+    if (!openedAsNew) return copy(saved = false, saving = false)
+    return TaskEditorUiState(isNew = true)
+}
+
 class TaskEditorViewModel(
     private val commands: TaskCommands,
     private val taskId: Long,
@@ -166,117 +177,19 @@ class TaskEditorViewModel(
     private val saveGate = AtomicBoolean(false)
 
     init {
-        viewModelScope.launch {
-            val settings = commands.getSettings()
-            if (taskId == 0L) {
-                val spec = StarterCatalog.specById(starterId)
-                if (spec != null) {
-                    val now = System.currentTimeMillis()
-                    val entity = StarterCatalog.materialize(
-                        spec = spec,
-                        cadenceMode = settings.defaultCadenceMode,
-                        reminderMinutesOfDay = settings.defaultReminderMinutesOfDay,
-                        storedReminderMinutes = ReminderPolicy.storedFor(
-                            settings.defaultReminderKind,
-                            settings.defaultReminderMinutesOfDay,
-                        ),
-                        nowEpochMs = now,
-                        zone = zone,
-                    )
-                    _uiState.update {
-                        it.copy(
-                            cadenceMode = entity.cadenceMode,
-                            title = entity.title,
-                            estimateMinutes = entity.estimateMinutes.toString(),
-                            intervalDays = entity.intervalDays.toString(),
-                            scheduleKind = entity.scheduleKind,
-                            weekdaysMask = entity.weekdaysMask,
-                            monthDay = entity.monthDay.takeIf { day -> day in 1..31 }?.toString()
-                                ?: "15",
-                            weekdayOrdinal = entity.weekdayOrdinal.takeIf { NthWeekday.isValid(it) }
-                                ?: 1,
-                            yearMonthsMask = entity.yearMonthsMask,
-                            seasonMask = entity.seasonMask,
-                            dueEpochDay = CadenceCalculator.epochDayOf(entity.nextDueAtEpochMs, zone),
-                            dueMinuteOfDay = CadenceCalculator.minutesOfDay(
-                                entity.nextDueAtEpochMs,
-                                zone,
-                            ),
-                            anchorEpochDay = entity.anchorEpochDay,
-                            defaultReminderMinutesOfDay = settings.defaultReminderMinutesOfDay,
-                            reminderMinutesOfDay = entity.reminderMinutesOfDay,
-                            area = entity.area,
-                            loaded = true,
-                        )
-                    }
-                    markBaseline()
-                } else {
-                    val today = LocalDate.now(zone).toEpochDay()
-                    val now = System.currentTimeMillis()
-                    _uiState.update {
-                        it.withBlankNew(
-                            cadenceMode = settings.defaultCadenceMode,
-                            todayEpochDay = today,
-                            dueMinutes = settings.defaultReminderMinutesOfDay,
-                            storedReminderMinutes = ReminderPolicy.storedFor(
-                                settings.defaultReminderKind,
-                                settings.defaultReminderMinutesOfDay,
-                            ),
-                            nowEpochMs = now,
-                            zone = zone,
-                        )
-                    }
-                    markBaseline()
-                }
-            } else {
-                val task = commands.getTask(taskId)
-                if (task == null) {
-                    _uiState.update { it.copy(loaded = true, errorMessage = "missing") }
-                    markBaseline()
-                } else {
-                    _uiState.update {
-                        it.copy(
-                            isNew = false,
-                            existingId = task.id,
-                            existingUuid = task.uuid,
-                            title = task.title,
-                            notes = task.notes.orEmpty(),
-                            estimateMinutes = task.estimateMinutes.toString(),
-                            intervalDays = task.intervalDays.toString(),
-                            scheduleKind = task.scheduleKind,
-                            weekdaysMask = task.weekdaysMask,
-                            monthDay = task.monthDay.takeIf { it in 1..31 }?.toString() ?: "15",
-                            weekdayOrdinal = task.weekdayOrdinal.takeIf { NthWeekday.isValid(it) }
-                                ?: 1,
-                            yearMonthsMask = task.yearMonthsMask,
-                            seasonMask = task.seasonMask,
-                            cadenceMode = task.cadenceMode,
-                            dueEpochDay = CadenceCalculator.epochDayOf(task.nextDueAtEpochMs, zone),
-                            dueMinuteOfDay = CadenceCalculator.minutesOfDay(task.nextDueAtEpochMs, zone),
-                            anchorEpochDay = task.anchorEpochDay,
-                            createdAtEpochMs = task.createdAtEpochMs,
-                            lastCompletedAtEpochMs = task.lastCompletedAtEpochMs,
-                            reminderMinutesOfDay = task.reminderMinutesOfDay,
-                            defaultReminderMinutesOfDay = settings.defaultReminderMinutesOfDay,
-                            snoozedUntilEpochMs = task.snoozedUntilEpochMs,
-                            area = task.area,
-                            isPaused = task.isPaused,
-                            isArchived = task.isArchived,
-                            history = HistoryGlance.from(
-                                commands.completionsFor(taskId).map { row ->
-                                    HistoryGlance.Sample(
-                                        completedAtEpochMs = row.completedAtEpochMs,
-                                        scheduledDueAtEpochMs = row.scheduledDueAtEpochMs,
-                                    )
-                                },
-                                zone,
-                            ),
-                            loaded = true,
-                        )
-                    }
-                    markBaseline()
-                }
-            }
+        viewModelScope.launch { loadDraft() }
+    }
+
+    /** Call when Save (or after-pin Back / Not now) is about to popToList. */
+    fun releaseAfterLeave() {
+        if (!_uiState.value.saved) return
+        saveGate.set(false)
+        val openedAsNew = taskId == 0L
+        _uiState.update { it.releaseAfterLeave(openedAsNew) }
+        if (openedAsNew) {
+            viewModelScope.launch { loadDraft() }
+        } else {
+            markBaseline()
         }
     }
 
@@ -393,6 +306,136 @@ class TaskEditorViewModel(
         val snap = _uiState.value
         baselineFingerprint = snap.editFingerprint()
         baselineState = snap
+    }
+
+    private suspend fun loadDraft() {
+        val settings = commands.getSettings()
+        if (taskId == 0L) {
+            val spec = StarterCatalog.specById(starterId)
+            if (spec != null) {
+                val now = System.currentTimeMillis()
+                val entity = StarterCatalog.materialize(
+                    spec = spec,
+                    cadenceMode = settings.defaultCadenceMode,
+                    reminderMinutesOfDay = settings.defaultReminderMinutesOfDay,
+                    storedReminderMinutes = ReminderPolicy.storedFor(
+                        settings.defaultReminderKind,
+                        settings.defaultReminderMinutesOfDay,
+                    ),
+                    nowEpochMs = now,
+                    zone = zone,
+                )
+                _uiState.update {
+                    it.copy(
+                        isNew = true,
+                        existingId = 0L,
+                        existingUuid = "",
+                        createdAtEpochMs = 0L,
+                        lastCompletedAtEpochMs = null,
+                        history = null,
+                        saved = false,
+                        saving = false,
+                        cadenceMode = entity.cadenceMode,
+                        title = entity.title,
+                        estimateMinutes = entity.estimateMinutes.toString(),
+                        intervalDays = entity.intervalDays.toString(),
+                        scheduleKind = entity.scheduleKind,
+                        weekdaysMask = entity.weekdaysMask,
+                        monthDay = entity.monthDay.takeIf { day -> day in 1..31 }?.toString()
+                            ?: "15",
+                        weekdayOrdinal = entity.weekdayOrdinal.takeIf { NthWeekday.isValid(it) }
+                            ?: 1,
+                        yearMonthsMask = entity.yearMonthsMask,
+                        seasonMask = entity.seasonMask,
+                        dueEpochDay = CadenceCalculator.epochDayOf(entity.nextDueAtEpochMs, zone),
+                        dueMinuteOfDay = CadenceCalculator.minutesOfDay(
+                            entity.nextDueAtEpochMs,
+                            zone,
+                        ),
+                        anchorEpochDay = entity.anchorEpochDay,
+                        defaultReminderMinutesOfDay = settings.defaultReminderMinutesOfDay,
+                        reminderMinutesOfDay = entity.reminderMinutesOfDay,
+                        area = entity.area,
+                        loaded = true,
+                    )
+                }
+                markBaseline()
+            } else {
+                val today = LocalDate.now(zone).toEpochDay()
+                val now = System.currentTimeMillis()
+                _uiState.update {
+                    it.withBlankNew(
+                        cadenceMode = settings.defaultCadenceMode,
+                        todayEpochDay = today,
+                        dueMinutes = settings.defaultReminderMinutesOfDay,
+                        storedReminderMinutes = ReminderPolicy.storedFor(
+                            settings.defaultReminderKind,
+                            settings.defaultReminderMinutesOfDay,
+                        ),
+                        nowEpochMs = now,
+                        zone = zone,
+                    ).copy(
+                        isNew = true,
+                        existingId = 0L,
+                        existingUuid = "",
+                        createdAtEpochMs = 0L,
+                        lastCompletedAtEpochMs = null,
+                        history = null,
+                        saved = false,
+                        saving = false,
+                    )
+                }
+                markBaseline()
+            }
+        } else {
+            val task = commands.getTask(taskId)
+            if (task == null) {
+                _uiState.update { it.copy(loaded = true, errorMessage = "missing") }
+                markBaseline()
+            } else {
+                _uiState.update {
+                    it.copy(
+                        isNew = false,
+                        existingId = task.id,
+                        existingUuid = task.uuid,
+                        title = task.title,
+                        notes = task.notes.orEmpty(),
+                        estimateMinutes = task.estimateMinutes.toString(),
+                        intervalDays = task.intervalDays.toString(),
+                        scheduleKind = task.scheduleKind,
+                        weekdaysMask = task.weekdaysMask,
+                        monthDay = task.monthDay.takeIf { it in 1..31 }?.toString() ?: "15",
+                        weekdayOrdinal = task.weekdayOrdinal.takeIf { NthWeekday.isValid(it) }
+                            ?: 1,
+                        yearMonthsMask = task.yearMonthsMask,
+                        seasonMask = task.seasonMask,
+                        cadenceMode = task.cadenceMode,
+                        dueEpochDay = CadenceCalculator.epochDayOf(task.nextDueAtEpochMs, zone),
+                        dueMinuteOfDay = CadenceCalculator.minutesOfDay(task.nextDueAtEpochMs, zone),
+                        anchorEpochDay = task.anchorEpochDay,
+                        createdAtEpochMs = task.createdAtEpochMs,
+                        lastCompletedAtEpochMs = task.lastCompletedAtEpochMs,
+                        reminderMinutesOfDay = task.reminderMinutesOfDay,
+                        defaultReminderMinutesOfDay = settings.defaultReminderMinutesOfDay,
+                        snoozedUntilEpochMs = task.snoozedUntilEpochMs,
+                        area = task.area,
+                        isPaused = task.isPaused,
+                        isArchived = task.isArchived,
+                        history = HistoryGlance.from(
+                            commands.completionsFor(taskId).map { row ->
+                                HistoryGlance.Sample(
+                                    completedAtEpochMs = row.completedAtEpochMs,
+                                    scheduledDueAtEpochMs = row.scheduledDueAtEpochMs,
+                                )
+                            },
+                            zone,
+                        ),
+                        loaded = true,
+                    )
+                }
+                markBaseline()
+            }
+        }
     }
 
     fun save() {

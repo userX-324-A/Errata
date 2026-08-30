@@ -64,19 +64,21 @@ object GoogleAuth {
         return authorizeDrive(activity, email)
     }
 
-    fun completeLinkFromIntent(activity: Activity, email: String, data: Intent?): GoogleLinkResult {
+    fun completeLinkFromIntent(activity: Activity, email: String?, data: Intent?): GoogleLinkResult {
         if (data == null) return GoogleLinkResult.Failed("sign_in")
         return try {
             val result = Identity.getAuthorizationClient(activity)
                 .getAuthorizationResultFromIntent(data)
             val token = result.accessToken
-            if (token.isNullOrBlank()) {
-                GoogleLinkResult.Failed("sign_in")
-            } else if (!accountMatches(email, result.toGoogleSignInAccount()?.email)) {
+            val resolved = resolveConsentEmail(
+                email,
+                result.toGoogleSignInAccount()?.email,
+            )
+            if (token.isNullOrBlank() || resolved.isNullOrBlank()) {
                 GoogleLinkResult.Failed("sign_in")
             } else {
                 rememberAccessToken(token)
-                GoogleLinkResult.Linked(email)
+                GoogleLinkResult.Linked(resolved)
             }
         } catch (e: Exception) {
             Log.w(TAG, "consent result", e)
@@ -174,6 +176,19 @@ object GoogleAuth {
     internal fun accountMatches(expected: String, authorized: String?): Boolean {
         if (authorized.isNullOrBlank()) return true
         return expected.equals(authorized, ignoreCase = true)
+    }
+
+    /**
+     * Pending email is stored across process death. If it is gone, the consent
+     * intent may still carry the authorized account.
+     */
+    internal fun resolveConsentEmail(pendingEmail: String?, authorizedEmail: String?): String? {
+        val pending = pendingEmail?.takeIf { it.isNotBlank() }
+        val authorized = authorizedEmail?.takeIf { it.isNotBlank() }
+        if (pending != null && authorized != null && !accountMatches(pending, authorized)) {
+            return null
+        }
+        return pending ?: authorized
     }
 
     private fun rememberAccessToken(token: String?) {

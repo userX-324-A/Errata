@@ -64,6 +64,7 @@ Unit tests cover cadence, reminder fire times, digest membership, backup, sync m
 - [ ] Double-tap shade **Done** before it dismisses — one completion, not two cycles
 - [ ] Complete in-app, leftover shade **Snooze** — refused / gone; does not snooze the new cycle
 - [ ] Open in-app Snooze, leftover shade **Done**, then confirm Snooze — refused; no wakeup on the next cycle
+- [ ] Open in-app Skip, leftover shade **Done**, then confirm Skip — refused; does not skip the next cycle
 - [ ] Pause or archive, leftover shade Done/Snooze — refused
 
 ### Digest (Settings → morning digest on)
@@ -87,13 +88,13 @@ Unit tests cover cadence, reminder fire times, digest membership, backup, sync m
 ### Import and Google
 
 - [ ] Settings → Backup import (SAF) replace-all while offline — use a **current** export. An older uuid-less file warns before replace
-- [ ] Import while **linked** — the other device matches the file after Sync now (see [`07-google-sync.md`](./07-google-sync.md) two-device step 7)
+- [ ] Import while **linked** — the other device matches the file after Sync now (see [`07-google-sync.md`](./07-google-sync.md) two-device step 7). First Link: if the app is killed during Drive consent, it should still link (or show a sign-in error), not stay silently unlinked
 
 ### Catalog Save
 
 - [ ] Compact: Add task → starter → Save returns to Pending, not the catalog. If the notify/exact prompt appears, Back or Not now still returns to Pending. Back from the editor before Save still shows the catalog
 - [ ] Empty state: tap a starter row opens the editor (minutes); checkbox + Pin selected still pins several as-is
-- [ ] Two-pane: same Save keeps the list visible; detail clears
+- [ ] Two-pane: same Save keeps the list visible; detail clears. Tap the same row (or Blank / the same starter again) — editor stays open
 
 ### Tablet layout
 
