@@ -62,6 +62,9 @@ interface CompletionDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertAll(completions: List<CompletionEntity>)
 
+    @Query("SELECT * FROM completions WHERE taskId = :taskId ORDER BY completedAtEpochMs DESC LIMIT :limit")
+    suspend fun forTaskNewest(taskId: Long, limit: Int): List<CompletionEntity>
+
     @Query("SELECT * FROM completions WHERE taskId = :taskId ORDER BY completedAtEpochMs DESC")
     suspend fun forTask(taskId: Long): List<CompletionEntity>
 

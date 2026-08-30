@@ -54,7 +54,7 @@ class AllTasksViewModel(
         val shown = if (selectedArea == null) {
             tasks
         } else {
-            tasks.filter { it.area == selectedArea }
+            tasks.filter { TaskAreas.normalize(it.area) == selectedArea }
         }
         AllTasksUiState(
             items = shown.map { task ->

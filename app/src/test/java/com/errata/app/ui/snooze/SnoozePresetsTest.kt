@@ -66,4 +66,30 @@ class SnoozePresetsTest {
         )
         assertEquals(at(2026, 3, 10, 12, 1), until)
     }
+
+    @Test
+    fun laterToday_newYorkSpringForward_sixPmSameCalendarDay() {
+        val ny = java.time.ZoneId.of("America/New_York")
+        val now = LocalDate.of(2026, 3, 8).atTime(10, 0).atZone(ny).toInstant().toEpochMilli()
+        val until = SnoozePresets.untilEpochMs(
+            SnoozePreset.LATER_TODAY,
+            nowEpochMs = now,
+            zone = ny,
+        )
+        val expected = LocalDate.of(2026, 3, 8).atTime(18, 0).atZone(ny).toInstant().toEpochMilli()
+        assertEquals(expected, until)
+    }
+
+    @Test
+    fun tomorrow_newYorkFallBack_isNextLocalMidnight() {
+        val ny = java.time.ZoneId.of("America/New_York")
+        val now = LocalDate.of(2026, 11, 1).atTime(23, 0).atZone(ny).toInstant().toEpochMilli()
+        val until = SnoozePresets.untilEpochMs(
+            SnoozePreset.TOMORROW,
+            nowEpochMs = now,
+            zone = ny,
+        )
+        val expected = LocalDate.of(2026, 11, 2).atStartOfDay(ny).toInstant().toEpochMilli()
+        assertEquals(expected, until)
+    }
 }

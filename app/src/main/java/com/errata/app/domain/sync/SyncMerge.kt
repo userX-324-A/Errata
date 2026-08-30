@@ -38,6 +38,50 @@ object SyncMerge {
         return if (nowEpochMs > 0) pruneCompletions(merged, nowEpochMs) else merged
     }
 
+    data class CloudFollowMarks(
+        val tasksGeneration: Int,
+        val tasksResetAtEpochMs: Long,
+        val historyGeneration: Int,
+        val historyPurgedAtEpochMs: Long,
+        val settingsUpdatedAtEpochMs: Long,
+    )
+
+    /**
+     * After a local replace-all import, bump generations so the next Drive merge
+     * drops cloud-only tasks and completions older than this import.
+     */
+    fun marksAfterLocalReplace(
+        previousTasksGeneration: Int,
+        previousHistoryGeneration: Int,
+        importedTasksGeneration: Int,
+        importedHistoryGeneration: Int,
+        importedSettingsUpdatedAt: Long,
+        nowEpochMs: Long,
+    ): CloudFollowMarks = CloudFollowMarks(
+        tasksGeneration = maxOf(previousTasksGeneration, importedTasksGeneration) + 1,
+        tasksResetAtEpochMs = nowEpochMs,
+        historyGeneration = maxOf(previousHistoryGeneration, importedHistoryGeneration) + 1,
+        historyPurgedAtEpochMs = nowEpochMs,
+        settingsUpdatedAtEpochMs = maxOf(importedSettingsUpdatedAt, nowEpochMs),
+    )
+
+    /**
+     * True when local data changed after the snapshot used for a merge.
+     * Apply would overwrite those edits.
+     */
+    fun localMoved(before: SyncSnapshot, after: SyncSnapshot): Boolean {
+        if (before.tasksGeneration != after.tasksGeneration) return true
+        if (before.historyGeneration != after.historyGeneration) return true
+        if (before.settings.updatedAtEpochMs != after.settings.updatedAtEpochMs) return true
+        if (before.tasks.size != after.tasks.size) return true
+        if (before.completions.size != after.completions.size) return true
+        val taskTimes = before.tasks.associate { it.uuid to it.updatedAtEpochMs }
+        val afterTimes = after.tasks.associate { it.uuid to it.updatedAtEpochMs }
+        if (taskTimes != afterTimes) return true
+        return before.completions.map { it.uuid }.toSet() !=
+            after.completions.map { it.uuid }.toSet()
+    }
+
     fun pruneCompletions(snapshot: SyncSnapshot, nowEpochMs: Long): SyncSnapshot {
         val gone = HistoryRetention.sampleIdsToDelete(
             snapshot.completions.map { row ->

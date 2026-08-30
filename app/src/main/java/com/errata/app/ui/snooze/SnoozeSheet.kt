@@ -22,6 +22,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.errata.app.R
+import com.errata.app.ui.common.isDevice24Hour
 import java.time.LocalTime
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -66,7 +67,7 @@ fun SnoozeSheet(
         val timeState = rememberTimePickerState(
             initialHour = now.hour,
             initialMinute = now.minute,
-            is24Hour = false,
+            is24Hour = isDevice24Hour(),
         )
         AlertDialog(
             onDismissRequest = { showTimePicker = false },

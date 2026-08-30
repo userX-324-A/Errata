@@ -17,7 +17,9 @@ import com.errata.app.data.local.SettingsEntity
 import com.errata.app.data.local.TaskEntity
 import com.errata.app.domain.cadence.CadenceCalculator
 import com.errata.app.domain.cadence.CadenceMode
+import com.errata.app.domain.cadence.TaskCycle
 import com.errata.app.domain.estimate.EstimateAdjuster
+import com.errata.app.domain.history.HistoryGlance
 import com.errata.app.domain.history.HistoryRetention
 import com.errata.app.domain.starter.StarterCatalog
 import com.errata.app.domain.starter.StarterSpec
@@ -27,8 +29,11 @@ import com.errata.app.domain.sync.SyncMerge
 import com.errata.app.domain.sync.SyncSettings
 import com.errata.app.domain.sync.SyncSnapshot
 import com.errata.app.domain.sync.SyncTask
+import com.errata.app.reminders.ReminderActionGuard
 import java.time.ZoneId
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.withContext
 
 class TaskRepository(
     private val db: ErrataDatabase,
@@ -44,7 +49,8 @@ class TaskRepository(
 
     suspend fun getTask(id: Long): TaskEntity? = tasks.getById(id)
 
-    suspend fun completionsFor(taskId: Long): List<CompletionEntity> = completions.forTask(taskId)
+    suspend fun completionsFor(taskId: Long): List<CompletionEntity> =
+        completions.forTaskNewest(taskId, HistoryGlance.MAX_SAMPLES)
 
     suspend fun listSchedulableTasks(): List<TaskEntity> = tasks.listSchedulable()
 
@@ -112,20 +118,16 @@ class TaskRepository(
         return entities.size
     }
 
-    suspend fun complete(taskId: Long, completedAtEpochMs: Long = System.currentTimeMillis()) {
-        val task = tasks.getById(taskId) ?: return
+    suspend fun complete(
+        taskId: Long,
+        completedAtEpochMs: Long = System.currentTimeMillis(),
+        expectedNextDueAtEpochMs: Long? = null,
+    ): Boolean {
+        val task = tasks.getById(taskId) ?: return false
+        if (!ReminderActionGuard.shouldComplete(task.nextDueAtEpochMs, expectedNextDueAtEpochMs)) {
+            return false
+        }
         val scheduledDue = task.nextDueAtEpochMs
-
-        completions.insert(
-            CompletionEntity(
-                uuid = StableIds.new(),
-                taskId = taskId,
-                completedAtEpochMs = completedAtEpochMs,
-                scheduledDueAtEpochMs = scheduledDue,
-                estimateMinutesAtCompletion = task.estimateMinutes,
-            ),
-        )
-
         val nextDue = CadenceCalculator.nextDueAfterCompletion(
             mode = task.cadenceMode,
             intervalDays = task.intervalDays,
@@ -140,16 +142,27 @@ class TaskRepository(
             yearMonthsMask = task.yearMonthsMask,
             seasonMask = task.seasonMask,
         )
-
-        tasks.update(
-            task.copy(
-                lastCompletedAtEpochMs = completedAtEpochMs,
-                nextDueAtEpochMs = nextDue,
-                snoozedUntilEpochMs = null,
-                updatedAtEpochMs = completedAtEpochMs,
-            ),
-        )
+        db.withTransaction {
+            completions.insert(
+                CompletionEntity(
+                    uuid = StableIds.new(),
+                    taskId = taskId,
+                    completedAtEpochMs = completedAtEpochMs,
+                    scheduledDueAtEpochMs = scheduledDue,
+                    estimateMinutesAtCompletion = task.estimateMinutes,
+                ),
+            )
+            tasks.update(
+                task.copy(
+                    lastCompletedAtEpochMs = completedAtEpochMs,
+                    nextDueAtEpochMs = nextDue,
+                    snoozedUntilEpochMs = null,
+                    updatedAtEpochMs = completedAtEpochMs,
+                ),
+            )
+        }
         pruneHistory()
+        return true
     }
 
     suspend fun snooze(taskId: Long, untilEpochMs: Long) {
@@ -192,13 +205,7 @@ class TaskRepository(
             yearMonthsMask = task.yearMonthsMask,
             seasonMask = task.seasonMask,
         )
-        tasks.update(
-            task.copy(
-                nextDueAtEpochMs = nextDue,
-                snoozedUntilEpochMs = null,
-                updatedAtEpochMs = nowEpochMs,
-            ),
-        )
+        tasks.update(TaskCycle.skipped(task, nextDue, nowEpochMs))
     }
 
     suspend fun setPaused(taskId: Long, paused: Boolean) {
@@ -242,9 +249,9 @@ class TaskRepository(
 
     suspend fun defaultCadenceMode(): CadenceMode = getSettings().defaultCadenceMode
 
-    suspend fun exportSnapshot(): ErrataBackup {
+    suspend fun exportSnapshot(): ErrataBackup = withContext(Dispatchers.IO) {
         val settingsEntity = getSettings()
-        return ErrataBackup(
+        ErrataBackup(
             exportedAtEpochMs = System.currentTimeMillis(),
             settings = settingsEntity.toBackup(),
             tasks = tasks.listAll().map { it.toBackup() },
@@ -260,11 +267,30 @@ class TaskRepository(
             )
         }
         val normalized = backup.normalized()
+        val now = System.currentTimeMillis()
         db.withTransaction {
+            val previous = settings.get()
             completions.deleteAll()
             tasks.deleteAll()
             settings.deleteAll()
-            settings.upsert(normalized.settings.toEntity())
+            val imported = normalized.settings.toEntity()
+            val follow = SyncMerge.marksAfterLocalReplace(
+                previousTasksGeneration = previous?.tasksGeneration ?: 0,
+                previousHistoryGeneration = previous?.historyGeneration ?: 0,
+                importedTasksGeneration = imported.tasksGeneration,
+                importedHistoryGeneration = imported.historyGeneration,
+                importedSettingsUpdatedAt = imported.updatedAtEpochMs,
+                nowEpochMs = now,
+            )
+            settings.upsert(
+                imported.copy(
+                    tasksGeneration = follow.tasksGeneration,
+                    tasksResetAtEpochMs = follow.tasksResetAtEpochMs,
+                    historyGeneration = follow.historyGeneration,
+                    historyPurgedAtEpochMs = follow.historyPurgedAtEpochMs,
+                    updatedAtEpochMs = follow.settingsUpdatedAtEpochMs,
+                ),
+            )
             if (normalized.tasks.isNotEmpty()) {
                 tasks.upsertAll(normalized.tasks.map { it.toEntity() })
             }
@@ -273,23 +299,23 @@ class TaskRepository(
             }
         }
         db.ensureSettings()
-        pruneHistory()
     }
 
-    suspend fun pruneHistory(nowEpochMs: Long = System.currentTimeMillis()) {
-        val days = getSettings().historyRetentionDays
-        val rows = completions.listAll().map { row ->
-            HistoryRetention.Row(
-                id = row.id,
-                taskId = row.taskId,
-                completedAtEpochMs = row.completedAtEpochMs,
-            )
+    suspend fun pruneHistory(nowEpochMs: Long = System.currentTimeMillis()) =
+        withContext(Dispatchers.IO) {
+            val days = getSettings().historyRetentionDays
+            val rows = completions.listAll().map { row ->
+                HistoryRetention.Row(
+                    id = row.id,
+                    taskId = row.taskId,
+                    completedAtEpochMs = row.completedAtEpochMs,
+                )
+            }
+            val ids = HistoryRetention.idsToDelete(rows, nowEpochMs, days)
+            ids.chunked(500).forEach { chunk ->
+                completions.deleteByIds(chunk)
+            }
         }
-        val ids = HistoryRetention.idsToDelete(rows, nowEpochMs, days)
-        ids.chunked(500).forEach { chunk ->
-            completions.deleteByIds(chunk)
-        }
-    }
 
     suspend fun purgeHistory() {
         val now = System.currentTimeMillis()

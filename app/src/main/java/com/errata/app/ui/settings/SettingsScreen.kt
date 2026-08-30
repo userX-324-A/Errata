@@ -51,11 +51,14 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.errata.app.R
+import com.errata.app.ui.common.isDevice24Hour
 import com.errata.app.domain.cadence.CadenceMode
 import com.errata.app.domain.history.HistoryRetention
 import com.errata.app.domain.settings.AppearanceMode
 import com.errata.app.reminders.ExactAlarmAccess
+import com.errata.app.reminders.NotificationAccess
 import com.errata.app.ui.theme.ErrataTopInsets
+import com.errata.app.ui.theme.errataContentWidth
 import java.time.Instant
 import java.time.LocalTime
 import java.time.ZoneId
@@ -98,11 +101,19 @@ fun SettingsScreen(
         canExact = ExactAlarmAccess.canExact(context)
         viewModel.rescheduleReminders()
     }
+    var canNotify by remember { mutableStateOf(NotificationAccess.areEnabled(context)) }
+    val notificationLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.StartActivityForResult(),
+    ) {
+        canNotify = NotificationAccess.areEnabled(context)
+        viewModel.rescheduleReminders()
+    }
 
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
                 canExact = ExactAlarmAccess.canExact(context)
+                canNotify = NotificationAccess.areEnabled(context)
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
@@ -126,6 +137,7 @@ fun SettingsScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
+                .errataContentWidth()
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 24.dp, vertical = 8.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
@@ -167,6 +179,11 @@ fun SettingsScreen(
                 text = formatMinutes(state.defaultReminderMinutesOfDay),
                 style = MaterialTheme.typography.bodyLarge,
             )
+            Text(
+                text = stringResource(R.string.settings_default_reminder_hint),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
             TextButton(
                 onClick = { timeTarget = TimeTarget.REMINDER },
                 contentPadding = PaddingValues(0.dp),
@@ -195,6 +212,24 @@ fun SettingsScreen(
                     checked = state.digestEnabled,
                     onCheckedChange = viewModel::setDigestEnabled,
                 )
+            }
+
+            Label(stringResource(R.string.settings_notifications))
+            Text(
+                text = stringResource(
+                    if (canNotify) {
+                        R.string.settings_notifications_on
+                    } else {
+                        R.string.settings_notifications_off
+                    },
+                ),
+                style = MaterialTheme.typography.bodyLarge,
+            )
+            TextButton(
+                onClick = { notificationLauncher.launch(NotificationAccess.settingsIntent(context)) },
+                contentPadding = PaddingValues(0.dp),
+            ) {
+                Text(stringResource(R.string.settings_notifications_open))
             }
 
             if (ExactAlarmAccess.isRelevantSdk()) {
@@ -399,7 +434,7 @@ fun SettingsScreen(
         val timeState = rememberTimePickerState(
             initialHour = initial / 60,
             initialMinute = initial % 60,
-            is24Hour = false,
+            is24Hour = isDevice24Hour(),
         )
         AlertDialog(
             onDismissRequest = { timeTarget = null },
@@ -610,6 +645,7 @@ private fun syncStatusText(state: SettingsUiState): String {
             when (error) {
                 "auth", "sign_in" -> R.string.settings_google_error_sign_in
                 "conflict" -> R.string.settings_google_error_conflict
+                "corrupt" -> R.string.settings_google_error_corrupt
                 "not_configured" -> R.string.settings_google_not_configured
                 "play_services" -> R.string.settings_google_no_play
                 else -> R.string.settings_google_error_network

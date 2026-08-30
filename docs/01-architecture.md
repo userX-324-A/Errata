@@ -37,7 +37,7 @@ Product intent and feature purpose: [`03-product-map.md`](./03-product-map.md).
 | Choice | Status | Notes |
 |---|---|---|
 | Kotlin | **In tree** | |
-| Jetpack Compose + M3 | **In tree** | Margin-note shell: bottom nav, light/dark, punch-hole-safe insets |
+| Jetpack Compose + M3 | **In tree** | Margin-note shell: bottom nav, light/dark, punch-hole-safe insets. Content column max 720dp on tablets. |
 | Room | **In tree** | Schema v8: tasks and completions have stable `uuid`; settings `updatedAtEpochMs`, `historyGeneration`, `tasksGeneration` |
 | `minSdk` | **26** | Android 8+ — older tablets without cutting off Compose |
 | `compileSdk` / `targetSdk` | **35** | |
@@ -102,11 +102,11 @@ Existing installs migrate 7→8 with generated UUIDs. Calendar-grid rows keep a 
 
 - Optional launcher pin: overdue + due-today **count** and **total minutes** (`N due · ~M min`, or “Nothing due”). Soon is excluded.  
 - Tap opens pending. No Done/Snooze on the widget.  
-- Updates on task writes and boot/`rescheduleAll`. `updatePeriodMillis = 0`. One inexact local-midnight `RTC_WAKEUP` while at least one instance is pinned, cancelled when the last is removed.  
+- Updates on task writes and boot/`rescheduleAll`. `updatePeriodMillis = 0`. One inexact local-midnight `RTC_WAKEUP` while at least one instance is pinned, cancelled when the last is removed. Midnight uses an **explicit** `PendingIntent` (custom action is not in the exported intent-filter).  
 
 ## Settings
 
-- Bottom nav tab: appearance (system/light/dark), default reminder, opt-in morning digest, on-time reminders (API 31+), cadence, work-start, optional Google link, history retention (90 / 1y / 2y / keep all), confirm-gated purge history and reset tasks  
+- Bottom nav tab: appearance (system/light/dark), default reminder, opt-in morning digest, notifications, on-time reminders (API 31+), cadence, work-start, optional Google link, history retention (90 / 1y / 2y / keep all), confirm-gated purge history and reset tasks  
 - Backup is a Settings row (SAF export/import + optional folder), not a pending overflow item  
 - Privacy is a Settings row (offline; same facts as [`05-privacy.md`](./05-privacy.md))  
 - Autosave; local-only footer  
@@ -122,19 +122,20 @@ Existing installs migrate 7→8 with generated UUIDs. Calendar-grid rows keep a 
 
 ## Reminder policy
 
-- **In tree:** `AlarmManager` one-shot per active task; `BootReceiver` + launch `rescheduleAll`  
-- Global default time-of-day seeds **new blank** due times and the optional morning digest. Per-task `reminderMinutesOfDay` null means fire at the **due clock**; an editor override stores a minute-of-day. Changing due time does not require touching reminder when “When due” is selected.  
+- **In tree:** `AlarmManager` one-shot per active task; `BootReceiver` + process-start `rescheduleAll`. Also reschedules on `TIME_SET`, `TIMEZONE_CHANGED`, `MY_PACKAGE_REPLACED`, and common OEM quick-boot. `rescheduleAll` cancels persisted per-task alarm ids that are no longer schedulable (import / reset / sync prune). Not direct-boot aware. Activity rotation does not rewrite alarms.  
+- Global default time-of-day seeds **new blank** due times and the optional morning digest. Per-task `reminderMinutesOfDay` null means fire at the **due clock**; an editor override stores a minute-of-day. There is no “follow Settings” reminder mode — changing the default does not retarget existing tasks. Editor Back confirms if the form is dirty.  
 - **Default:** per-task fires — not digest  
-- **Opt-in digest:** Settings toggle (off by default). One standing alarm at the default reminder time. Coalesces overdue + due-today tasks whose **effective** fire minutes equal that default (due clock when reminder is null, else the override). A 2pm-due task on “When due” does not join a 9am digest. Custom reminder times and future snoozes stay per-task. At fire: N=0 silent; N=1 existing per-task card (Done/Snooze); N≥2 one notification (count + total minutes, tap pending). Cadence math unchanged if a digest is missed.  
-- Notification: title + duration hint; actions Done / Snooze (notification snooze = 1 hour)  
+- **Opt-in digest:** Settings toggle (off by default). One standing alarm at the default reminder time. Coalesces overdue + due-today tasks whose **effective** fire minutes equal that default (due clock when reminder is null, else the override). A 2pm-due task on “When due” does not join a 9am digest. Custom reminder times and future snoozes stay per-task. At fire: N=0 silent; N=1 existing per-task card (Done/Snooze); N≥2 one notification (count + total minutes, tap pending). After that window, a task pinned the same day still gets a same-day notification; tasks already in the digest do not get a second. Cadence math unchanged if a digest is missed.  
+- Notification: title + duration hint; actions Done / Snooze (notification snooze = 1 hour). Shade Done is one-shot (in-flight guard + expected due); a second tap does not skip a cycle.  
 - In-app snooze: 1h / later today / tomorrow / pick clock time (past → tomorrow)  
 - Exact when `canScheduleExactAlarms()`; otherwise `setAndAllowWhileIdle`  
+- **Notifications off:** no `RTC_WAKEUP` while the app cannot post; Settings has status + system settings path. Grant/return from that screen calls `rescheduleAll`.  
 - **Exact-alarm UX (API 31+):** optional special access — one-shot explain on first task save if denied; Settings always has status + system settings path. Never required. Grant/revoke broadcasts (and return from the system screen) call `rescheduleAll` so alarms upgrade or fall back. Do not use `USE_EXACT_ALARM`.  
 - Missing a reminder must not corrupt cadence (snooze vs skip vs pause — product map)  
 
 ## Distribution
 
-- Debug/release APK for sideload — see [`04-sideload.md`](./04-sideload.md)  
+- Debug/release APK for sideload — see [`04-sideload.md`](./04-sideload.md). Release uses R8 minify + resource shrink; Material icons-core only.  
 - Privacy policy: [`05-privacy.md`](./05-privacy.md) (in-app Settings → Privacy; host the doc when submitting to Play)  
 - Play listing / Data safety: [`06-play.md`](./06-play.md). Human upload steps: [`08-publish.md`](./08-publish.md). Publisher **Ordinary Tools**. Name **Errata** (not UpKeep).  
 - **Android Auto Backup is off** (`allowBackup=false`; cloud and device-to-device extraction excluded). Move path is user Backup export/folder.  
@@ -143,12 +144,14 @@ Existing installs migrate 7→8 with generated UUIDs. Calendar-grid rows keep a 
 
 - **In tree:** JSON `schemaVersion` 2 via kotlinx.serialization; SAF CreateDocument / OpenDocument. v1 files import with generated UUIDs.  
 - Contents: settings, all tasks (incl. paused/archived), completions  
-- **Import:** replace-all in a Room transaction after user confirm; then `rescheduleAll`. If Google is linked, the Drive copy is uploaded to follow this device.  
+- **Import:** replace-all in a Room transaction after user confirm; then `rescheduleAll`. Does not prune restored history (retention still applies on later Dones). If Google is linked, import bumps `tasksGeneration` / `historyGeneration` and syncs now so the Drive copy follows this device (cloud-only tasks and older history from before the import are dropped on merge).  
 - **Optional folder:** user picks a tree (`OpenDocumentTree`); persistable URI on this device only (SharedPreferences, not in the JSON). Writes/reads `errata-backup.json` on demand. Last write wins; no merge, no folder watch.  
 - **Drive / other clouds (picker):** Export or Import and pick the provider in the system sheet when the OEM offers it. Tree pickers often omit Drive.  
-- **Optional Google Drive App Data:** Settings → Link Google. Credential Manager + `drive.appdata` only. Hidden `errata-sync.json` in appDataFolder. Merge: tasks by uuid (`updatedAt` wins); completions union; shared settings newer `updatedAt` (not appearance); purge/reset use generations. WorkManager 45s debounce after writes, on foreground, daily catch-up. If-Match etag; retry on 412 (cap 3). No FGS. Unlink keeps local; optional wipe of the Drive file. Play services required. Human OAuth: [`07-google-sync.md`](./07-google-sync.md).  
+- **Optional Google Drive App Data:** Settings → Link Google. Credential Manager + `drive.appdata` only. Hidden `errata-sync.json` in appDataFolder. Merge: tasks by uuid (`updatedAt` wins); completions union; shared settings newer `updatedAt` (not appearance); purge/reset use generations. WorkManager: one unique one-shot name (45s debounce after writes, or Sync now replaces that delay), plus a 24h CONNECTED catch-up. Coordinator mutex; skip apply if local moved during the round. If-Match etag; retry on 412 (cap 3). No FGS. Unlink keeps local; optional wipe of the Drive file. Play services required. Human OAuth: [`07-google-sync.md`](./07-google-sync.md).  
 - `INTERNET` is in the APK for this opt-in path. No Errata server.  
 
 ## Battery budget
 
-**Reminders:** Each task gets at most one `AlarmManager` RTC wakeup at a time (due-clock or override reminder time, or snooze instant, or next-day nudge while still open), except when **morning digest** is on: then there is one standing wakeup at the default reminder time covering overdue/due-today tasks whose effective fire minutes equal that default, plus per-task alarms only for other times and future snoozes. **Widget:** while pinned, one additional inexact midnight wakeup so “due today” stays honest. **Google sync (linked only):** one unique WorkManager job, 45s debounce after writes, plus a 24h CONNECTED catch-up; also on process start and app foreground. No foreground service, no wake lock held across UI. Boot and cold start only reschedule alarms (and refresh the widget), then release; if linked, enqueue one sync. Justification: user-expected due reminders without continuous background work; opt-in Drive merge without polling.
+**Reminders:** Each task gets at most one `AlarmManager` RTC wakeup at a time (due-clock or override reminder time, or snooze instant, or next-day nudge while still open), except when **morning digest** is on: then there is one standing wakeup at the default reminder time covering overdue/due-today tasks whose effective fire minutes equal that default, plus per-task alarms only for other times and future snoozes. Tasks pinned after that window get a same-day notification without a second wakeup. Alarms are not set while notifications are disabled. Clock and timezone changes (and sideload/Play replace) rebuild those wakeups from current local wall time. **Widget:** while pinned, one additional inexact midnight wakeup so “due today” stays honest. **Google sync (linked only):** one unique WorkManager one-shot (`errata-sync`), 45s debounce after writes or immediate on Sync now / foreground, plus a 24h CONNECTED catch-up; serialized in-process. No foreground service, no wake lock held across UI. Process start and boot reschedule alarms (and refresh the widget), then release; rotation does not. If linked, enqueue one sync. Justification: user-expected due reminders without continuous background work; opt-in Drive merge without polling.
+
+**OEM / Doze caveats:** Exact alarms fall back to `setAndAllowWhileIdle` when denied. Force-stop kills alarms until next open or boot. Some OEM “quick boot” paths are covered by extra receiver actions; if reminders stay silent after reboot, open the app once. Inexact fires can be minutes late under Doze.

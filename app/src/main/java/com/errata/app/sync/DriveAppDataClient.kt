@@ -63,7 +63,16 @@ class DriveAppDataClient(
                     val snapshot = if (body.isBlank()) {
                         null
                     } else {
-                        runCatching { SyncCodec.decode(body) }.getOrNull()
+                        try {
+                            SyncCodec.decode(body)
+                        } catch (_: Exception) {
+                            return@use CloudDocument(
+                                snapshot = null,
+                                fileId = existingId,
+                                etag = etag,
+                                unreadable = true,
+                            )
+                        }
                     }
                     CloudDocument(snapshot, existingId, etag)
                 }

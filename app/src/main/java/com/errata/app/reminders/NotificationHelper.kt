@@ -30,6 +30,7 @@ object NotificationHelper {
     }
 
     fun showDueReminder(context: Context, task: TaskEntity) {
+        if (!NotificationAccess.areEnabled(context)) return
         ensureChannel(context)
         val contentIntent = PendingIntent.getActivity(
             context,
@@ -40,34 +41,14 @@ object NotificationHelper {
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
 
-        val doneIntent = PendingIntent.getBroadcast(
-            context,
-            ReminderScheduler.requestCode(task.id) + 100_000,
-            Intent(context, ReminderActionReceiver::class.java).apply {
-                action = ReminderActionReceiver.ACTION_DONE
-                putExtra(ReminderScheduler.EXTRA_TASK_ID, task.id)
-            },
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
-        )
-
-        val snoozeIntent = PendingIntent.getBroadcast(
-            context,
-            ReminderScheduler.requestCode(task.id) + 200_000,
-            Intent(context, ReminderActionReceiver::class.java).apply {
-                action = ReminderActionReceiver.ACTION_SNOOZE
-                putExtra(ReminderScheduler.EXTRA_TASK_ID, task.id)
-            },
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
-        )
-
         val notification = NotificationCompat.Builder(context, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_notification)
             .setContentTitle(task.title)
             .setContentText(context.getString(R.string.notification_duration, task.estimateMinutes))
             .setContentIntent(contentIntent)
             .setAutoCancel(true)
-            .addAction(0, context.getString(R.string.action_done), doneIntent)
-            .addAction(0, context.getString(R.string.action_snooze), snoozeIntent)
+            .addAction(0, context.getString(R.string.action_done), doneIntent(context, task))
+            .addAction(0, context.getString(R.string.action_snooze), snoozeIntent(context, task))
             .setPriority(NotificationCompat.PRIORITY_DEFAULT)
             .build()
 
@@ -75,6 +56,7 @@ object NotificationHelper {
     }
 
     fun showDigest(context: Context, count: Int, totalMinutes: Int) {
+        if (!NotificationAccess.areEnabled(context)) return
         ensureChannel(context)
         val contentIntent = PendingIntent.getActivity(
             context,
@@ -100,5 +82,52 @@ object NotificationHelper {
         NotificationManagerCompat.from(context).cancel(notificationId(taskId))
     }
 
+    fun cancelActions(context: Context, taskId: Long) {
+        doneIntent(context, taskId = taskId, scheduledDueAtEpochMs = 0L).cancel()
+        snoozeIntent(context, taskId = taskId, scheduledDueAtEpochMs = 0L).cancel()
+    }
+
     fun notificationId(taskId: Long): Int = taskId.toInt()
+
+    private fun doneIntent(context: Context, task: TaskEntity): PendingIntent =
+        doneIntent(context, task.id, task.nextDueAtEpochMs)
+
+    private fun doneIntent(
+        context: Context,
+        taskId: Long,
+        scheduledDueAtEpochMs: Long,
+    ): PendingIntent {
+        val intent = Intent(context, ReminderActionReceiver::class.java).apply {
+            action = ReminderActionReceiver.ACTION_DONE
+            putExtra(ReminderScheduler.EXTRA_TASK_ID, taskId)
+            putExtra(ReminderScheduler.EXTRA_SCHEDULED_DUE, scheduledDueAtEpochMs)
+        }
+        return PendingIntent.getBroadcast(
+            context,
+            ReminderScheduler.requestCode(taskId) + 100_000,
+            intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+        )
+    }
+
+    private fun snoozeIntent(context: Context, task: TaskEntity): PendingIntent =
+        snoozeIntent(context, task.id, task.nextDueAtEpochMs)
+
+    private fun snoozeIntent(
+        context: Context,
+        taskId: Long,
+        scheduledDueAtEpochMs: Long = 0L,
+    ): PendingIntent {
+        val intent = Intent(context, ReminderActionReceiver::class.java).apply {
+            action = ReminderActionReceiver.ACTION_SNOOZE
+            putExtra(ReminderScheduler.EXTRA_TASK_ID, taskId)
+            putExtra(ReminderScheduler.EXTRA_SCHEDULED_DUE, scheduledDueAtEpochMs)
+        }
+        return PendingIntent.getBroadcast(
+            context,
+            ReminderScheduler.requestCode(taskId) + 200_000,
+            intent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+        )
+    }
 }

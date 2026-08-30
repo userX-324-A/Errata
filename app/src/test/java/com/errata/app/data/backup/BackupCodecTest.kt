@@ -242,4 +242,14 @@ class BackupCodecTest {
             assertTrue(e.message!!.isNotBlank())
         }
     }
+
+    @Test
+    fun parseScheduleKind_unknownFailsClosed() {
+        try {
+            parseScheduleKind("WEEKLY_ISH")
+            throw AssertionError("expected BackupFormatException")
+        } catch (e: BackupFormatException) {
+            assertTrue(e.message!!.contains("WEEKLY_ISH"))
+        }
+    }
 }

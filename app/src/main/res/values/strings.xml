@@ -64,6 +64,7 @@
     <string name="area_custom_label">Area</string>
     <string name="area_filter_label">Area</string>
     <string name="area_filter_all">All</string>
+    <string name="area_filter_empty">Nothing in %1$s.</string>
     <string name="field_estimate">Estimated minutes</string>
     <string name="field_schedule">Schedule</string>
     <string name="schedule_interval">Every N days</string>
@@ -128,9 +129,11 @@
     <string name="field_reminder">Reminder time</string>
     <string name="reminder_when_due">When due</string>
     <string name="reminder_when_due_summary">When due · %1$s</string>
-    <string name="reminder_use_default">Remind at %1$s</string>
-    <string name="reminder_using_default">Using app default · %1$s</string>
+    <string name="reminder_when_due_hint">Fires at the due clock. Settings sets the time for new tasks and the morning digest.</string>
     <string name="reminder_custom">Custom · %1$s</string>
+    <string name="editor_discard_title">Discard changes?</string>
+    <string name="editor_discard_body">This task will not be saved.</string>
+    <string name="editor_discard_confirm">Discard</string>
 
     <string name="menu_more">More</string>
     <string name="nav_pending">Pending</string>
@@ -146,9 +149,14 @@
     <string name="appearance_light">Light</string>
     <string name="appearance_dark">Dark</string>
     <string name="settings_section_defaults">Defaults for new tasks</string>
-    <string name="settings_default_reminder">Default reminder time</string>
+    <string name="settings_default_reminder">Default due time</string>
+    <string name="settings_default_reminder_hint">Seeds the due clock on a new task. Morning digest uses this time.</string>
     <string name="settings_digest">Morning digest</string>
-    <string name="settings_digest_hint">One notification at the default time instead of one per task. Custom times still fire on their own.</string>
+    <string name="settings_digest_hint">One notification at the default time instead of one per task. Custom times still fire on their own. Something pinned after that still reminds the same day.</string>
+    <string name="settings_notifications">Notifications</string>
+    <string name="settings_notifications_on">Reminders can show on this device.</string>
+    <string name="settings_notifications_off">Due reminders stay silent until this is allowed. The device will not wake for them.</string>
+    <string name="settings_notifications_open">Open notification settings</string>
     <string name="settings_exact_alarms">On-time reminders</string>
     <string name="settings_exact_on">Reminders can fire at the time you picked.</string>
     <string name="settings_exact_off">Without this, reminders may arrive a few minutes late. Nothing else changes.</string>
@@ -215,6 +223,7 @@
     <string name="settings_google_error_sign_in">Couldn’t open Google sign-in. Try again, or check that this Google account is a test user in Cloud Console.</string>
     <string name="settings_google_error_network">Couldn’t reach Google. Will try again later.</string>
     <string name="settings_google_error_conflict">Both devices wrote at once. Will retry.</string>
+    <string name="settings_google_error_corrupt">Google copy is unreadable. It was not overwritten.</string>
     <string name="settings_reset_also_cloud">Also clear the Google copy so the other device empties too. Off: this device only — Google will restore the list.</string>
     <string name="backup_confirm_body_linked">This clears every task and setting on this device, then loads the backup file. Because Google is linked, the Drive copy will be replaced with this import.</string>
     <string name="library_title">All tasks</string>

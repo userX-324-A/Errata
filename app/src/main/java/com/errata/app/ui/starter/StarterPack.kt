@@ -44,6 +44,7 @@ import com.errata.app.domain.starter.StarterSpec
 import com.errata.app.reminders.ExactAlarmAccess
 import com.errata.app.ui.theme.ErrataScreenInsets
 import com.errata.app.ui.theme.ErrataTopInsets
+import com.errata.app.ui.theme.errataContentWidth
 
 @Composable
 fun StarterPackEmpty(
@@ -66,6 +67,7 @@ fun StarterPackEmpty(
     Column(
         modifier = modifier
             .fillMaxSize()
+            .errataContentWidth()
             .verticalScroll(rememberScrollState())
             .padding(horizontal = 24.dp, vertical = 24.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
@@ -123,7 +125,7 @@ fun StarterPackEmpty(
         TextButton(onClick = onAddTask) {
             Text(stringResource(R.string.add_task))
         }
-        Spacer(modifier = Modifier.height(24.dp))
+        Spacer(modifier = Modifier.height(88.dp))
     }
 
     if (showExactPrompt) {
@@ -187,6 +189,7 @@ fun StarterCatalogScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
+                .errataContentWidth()
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 20.dp, vertical = 12.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),

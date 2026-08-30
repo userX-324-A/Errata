@@ -25,6 +25,7 @@ import androidx.compose.ui.unit.dp
 import com.errata.app.R
 import com.errata.app.ui.theme.ErrataScreenInsets
 import com.errata.app.ui.theme.ErrataTopInsets
+import com.errata.app.ui.theme.errataContentWidth
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -56,6 +57,7 @@ fun PrivacyScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
+                .errataContentWidth()
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 24.dp, vertical = 16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),

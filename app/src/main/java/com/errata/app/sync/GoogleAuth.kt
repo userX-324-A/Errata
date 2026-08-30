@@ -1,5 +1,6 @@
 package com.errata.app.sync
 
+import android.accounts.Account
 import android.app.Activity
 import android.content.Context
 import android.content.Intent
@@ -31,6 +32,7 @@ sealed class GoogleLinkResult {
 object GoogleAuth {
     const val DRIVE_APPDATA_SCOPE = "https://www.googleapis.com/auth/drive.appdata"
     private const val TAG = "ErrataSync"
+    private const val GOOGLE_ACCOUNT_TYPE = "com.google"
 
     @Volatile
     private var cachedAccessToken: String? = null
@@ -51,11 +53,12 @@ object GoogleAuth {
         } catch (_: GetCredentialCancellationException) {
             return GoogleLinkResult.Cancelled
         } catch (_: GetCredentialException) {
-            null
+            return GoogleLinkResult.Failed("auth")
         } catch (_: Exception) {
-            null
+            return GoogleLinkResult.Failed("auth")
         }
-        return authorizeDrive(activity, email ?: "Google")
+        if (email.isBlank()) return GoogleLinkResult.Failed("auth")
+        return authorizeDrive(activity, email)
     }
 
     fun completeLinkFromIntent(activity: Activity, email: String, data: Intent?): GoogleLinkResult {
@@ -65,6 +68,8 @@ object GoogleAuth {
                 .getAuthorizationResultFromIntent(data)
             val token = result.accessToken
             if (token.isNullOrBlank()) {
+                GoogleLinkResult.Failed("auth")
+            } else if (!accountMatches(email, result.toGoogleSignInAccount()?.email)) {
                 GoogleLinkResult.Failed("auth")
             } else {
                 cachedAccessToken = token
@@ -76,15 +81,16 @@ object GoogleAuth {
         }
     }
 
-    suspend fun accessToken(context: Context): String? {
+    suspend fun accessToken(context: Context, email: String? = null): String? {
         cachedAccessToken?.let { return it }
         if (!isConfigured() || !playServicesAvailable(context)) return null
+        if (email.isNullOrBlank()) return null
         return try {
-            val request = AuthorizationRequest.builder()
-                .setRequestedScopes(listOf(Scope(DRIVE_APPDATA_SCOPE)))
-                .build()
-            val result = Identity.getAuthorizationClient(context).authorize(request).await()
+            val result = Identity.getAuthorizationClient(context)
+                .authorize(driveAuthorizationRequest(email))
+                .await()
             if (result.hasResolution()) return null
+            if (!accountMatches(email, result.toGoogleSignInAccount()?.email)) return null
             result.accessToken?.also { cachedAccessToken = it }
         } catch (e: Exception) {
             Log.w(TAG, "access token", e)
@@ -121,10 +127,9 @@ object GoogleAuth {
 
     private suspend fun authorizeDrive(activity: Activity, email: String): GoogleLinkResult {
         return try {
-            val request = AuthorizationRequest.builder()
-                .setRequestedScopes(listOf(Scope(DRIVE_APPDATA_SCOPE)))
-                .build()
-            val result = Identity.getAuthorizationClient(activity).authorize(request).await()
+            val result = Identity.getAuthorizationClient(activity)
+                .authorize(driveAuthorizationRequest(email))
+                .await()
             when {
                 result.hasResolution() -> {
                     val sender = result.pendingIntent?.intentSender
@@ -132,6 +137,8 @@ object GoogleAuth {
                     GoogleLinkResult.NeedsConsent(sender, email)
                 }
                 result.accessToken.isNullOrBlank() -> GoogleLinkResult.Failed("auth")
+                !accountMatches(email, result.toGoogleSignInAccount()?.email) ->
+                    GoogleLinkResult.Failed("auth")
                 else -> {
                     cachedAccessToken = result.accessToken
                     GoogleLinkResult.Linked(email)
@@ -141,5 +148,16 @@ object GoogleAuth {
             Log.w(TAG, "authorize drive", e)
             GoogleLinkResult.Failed("auth")
         }
+    }
+
+    internal fun driveAuthorizationRequest(email: String): AuthorizationRequest =
+        AuthorizationRequest.builder()
+            .setRequestedScopes(listOf(Scope(DRIVE_APPDATA_SCOPE)))
+            .setAccount(Account(email, GOOGLE_ACCOUNT_TYPE))
+            .build()
+
+    internal fun accountMatches(expected: String, authorized: String?): Boolean {
+        if (authorized.isNullOrBlank()) return true
+        return expected.equals(authorized, ignoreCase = true)
     }
 }

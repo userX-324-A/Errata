@@ -8,13 +8,13 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 
+/**
+ * Restores alarms after boot, clock/timezone change, and package replace.
+ * Not direct-boot aware — Room needs credential storage.
+ */
 class BootReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent?) {
-        if (intent?.action != Intent.ACTION_BOOT_COMPLETED &&
-            intent?.action != Intent.ACTION_LOCKED_BOOT_COMPLETED
-        ) {
-            return
-        }
+        if (intent?.action !in ACTIONS) return
         val pending = goAsync()
         CoroutineScope(Dispatchers.IO).launch {
             try {
@@ -24,5 +24,19 @@ class BootReceiver : BroadcastReceiver() {
                 pending.finish()
             }
         }
+    }
+
+    companion object {
+        val ACTIONS = setOf(
+            Intent.ACTION_BOOT_COMPLETED,
+            Intent.ACTION_TIME_CHANGED,
+            Intent.ACTION_TIMEZONE_CHANGED,
+            Intent.ACTION_MY_PACKAGE_REPLACED,
+            ACTION_QUICKBOOT,
+            ACTION_HTC_QUICKBOOT,
+        )
+
+        const val ACTION_QUICKBOOT = "android.intent.action.QUICKBOOT_POWERON"
+        const val ACTION_HTC_QUICKBOOT = "com.htc.intent.action.QUICKBOOT_POWERON"
     }
 }

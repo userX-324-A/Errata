@@ -35,8 +35,9 @@ class SyncScheduler(
 
     fun requestDebounced() {
         if (!prefs.isLinked()) return
+        retireLegacyOneShots()
         workManager.enqueueUniqueWork(
-            DEBOUNCE_WORK,
+            ONE_SHOT_WORK,
             ExistingWorkPolicy.REPLACE,
             OneTimeWorkRequestBuilder<SyncWorker>()
                 .setInitialDelay(DEBOUNCE_SECONDS, TimeUnit.SECONDS)
@@ -47,8 +48,9 @@ class SyncScheduler(
 
     fun requestNow() {
         if (!prefs.isLinked()) return
+        retireLegacyOneShots()
         workManager.enqueueUniqueWork(
-            NOW_WORK,
+            ONE_SHOT_WORK,
             ExistingWorkPolicy.REPLACE,
             OneTimeWorkRequestBuilder<SyncWorker>()
                 .setConstraints(connected())
@@ -58,6 +60,7 @@ class SyncScheduler(
 
     fun ensurePeriodic() {
         if (!prefs.isLinked()) return
+        retireLegacyOneShots()
         workManager.enqueueUniquePeriodicWork(
             PERIODIC_WORK,
             ExistingPeriodicWorkPolicy.KEEP,
@@ -68,9 +71,14 @@ class SyncScheduler(
     }
 
     fun cancelAll() {
-        workManager.cancelUniqueWork(DEBOUNCE_WORK)
-        workManager.cancelUniqueWork(NOW_WORK)
+        retireLegacyOneShots()
+        workManager.cancelUniqueWork(ONE_SHOT_WORK)
         workManager.cancelUniqueWork(PERIODIC_WORK)
+    }
+
+    private fun retireLegacyOneShots() {
+        workManager.cancelUniqueWork(LEGACY_DEBOUNCE_WORK)
+        workManager.cancelUniqueWork(LEGACY_NOW_WORK)
     }
 
     private fun connected() = Constraints.Builder()
@@ -79,8 +87,9 @@ class SyncScheduler(
 
     private companion object {
         const val DEBOUNCE_SECONDS = 45L
-        const val DEBOUNCE_WORK = "errata-sync-debounce"
-        const val NOW_WORK = "errata-sync-now"
+        const val ONE_SHOT_WORK = "errata-sync"
         const val PERIODIC_WORK = "errata-sync-daily"
+        const val LEGACY_DEBOUNCE_WORK = "errata-sync-debounce"
+        const val LEGACY_NOW_WORK = "errata-sync-now"
     }
 }

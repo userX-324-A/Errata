@@ -116,4 +116,27 @@ class ReminderTimeCalculatorTest {
         )
         assertTrue(fire > now)
     }
+
+    @Test
+    fun dueToday_newYork_firesSameLocalMorning() {
+        val ny = java.time.ZoneId.of("America/New_York")
+        val due = LocalDate.of(2026, 3, 8)
+        val now = due.atTime(8, 0).atZone(ny).toInstant().toEpochMilli()
+        val fire = ReminderTimeCalculator.nextFireEpochMs(
+            task = task(due, reminderMinutes = 9 * 60).copy(
+                nextDueAtEpochMs = CadenceCalculator.atLocalDateMinutes(
+                    due.toEpochDay(),
+                    9 * 60,
+                    ny,
+                ),
+            ),
+            defaultReminderMinutesOfDay = 9 * 60,
+            nowEpochMs = now,
+            zone = ny,
+        )!!
+        assertEquals(
+            ReminderTimeCalculator.atLocalDateMinutes(due.toEpochDay(), 9 * 60, ny),
+            fire,
+        )
+    }
 }

@@ -53,12 +53,14 @@ import com.errata.app.R
 import com.errata.app.domain.due.DueBucket
 import com.errata.app.ui.common.AreaFilterChips
 import com.errata.app.ui.common.TaskAreaLabel
+import com.errata.app.ui.common.isDevice24Hour
 import com.errata.app.domain.estimate.EstimateHonesty
 import com.errata.app.domain.freewindow.FreeWindowRanker
 import com.errata.app.ui.snooze.SnoozeSheet
 import com.errata.app.ui.starter.StarterPackEmpty
 import com.errata.app.ui.theme.ErrataTopInsets
 import com.errata.app.ui.theme.ErrataWordmark
+import com.errata.app.ui.theme.errataContentWidth
 import java.time.LocalTime
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -88,16 +90,18 @@ fun PendingQueueScreen(
             )
         },
         floatingActionButton = {
-            FloatingActionButton(
-                onClick = onAddTask,
-                containerColor = MaterialTheme.colorScheme.primary,
-                contentColor = MaterialTheme.colorScheme.onPrimary,
-                shape = RoundedCornerShape(16.dp),
-            ) {
-                Icon(
-                    imageVector = Icons.Filled.Add,
-                    contentDescription = stringResource(R.string.add_task),
-                )
+            if (!state.hasNoPinnedTasks) {
+                FloatingActionButton(
+                    onClick = onAddTask,
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor = MaterialTheme.colorScheme.onPrimary,
+                    shape = RoundedCornerShape(16.dp),
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.Add,
+                        contentDescription = stringResource(R.string.add_task),
+                    )
+                }
             }
         },
         containerColor = MaterialTheme.colorScheme.background,
@@ -110,11 +114,11 @@ fun PendingQueueScreen(
                 onAddTask = onAddTask,
                 onPin = viewModel::pinStarters,
                 onRescheduleReminders = viewModel::rescheduleReminders,
-                modifier = Modifier.padding(innerPadding),
+                modifier = Modifier.padding(innerPadding).errataContentWidth(),
             )
         } else if (state.isEmpty) {
             PendingEmptyState(
-                modifier = Modifier.padding(innerPadding),
+                modifier = Modifier.padding(innerPadding).errataContentWidth(),
                 onAddTask = onAddTask,
                 pinnedHint = state.startersPinnedHint,
             )
@@ -122,7 +126,8 @@ fun PendingQueueScreen(
             LazyColumn(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(innerPadding),
+                    .padding(innerPadding)
+                    .errataContentWidth(),
                 contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 8.dp, bottom = 88.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
@@ -143,6 +148,19 @@ fun PendingQueueScreen(
                             usedAreas = state.availableAreas,
                             activeArea = state.activeArea,
                             onSelect = viewModel::setActiveArea,
+                        )
+                    }
+                }
+                if (state.areaFilterEmpty && state.activeWindowMinutes == null) {
+                    item {
+                        Text(
+                            text = stringResource(
+                                R.string.area_filter_empty,
+                                state.activeArea.orEmpty(),
+                            ),
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(vertical = 16.dp),
                         )
                     }
                 }
@@ -347,7 +365,7 @@ fun PendingQueueScreen(
         val timeState = rememberTimePickerState(
             initialHour = now.hour,
             initialMinute = now.minute,
-            is24Hour = false,
+            is24Hour = isDevice24Hour(),
         )
         AlertDialog(
             onDismissRequest = { showStopByPicker = false },

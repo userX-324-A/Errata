@@ -1,5 +1,6 @@
 package com.errata.app.ui.task
 
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
@@ -48,6 +49,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.errata.app.R
+import com.errata.app.ui.common.isDevice24Hour
 import com.errata.app.domain.area.TaskAreas
 import com.errata.app.domain.cadence.CadenceMode
 import com.errata.app.domain.cadence.NthWeekday
@@ -59,6 +61,7 @@ import com.errata.app.domain.history.TypicalLateness
 import com.errata.app.reminders.ExactAlarmAccess
 import com.errata.app.ui.theme.ErrataScreenInsets
 import com.errata.app.ui.theme.ErrataTopInsets
+import com.errata.app.ui.theme.errataContentWidth
 import java.time.DayOfWeek
 import java.time.Instant
 import java.time.LocalDate
@@ -77,7 +80,8 @@ private enum class TimePickerTarget { DUE, REMINDER }
 @Composable
 fun TaskEditorScreen(
     viewModel: TaskEditorViewModel,
-    onDone: () -> Unit,
+    onBack: () -> Unit,
+    onSaved: () -> Unit,
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     var showDatePicker by remember { mutableStateOf(false) }
@@ -85,20 +89,36 @@ fun TaskEditorScreen(
     var showCustomArea by remember { mutableStateOf(false) }
     var customAreaText by remember { mutableStateOf("") }
     var showExactPrompt by remember { mutableStateOf(false) }
+    var confirmDiscard by remember { mutableStateOf(false) }
     val context = LocalContext.current
     val exactLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.StartActivityForResult(),
     ) {
         viewModel.rescheduleReminders()
-        onDone()
+        onSaved()
     }
+
+    val requestLeave = {
+        if (viewModel.isDirty()) {
+            confirmDiscard = true
+        } else {
+            onBack()
+        }
+    }
+    BackHandler(onBack = {
+        if (confirmDiscard) {
+            confirmDiscard = false
+        } else {
+            requestLeave()
+        }
+    })
 
     LaunchedEffect(state.saved) {
         if (!state.saved) return@LaunchedEffect
         if (ExactAlarmAccess.shouldPrompt(context)) {
             showExactPrompt = true
         } else {
-            onDone()
+            onSaved()
         }
     }
 
@@ -113,7 +133,7 @@ fun TaskEditorScreen(
                     )
                 },
                 navigationIcon = {
-                    IconButton(onClick = onDone) {
+                    IconButton(onClick = { requestLeave() }) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
                             contentDescription = stringResource(R.string.action_back),
@@ -149,6 +169,7 @@ fun TaskEditorScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
+                .errataContentWidth()
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 20.dp, vertical = 12.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp),
@@ -504,15 +525,17 @@ fun TaskEditorScreen(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             Text(
-                text = when {
-                    state.reminderMinutesOfDay == null ->
-                        stringResource(R.string.reminder_when_due_summary, reminderLabel)
-                    state.reminderMinutesOfDay == state.defaultReminderMinutesOfDay ->
-                        stringResource(R.string.reminder_using_default, reminderLabel)
-                    else ->
-                        stringResource(R.string.reminder_custom, reminderLabel)
+                text = if (state.reminderMinutesOfDay == null) {
+                    stringResource(R.string.reminder_when_due_summary, reminderLabel)
+                } else {
+                    stringResource(R.string.reminder_custom, reminderLabel)
                 },
                 style = MaterialTheme.typography.bodyLarge,
+            )
+            Text(
+                text = stringResource(R.string.reminder_when_due_hint),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             FlowRow(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -522,18 +545,6 @@ fun TaskEditorScreen(
                     selected = state.reminderMinutesOfDay == null,
                     onClick = viewModel::useWhenDueReminder,
                     label = { Text(stringResource(R.string.reminder_when_due)) },
-                )
-                FilterChip(
-                    selected = state.reminderMinutesOfDay == state.defaultReminderMinutesOfDay,
-                    onClick = viewModel::useAppDefaultReminder,
-                    label = {
-                        Text(
-                            stringResource(
-                                R.string.reminder_use_default,
-                                formatMinutes(state.defaultReminderMinutesOfDay),
-                            ),
-                        )
-                    },
                 )
                 TextButton(onClick = { timePickerTarget = TimePickerTarget.REMINDER }) {
                     Text(stringResource(R.string.pick_time))
@@ -624,7 +635,7 @@ fun TaskEditorScreen(
         val timeState = rememberTimePickerState(
             initialHour = initialMinutes / 60,
             initialMinute = initialMinutes % 60,
-            is24Hour = false,
+            is24Hour = isDevice24Hour(),
         )
         AlertDialog(
             onDismissRequest = { timePickerTarget = null },
@@ -656,6 +667,27 @@ fun TaskEditorScreen(
                 )
             },
             text = { TimePicker(state = timeState) },
+        )
+    }
+
+    if (confirmDiscard) {
+        AlertDialog(
+            onDismissRequest = { confirmDiscard = false },
+            title = { Text(stringResource(R.string.editor_discard_title)) },
+            text = { Text(stringResource(R.string.editor_discard_body)) },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        confirmDiscard = false
+                        onBack()
+                    },
+                ) { Text(stringResource(R.string.editor_discard_confirm)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmDiscard = false }) {
+                    Text(stringResource(R.string.action_cancel))
+                }
+            },
         )
     }
 
@@ -692,7 +724,7 @@ fun TaskEditorScreen(
         AlertDialog(
             onDismissRequest = {
                 ExactAlarmAccess.markPrompted(context)
-                onDone()
+                onSaved()
             },
             title = { Text(stringResource(R.string.exact_prompt_title)) },
             text = { Text(stringResource(R.string.exact_prompt_body)) },
@@ -709,7 +741,7 @@ fun TaskEditorScreen(
                 TextButton(
                     onClick = {
                         ExactAlarmAccess.markPrompted(context)
-                        onDone()
+                        onSaved()
                     },
                 ) { Text(stringResource(R.string.exact_prompt_not_now)) }
             },

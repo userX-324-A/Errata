@@ -4,8 +4,8 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.outlined.ListAlt
-import androidx.compose.material.icons.outlined.Checklist
+import androidx.compose.material.icons.automirrored.outlined.List
+import androidx.compose.material.icons.outlined.CheckCircle
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -65,8 +65,8 @@ private data class TabDest(
 )
 
 private val Tabs = listOf(
-    TabDest(Routes.PENDING, R.string.nav_pending, Icons.Outlined.Checklist),
-    TabDest(Routes.LIBRARY, R.string.nav_library, Icons.AutoMirrored.Outlined.ListAlt),
+    TabDest(Routes.PENDING, R.string.nav_pending, Icons.Outlined.CheckCircle),
+    TabDest(Routes.LIBRARY, R.string.nav_library, Icons.AutoMirrored.Outlined.List),
     TabDest(Routes.SETTINGS, R.string.nav_settings, Icons.Outlined.Settings),
 )
 
@@ -163,7 +163,8 @@ fun ErrataNavHost(modifier: Modifier = Modifier) {
                 )
                 TaskEditorScreen(
                     viewModel = vm,
-                    onDone = { navController.popBackStack() },
+                    onBack = { navController.popBackStack() },
+                    onSaved = { EditorSaveNav.popAfterSave(navController) },
                 )
             }
             composable(Routes.LIBRARY) {

@@ -39,6 +39,7 @@ import com.errata.app.ErrataApp
 import com.errata.app.R
 import com.errata.app.ui.theme.ErrataScreenInsets
 import com.errata.app.ui.theme.ErrataTopInsets
+import com.errata.app.ui.theme.errataContentWidth
 import java.io.BufferedReader
 import java.io.InputStreamReader
 import java.nio.charset.StandardCharsets
@@ -117,6 +118,7 @@ fun BackupScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
+                .errataContentWidth()
                 .verticalScroll(rememberScrollState())
                 .padding(horizontal = 24.dp, vertical = 16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),

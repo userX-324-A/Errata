@@ -21,6 +21,7 @@ object DigestPlanner {
         val snoozedUntilEpochMs: Long?,
         val isPaused: Boolean,
         val isArchived: Boolean,
+        val createdAtEpochMs: Long = 0L,
     )
 
     /**
@@ -54,6 +55,36 @@ object DigestPlanner {
             candidate.nextDueAtEpochMs,
             zone,
         )
+    }
+
+    /** Today's digest alarm is still in the future (not yet fired). */
+    fun todaysDigestPending(
+        defaultReminderMinutesOfDay: Int,
+        nowEpochMs: Long,
+        zone: ZoneId = ZoneId.systemDefault(),
+    ): Boolean {
+        val today = Instant.ofEpochMilli(nowEpochMs).atZone(zone).toLocalDate().toEpochDay()
+        return atLocalDateMinutes(today, defaultReminderMinutesOfDay, zone) > nowEpochMs
+    }
+
+    /**
+     * Pinned after this morning's digest: notify now instead of waiting until tomorrow.
+     * Tasks that were already due at digest fire stay silent (they were in the digest).
+     */
+    fun sameDayFallback(
+        candidate: Candidate,
+        defaultReminderMinutesOfDay: Int,
+        nowEpochMs: Long,
+        zone: ZoneId = ZoneId.systemDefault(),
+    ): Boolean {
+        if (!coveredByDigest(candidate, defaultReminderMinutesOfDay, nowEpochMs, zone)) {
+            return false
+        }
+        if (todaysDigestPending(defaultReminderMinutesOfDay, nowEpochMs, zone)) return false
+        if (!dueTodayOrOverdue(candidate, nowEpochMs, zone)) return false
+        val today = Instant.ofEpochMilli(nowEpochMs).atZone(zone).toLocalDate().toEpochDay()
+        val digestToday = atLocalDateMinutes(today, defaultReminderMinutesOfDay, zone)
+        return candidate.createdAtEpochMs > digestToday
     }
 
     fun nextDigestEpochMs(
@@ -109,6 +140,14 @@ object DigestPlanner {
         zone: ZoneId,
     ): Boolean {
         if (!coveredByDigest(candidate, defaultReminderMinutesOfDay, nowEpochMs, zone)) return false
+        return dueTodayOrOverdue(candidate, nowEpochMs, zone)
+    }
+
+    private fun dueTodayOrOverdue(
+        candidate: Candidate,
+        nowEpochMs: Long,
+        zone: ZoneId,
+    ): Boolean {
         val bucket = memberBucket(candidate, nowEpochMs, zone)
         return bucket == DueBucket.OVERDUE || bucket == DueBucket.DUE_TODAY
     }

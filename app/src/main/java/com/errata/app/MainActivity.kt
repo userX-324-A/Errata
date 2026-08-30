@@ -28,14 +28,17 @@ import kotlinx.coroutines.launch
 class MainActivity : ComponentActivity() {
 
     private val notificationPermission =
-        registerForActivityResult(ActivityResultContracts.RequestPermission()) { /* no-op */ }
+        registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+            if (granted) {
+                CoroutineScope(Dispatchers.IO).launch {
+                    ErrataApp.instance.reminderScheduler.rescheduleAll()
+                }
+            }
+        }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         requestNotificationPermissionIfNeeded()
-        CoroutineScope(Dispatchers.IO).launch {
-            ErrataApp.instance.reminderScheduler.rescheduleAll()
-        }
         setContent {
             val settings by ErrataApp.instance.taskCommands.observeSettings
                 .collectAsStateWithLifecycle(initialValue = null)

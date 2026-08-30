@@ -47,6 +47,7 @@ import com.errata.app.ui.common.AreaFilterChips
 import com.errata.app.ui.common.TaskAreaLabel
 import com.errata.app.ui.starter.StarterPackEmpty
 import com.errata.app.ui.theme.ErrataTopInsets
+import com.errata.app.ui.theme.errataContentWidth
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -69,16 +70,18 @@ fun AllTasksScreen(
             )
         },
         floatingActionButton = {
-            FloatingActionButton(
-                onClick = onAddTask,
-                containerColor = MaterialTheme.colorScheme.primary,
-                contentColor = MaterialTheme.colorScheme.onPrimary,
-                shape = RoundedCornerShape(16.dp),
-            ) {
-                Icon(
-                    imageVector = Icons.Filled.Add,
-                    contentDescription = stringResource(R.string.add_task),
-                )
+            if (!state.isEmpty) {
+                FloatingActionButton(
+                    onClick = onAddTask,
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor = MaterialTheme.colorScheme.onPrimary,
+                    shape = RoundedCornerShape(16.dp),
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.Add,
+                        contentDescription = stringResource(R.string.add_task),
+                    )
+                }
             }
         },
         containerColor = MaterialTheme.colorScheme.background,
@@ -91,13 +94,14 @@ fun AllTasksScreen(
                 onAddTask = onAddTask,
                 onPin = viewModel::pinStarters,
                 onRescheduleReminders = viewModel::rescheduleReminders,
-                modifier = Modifier.padding(innerPadding),
+                modifier = Modifier.padding(innerPadding).errataContentWidth(),
             )
         } else {
             LazyColumn(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(innerPadding),
+                    .padding(innerPadding)
+                    .errataContentWidth(),
                 contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 12.dp, bottom = 88.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
@@ -118,6 +122,19 @@ fun AllTasksScreen(
                         onResume = { viewModel.resume(item.task.id) },
                         onArchive = { archiveTargetId = item.task.id },
                     )
+                }
+                if (state.items.isEmpty() && state.activeArea != null) {
+                    item {
+                        Text(
+                            text = stringResource(
+                                R.string.area_filter_empty,
+                                state.activeArea.orEmpty(),
+                            ),
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(vertical = 16.dp),
+                        )
+                    }
                 }
                 item { Spacer(modifier = Modifier.height(8.dp)) }
             }

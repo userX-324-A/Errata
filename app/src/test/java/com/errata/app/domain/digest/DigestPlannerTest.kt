@@ -22,6 +22,7 @@ class DigestPlannerTest {
         isPaused: Boolean = false,
         isArchived: Boolean = false,
         dueMinutes: Int = defaultMinutes,
+        createdAtEpochMs: Long = 0L,
     ) = DigestPlanner.Candidate(
         id = id,
         estimateMinutes = estimateMinutes,
@@ -34,6 +35,7 @@ class DigestPlannerTest {
         snoozedUntilEpochMs = snoozeMs,
         isPaused = isPaused,
         isArchived = isArchived,
+        createdAtEpochMs = createdAtEpochMs,
     )
 
     @Test
@@ -178,6 +180,54 @@ class DigestPlannerTest {
                 now,
                 zone,
             ),
+        )
+    }
+
+    @Test
+    fun todaysDigestPending_beforeAndAfterDefault() {
+        val before = LocalDate.of(2026, 4, 10).atTime(8, 0).toInstant(zone).toEpochMilli()
+        val after = LocalDate.of(2026, 4, 10).atTime(9, 0).toInstant(zone).toEpochMilli()
+        assertTrue(DigestPlanner.todaysDigestPending(defaultMinutes, before, zone))
+        assertFalse(DigestPlanner.todaysDigestPending(defaultMinutes, after, zone))
+    }
+
+    @Test
+    fun sameDayFallback_pinAfterDigest_dueToday() {
+        val digestAt = LocalDate.of(2026, 4, 10).atTime(9, 0).toInstant(zone).toEpochMilli()
+        val now = LocalDate.of(2026, 4, 10).atTime(14, 0).toInstant(zone).toEpochMilli()
+        val pinned = candidate(
+            dueDay = LocalDate.of(2026, 4, 10),
+            createdAtEpochMs = now,
+        )
+        assertTrue(
+            DigestPlanner.sameDayFallback(pinned, defaultMinutes, now, zone),
+        )
+        val alreadyDue = candidate(
+            dueDay = LocalDate.of(2026, 4, 10),
+            createdAtEpochMs = digestAt - 1,
+        )
+        assertFalse(
+            DigestPlanner.sameDayFallback(alreadyDue, defaultMinutes, now, zone),
+        )
+    }
+
+    @Test
+    fun sameDayFallback_falseBeforeDigestAndForFutureDue() {
+        val nowMorning = LocalDate.of(2026, 4, 10).atTime(8, 0).toInstant(zone).toEpochMilli()
+        val nowAfternoon = LocalDate.of(2026, 4, 10).atTime(14, 0).toInstant(zone).toEpochMilli()
+        val dueToday = candidate(
+            dueDay = LocalDate.of(2026, 4, 10),
+            createdAtEpochMs = nowAfternoon,
+        )
+        assertFalse(
+            DigestPlanner.sameDayFallback(dueToday, defaultMinutes, nowMorning, zone),
+        )
+        val dueNextWeek = candidate(
+            dueDay = LocalDate.of(2026, 4, 20),
+            createdAtEpochMs = nowAfternoon,
+        )
+        assertFalse(
+            DigestPlanner.sameDayFallback(dueNextWeek, defaultMinutes, nowAfternoon, zone),
         )
     }
 }

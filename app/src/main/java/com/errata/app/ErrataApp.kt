@@ -28,7 +28,7 @@ class ErrataApp : Application() {
     val syncPreferences: SyncPreferences by lazy { SyncPreferences(this) }
     val driveClient: DriveAppDataClient by lazy {
         DriveAppDataClient(
-            tokenProvider = { GoogleAuth.accessToken(this) },
+            tokenProvider = { GoogleAuth.accessToken(this, syncPreferences.snapshot().email) },
             fileIdStore = { syncPreferences.setFileId(it) },
             currentFileId = { syncPreferences.snapshot().fileId },
         )
@@ -54,6 +54,7 @@ class ErrataApp : Application() {
         CoroutineScope(Dispatchers.IO).launch {
             database.ensureSettings()
             taskRepository.pruneHistory()
+            reminderScheduler.rescheduleAll()
             if (syncPreferences.isLinked()) {
                 syncScheduler.ensurePeriodic()
                 syncScheduler.requestNow()

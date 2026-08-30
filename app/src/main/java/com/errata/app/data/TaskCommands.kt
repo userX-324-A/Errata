@@ -8,6 +8,8 @@ import com.errata.app.domain.starter.StarterSpec
 import com.errata.app.reminders.ReminderScheduler
 import com.errata.app.sync.SyncScheduler
 import com.errata.app.widget.WidgetUpdater
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 
 /**
  * Mutating facade: repository write then reminder reschedule.
@@ -41,6 +43,14 @@ class TaskCommands(
         if (previous.historyRetentionDays != entity.historyRetentionDays) {
             repository.pruneHistory()
         }
+        val sharedChanged =
+            previous.defaultCadenceMode != entity.defaultCadenceMode ||
+                previous.defaultReminderMinutesOfDay != entity.defaultReminderMinutesOfDay ||
+                previous.defaultWorkStartMinutesOfDay != entity.defaultWorkStartMinutesOfDay ||
+                previous.soonHorizonDays != entity.soonHorizonDays ||
+                previous.digestEnabled != entity.digestEnabled ||
+                previous.historyRetentionDays != entity.historyRetentionDays
+        if (sharedChanged) afterWrite()
     }
 
     suspend fun upsert(task: TaskEntity): Long {
@@ -55,12 +65,17 @@ class TaskCommands(
         val pinned = repository.pinStarters(specs)
         if (pinned > 0) {
             scheduler.rescheduleAll()
+            scheduler.notifyMissedDigestIfNeeded()
         }
         return pinned
     }
 
-    suspend fun complete(taskId: Long, completedAtEpochMs: Long = System.currentTimeMillis()) {
-        repository.complete(taskId, completedAtEpochMs)
+    suspend fun complete(
+        taskId: Long,
+        completedAtEpochMs: Long = System.currentTimeMillis(),
+        expectedNextDueAtEpochMs: Long? = null,
+    ) {
+        if (!repository.complete(taskId, completedAtEpochMs, expectedNextDueAtEpochMs)) return
         scheduler.rescheduleTask(taskId)
         afterWrite()
     }
@@ -100,13 +115,16 @@ class TaskCommands(
         afterWrite()
     }
 
-    suspend fun exportJson(): String = BackupCodec.encode(repository.exportSnapshot())
+    suspend fun exportJson(): String = withContext(Dispatchers.IO) {
+        BackupCodec.encode(repository.exportSnapshot())
+    }
 
-    suspend fun importJsonReplace(json: String) {
+    suspend fun importJsonReplace(json: String) = withContext(Dispatchers.IO) {
         val backup: ErrataBackup = BackupCodec.decode(json)
         repository.importReplace(backup)
         scheduler.rescheduleAll()
-        afterWrite()
+        widgetUpdater.refresh()
+        syncScheduler?.requestNow()
     }
 
     suspend fun pruneHistory() = repository.pruneHistory()

@@ -60,6 +60,40 @@ data class TaskEditorUiState(
     val saved: Boolean = false,
 )
 
+/** Fields the editor can change. Used to decide discard-on-back. */
+fun TaskEditorUiState.editFingerprint(): List<Any?> = listOf(
+    title,
+    notes,
+    estimateMinutes,
+    intervalDays,
+    scheduleKind,
+    weekdaysMask,
+    monthDay,
+    weekdayOrdinal,
+    yearMonthsMask,
+    seasonMask,
+    cadenceMode,
+    dueEpochDay,
+    dueMinuteOfDay,
+    reminderMinutesOfDay,
+    area,
+)
+
+/** New blank task: When due; due clock from Settings default. */
+fun TaskEditorUiState.withBlankNew(
+    cadenceMode: CadenceMode,
+    todayEpochDay: Long,
+    dueMinutes: Int,
+): TaskEditorUiState = copy(
+    cadenceMode = cadenceMode,
+    dueEpochDay = todayEpochDay,
+    dueMinuteOfDay = dueMinutes,
+    anchorEpochDay = todayEpochDay,
+    defaultReminderMinutesOfDay = dueMinutes,
+    reminderMinutesOfDay = null,
+    loaded = true,
+)
+
 class TaskEditorViewModel(
     private val commands: TaskCommands,
     private val taskId: Long,
@@ -69,6 +103,7 @@ class TaskEditorViewModel(
 
     private val _uiState = MutableStateFlow(TaskEditorUiState(isNew = taskId == 0L))
     val uiState: StateFlow<TaskEditorUiState> = _uiState.asStateFlow()
+    private var baselineFingerprint: List<Any?>? = null
 
     init {
         viewModelScope.launch {
@@ -110,26 +145,23 @@ class TaskEditorViewModel(
                             loaded = true,
                         )
                     }
+                    markBaseline()
                 } else {
-                    val mode = settings.defaultCadenceMode
                     val today = LocalDate.now(zone).toEpochDay()
-                    val dueMinutes = settings.defaultReminderMinutesOfDay
                     _uiState.update {
-                        it.copy(
-                            cadenceMode = mode,
-                            dueEpochDay = today,
-                            dueMinuteOfDay = dueMinutes,
-                            anchorEpochDay = today,
-                            defaultReminderMinutesOfDay = settings.defaultReminderMinutesOfDay,
-                            reminderMinutesOfDay = null,
-                            loaded = true,
+                        it.withBlankNew(
+                            cadenceMode = settings.defaultCadenceMode,
+                            todayEpochDay = today,
+                            dueMinutes = settings.defaultReminderMinutesOfDay,
                         )
                     }
+                    markBaseline()
                 }
             } else {
                 val task = commands.getTask(taskId)
                 if (task == null) {
                     _uiState.update { it.copy(loaded = true, errorMessage = "missing") }
+                    markBaseline()
                 } else {
                     _uiState.update {
                         it.copy(
@@ -171,6 +203,7 @@ class TaskEditorViewModel(
                             loaded = true,
                         )
                     }
+                    markBaseline()
                 }
             }
         }
@@ -270,14 +303,20 @@ class TaskEditorViewModel(
         it.copy(dueMinuteOfDay = minutes.coerceIn(0, 24 * 60 - 1))
     }
     fun useWhenDueReminder() = _uiState.update { it.copy(reminderMinutesOfDay = null) }
-    fun useAppDefaultReminder() = _uiState.update {
-        it.copy(reminderMinutesOfDay = it.defaultReminderMinutesOfDay)
-    }
     fun updateReminderMinutes(minutes: Int) = _uiState.update {
         it.copy(reminderMinutesOfDay = minutes.coerceIn(0, 24 * 60 - 1))
     }
     fun updateArea(value: String?) = _uiState.update {
         it.copy(area = TaskAreas.normalize(value))
+    }
+
+    fun isDirty(): Boolean {
+        val snap = baselineFingerprint ?: return false
+        return _uiState.value.editFingerprint() != snap
+    }
+
+    private fun markBaseline() {
+        baselineFingerprint = _uiState.value.editFingerprint()
     }
 
     fun save() {

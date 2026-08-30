@@ -23,14 +23,20 @@ class ReminderScheduler(
     suspend fun rescheduleAll() = withContext(Dispatchers.IO) {
         val settings = repository.getSettings()
         val tasks = repository.listSchedulableTasks()
-        if (settings.digestEnabled) {
+        val previous = ScheduledAlarmStore.load(context)
+        if (settings.digestEnabled && NotificationAccess.areEnabled(context)) {
             scheduleDigest(settings.defaultReminderMinutesOfDay)
         } else {
             cancelDigest()
         }
+        val scheduled = mutableSetOf<Long>()
         tasks.forEach { task ->
-            scheduleTask(task, settings)
+            if (scheduleTask(task, settings, notifyIfMissedDigest = false)) {
+                scheduled += task.id
+            }
         }
+        ScheduledAlarmStore.orphans(previous, scheduled).forEach { cancel(it) }
+        ScheduledAlarmStore.save(context, scheduled)
         widgetUpdater.refresh()
     }
 
@@ -44,12 +50,35 @@ class ReminderScheduler(
             return@withContext
         }
         val settings = repository.getSettings()
-        scheduleTask(task, settings)
+        scheduleTask(task, settings, notifyIfMissedDigest = true)
+    }
+
+    /** After pin/import of several tasks, one digest-style card if more than one missed the morning. */
+    suspend fun notifyMissedDigestIfNeeded() = withContext(Dispatchers.IO) {
+        val settings = repository.getSettings()
+        if (!settings.digestEnabled || !NotificationAccess.areEnabled(context)) return@withContext
+        val now = System.currentTimeMillis()
+        val missed = repository.listSchedulableTasks().filter { task ->
+            DigestPlanner.sameDayFallback(
+                candidate = task.toDigestCandidate(),
+                defaultReminderMinutesOfDay = settings.defaultReminderMinutesOfDay,
+                nowEpochMs = now,
+            )
+        }
+        when (missed.size) {
+            0 -> Unit
+            1 -> NotificationHelper.showDueReminder(context, missed.single())
+            else -> NotificationHelper.showDigest(
+                context,
+                count = missed.size,
+                totalMinutes = DigestPlanner.totalMinutes(missed.map { it.toDigestCandidate() }),
+            )
+        }
     }
 
     suspend fun onDigestFired() = withContext(Dispatchers.IO) {
         val settings = repository.getSettings()
-        if (!settings.digestEnabled) {
+        if (!settings.digestEnabled || !NotificationAccess.areEnabled(context)) {
             cancelDigest()
             return@withContext
         }
@@ -80,24 +109,41 @@ class ReminderScheduler(
         alarmManager.cancel(alarmPendingIntent(taskId))
     }
 
-    private fun scheduleTask(task: TaskEntity, settings: SettingsEntity) {
+    private fun scheduleTask(
+        task: TaskEntity,
+        settings: SettingsEntity,
+        notifyIfMissedDigest: Boolean,
+    ): Boolean {
         cancel(task.id)
+        if (NotificationAccess.shouldSkipWakeup(NotificationAccess.areEnabled(context))) return false
         val now = System.currentTimeMillis()
-        if (settings.digestEnabled &&
-            DigestPlanner.coveredByDigest(
-                candidate = task.toDigestCandidate(),
-                defaultReminderMinutesOfDay = settings.defaultReminderMinutesOfDay,
-                nowEpochMs = now,
-            )
-        ) {
-            return
+        if (settings.digestEnabled) {
+            val candidate = task.toDigestCandidate()
+            if (DigestPlanner.coveredByDigest(
+                    candidate = candidate,
+                    defaultReminderMinutesOfDay = settings.defaultReminderMinutesOfDay,
+                    nowEpochMs = now,
+                )
+            ) {
+                if (notifyIfMissedDigest &&
+                    DigestPlanner.sameDayFallback(
+                        candidate = candidate,
+                        defaultReminderMinutesOfDay = settings.defaultReminderMinutesOfDay,
+                        nowEpochMs = now,
+                    )
+                ) {
+                    NotificationHelper.showDueReminder(context, task)
+                }
+                return false
+            }
         }
         val fireAt = ReminderTimeCalculator.nextFireEpochMs(
             task,
             settings.defaultReminderMinutesOfDay,
             nowEpochMs = now,
-        ) ?: return
+        ) ?: return false
         setWakeup(fireAt, alarmPendingIntent(task.id))
+        return true
     }
 
     private fun scheduleDigest(
@@ -124,6 +170,7 @@ class ReminderScheduler(
     }
 
     private fun setWakeup(fireAt: Long, pi: PendingIntent) {
+        if (NotificationAccess.shouldSkipWakeup(NotificationAccess.areEnabled(context))) return
         if (canExact()) {
             alarmManager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, fireAt, pi)
         } else {
@@ -167,6 +214,7 @@ class ReminderScheduler(
         const val ACTION_ALARM = "com.errata.app.action.REMINDER_ALARM"
         const val ACTION_DIGEST = "com.errata.app.action.REMINDER_DIGEST"
         const val EXTRA_TASK_ID = "task_id"
+        const val EXTRA_SCHEDULED_DUE = "scheduled_due"
         const val DIGEST_REQUEST_CODE = 0x7E11A701
         const val DIGEST_NOTIFICATION_ID = 0x7E11A702
 
@@ -182,4 +230,5 @@ private fun TaskEntity.toDigestCandidate() = DigestPlanner.Candidate(
     snoozedUntilEpochMs = snoozedUntilEpochMs,
     isPaused = isPaused,
     isArchived = isArchived,
+    createdAtEpochMs = createdAtEpochMs,
 )

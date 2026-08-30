@@ -83,10 +83,10 @@ Authority for **what** we build and **why**. Roadmap order lives in [`02-roadmap
 | **Helps** | Remembering without opening the app |
 | **When** | Chosen time-of-day |
 | **Pain removed** | Silent lists; or battery-killing always-on services |
-| **Does** | Fire at the due clock by default; optional per-task time or Settings default; notification shows title + duration; actions **Done** / **Snooze**; reschedule after boot |
+| **Does** | Fire at the due clock by default (`reminderMinutesOfDay` null). Optional per-task clock override. Settings default seeds **new** due times and the optional morning digest — it does not retarget existing tasks. Notification shows title + duration; actions **Done** / **Snooze**; reschedule after boot |
 | **Does not** | Sticky foreground service; high-frequency polling |
 
-**Default fire model:** **per-task** (or shared time coalesced when identical). Optional **morning digest** is Tier 2, opt-in.
+**Default fire model:** **per-task** at the due clock (or the per-task override). Identical times do **not** auto-coalesce; opt-in **morning digest** is the only batch wakeup.
 
 ### Export / import JSON
 
@@ -200,7 +200,7 @@ Authority for **what** we build and **why**. Roadmap order lives in [`02-roadmap
 | **Helps** | Glance without opening the app |
 | **When** | Home screen |
 | **Pain removed** | “Is anything due?” uncertainty |
-| **Does** | Pending count + total minutes due today; tap opens app / free-window |
+| **Does** | Pending count + total minutes due today; tap opens pending |
 | **Does not** | Live animated engagement bait; frequent background refresh |
 
 ### History glance

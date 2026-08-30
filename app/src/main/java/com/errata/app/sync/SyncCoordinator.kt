@@ -2,10 +2,13 @@ package com.errata.app.sync
 
 import android.util.Log
 import com.errata.app.data.TaskRepository
+import com.errata.app.domain.sync.SyncMerge
 import com.errata.app.domain.sync.SyncRound
 import com.errata.app.domain.sync.SyncRoundResult
 import com.errata.app.reminders.ReminderScheduler
 import com.errata.app.widget.WidgetUpdater
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 class SyncCoordinator(
     private val repository: TaskRepository,
@@ -14,7 +17,9 @@ class SyncCoordinator(
     private val scheduler: ReminderScheduler,
     private val widgetUpdater: WidgetUpdater,
 ) {
-    suspend fun sync(): Boolean {
+    private val lock = Mutex()
+
+    suspend fun sync(): Boolean = lock.withLock {
         if (!prefs.isLinked()) return true
         val local = repository.toSyncSnapshot()
         val result = try {
@@ -32,6 +37,10 @@ class SyncCoordinator(
         }
         return when (result) {
             is SyncRoundResult.Applied -> {
+                val current = repository.toSyncSnapshot()
+                if (SyncMerge.localMoved(local, current)) {
+                    return false
+                }
                 repository.applySyncSnapshot(result.snapshot)
                 scheduler.rescheduleAll()
                 widgetUpdater.refresh()

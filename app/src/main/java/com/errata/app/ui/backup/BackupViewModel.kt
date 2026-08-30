@@ -76,8 +76,8 @@ class BackupViewModel(
         viewModelScope.launch {
             _uiState.update { it.copy(busy = true, message = null, isError = false) }
             try {
-                val json = commands.exportJson()
                 withContext(Dispatchers.IO) {
+                    val json = commands.exportJson()
                     BackupFolderStore(context).writeJson(json)
                 }
                 _uiState.update {
@@ -117,8 +117,8 @@ class BackupViewModel(
         viewModelScope.launch {
             _uiState.update { it.copy(busy = true, message = null, isError = false) }
             try {
-                val json = commands.exportJson()
                 withContext(Dispatchers.IO) {
+                    val json = commands.exportJson()
                     resolver.openOutputStream(uri)?.use { out ->
                         out.write(json.toByteArray(StandardCharsets.UTF_8))
                     } ?: error("Could not open file for writing")
@@ -151,7 +151,9 @@ class BackupViewModel(
                 it.copy(busy = true, pendingImportJson = null, message = null, isError = false)
             }
             try {
-                commands.importJsonReplace(json)
+                withContext(Dispatchers.IO) {
+                    commands.importJsonReplace(json)
+                }
                 _uiState.update {
                     it.copy(busy = false, message = "imported", isError = false)
                 }

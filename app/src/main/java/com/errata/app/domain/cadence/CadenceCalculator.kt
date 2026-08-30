@@ -116,7 +116,8 @@ object CadenceCalculator {
      * From-completion modes: scheduled due day + interval (keep time), then keep adding
      * intervals while the candidate is ≤ [nowEpochMs].
      * Catch-up mode uses the same path (catch-up is Done-only).
-     * Fixed anchor: next grid slot strictly after [nowEpochMs].
+     * Fixed anchor: next grid calendar day strictly after both now and the
+     * open scheduled due (early Skip consumes that slot).
      * Weekly/monthly/nth-weekday/yearly: next matching local day strictly after
      * [nowEpochMs] (same as Done).
      */
@@ -169,7 +170,8 @@ object CadenceCalculator {
     }
 
     /**
-     * Next matching calendar-grid slot strictly after [afterEpochMs], or null for interval tasks.
+     * Next matching calendar-grid slot on a local day strictly after
+     * [afterEpochMs]'s calendar day, or null for interval tasks.
      */
     private fun nextGridDueAfter(
         afterEpochMs: Long,
@@ -214,11 +216,10 @@ object CadenceCalculator {
                 onYearly
             }
         }
-        var date = Instant.ofEpochMilli(afterEpochMs).atZone(zone).toLocalDate()
+        var date = Instant.ofEpochMilli(afterEpochMs).atZone(zone).toLocalDate().plusDays(1)
         repeat(400) {
-            val candidate = atLocalDateKeepingTime(date.toEpochDay(), scheduledDueAtEpochMs, zone)
-            if (matches(date) && candidate > afterEpochMs) {
-                return candidate
+            if (matches(date)) {
+                return atLocalDateKeepingTime(date.toEpochDay(), scheduledDueAtEpochMs, zone)
             }
             date = date.plusDays(1)
         }
@@ -250,7 +251,8 @@ object CadenceCalculator {
     }
 
     /**
-     * First grid slot whose due datetime is strictly after [completedAtEpochMs].
+     * First grid calendar day strictly after both completion and the open scheduled due.
+     * Early Done or Skip on the scheduled day consumes that slot.
      */
     private fun fixedAnchor(
         completedAtEpochMs: Long,
@@ -259,19 +261,18 @@ object CadenceCalculator {
         scheduledDueAtEpochMs: Long,
         zone: ZoneId,
     ): Long {
-        val completedInstant = Instant.ofEpochMilli(completedAtEpochMs)
-        val completedDay = epochDayOf(completedAtEpochMs, zone)
+        val afterDay = max(
+            epochDayOf(completedAtEpochMs, zone),
+            epochDayOf(scheduledDueAtEpochMs, zone),
+        )
         var n = 0L
-        if (anchorEpochDay <= completedDay) {
-            n = (completedDay - anchorEpochDay) / intervalDays
+        if (anchorEpochDay <= afterDay) {
+            n = (afterDay - anchorEpochDay) / intervalDays
         }
         while (true) {
             val candidateDay = anchorEpochDay + n * intervalDays
-            val candidate = Instant.ofEpochMilli(
-                atLocalDateKeepingTime(candidateDay, scheduledDueAtEpochMs, zone),
-            )
-            if (candidate.isAfter(completedInstant)) {
-                return candidate.toEpochMilli()
+            if (candidateDay > afterDay) {
+                return atLocalDateKeepingTime(candidateDay, scheduledDueAtEpochMs, zone)
             }
             n++
         }

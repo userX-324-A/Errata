@@ -14,6 +14,18 @@ Output:
 
 `app\build\outputs\apk\debug\app-debug.apk`
 
+## Build a release APK
+
+Release is minified (R8). Needs the upload keystore in `local.properties` for a signed APK; unsigned still builds:
+
+```bat
+gradlew.bat :app:assembleRelease
+```
+
+Output:
+
+`app\build\outputs\apk\release\app-release.apk`
+
 ## Copy to the tablet
 
 Any of:

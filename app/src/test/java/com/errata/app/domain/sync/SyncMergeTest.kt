@@ -108,6 +108,65 @@ class SyncMergeTest {
     }
 
     @Test
+    fun marksAfterLocalReplace_beatsPreviousAndImportedGens() {
+        val marks = SyncMerge.marksAfterLocalReplace(
+            previousTasksGeneration = 3,
+            previousHistoryGeneration = 1,
+            importedTasksGeneration = 2,
+            importedHistoryGeneration = 4,
+            importedSettingsUpdatedAt = 50,
+            nowEpochMs = 200,
+        )
+        assertEquals(4, marks.tasksGeneration)
+        assertEquals(5, marks.historyGeneration)
+        assertEquals(200L, marks.tasksResetAtEpochMs)
+        assertEquals(200L, marks.historyPurgedAtEpochMs)
+        assertEquals(200L, marks.settingsUpdatedAtEpochMs)
+    }
+
+    @Test
+    fun importReplace_dropsCloudOnlyTasksAndOldHistory() {
+        val now = 500L
+        val marks = SyncMerge.marksAfterLocalReplace(
+            previousTasksGeneration = 1,
+            previousHistoryGeneration = 1,
+            importedTasksGeneration = 0,
+            importedHistoryGeneration = 0,
+            importedSettingsUpdatedAt = 10,
+            nowEpochMs = now,
+        )
+        val local = snapshot(
+            tasksGeneration = marks.tasksGeneration,
+            tasksResetAtEpochMs = marks.tasksResetAtEpochMs,
+            historyGeneration = marks.historyGeneration,
+            historyPurgedAtEpochMs = marks.historyPurgedAtEpochMs,
+            settings = SyncSettings(updatedAtEpochMs = marks.settingsUpdatedAtEpochMs),
+            tasks = listOf(task("kept", "From backup", created = 10, updated = 10)),
+            completions = listOf(done("kept-done", "kept", at = 20)),
+        )
+        val cloud = snapshot(
+            tasksGeneration = 1,
+            historyGeneration = 1,
+            settings = SyncSettings(updatedAtEpochMs = 100),
+            tasks = listOf(
+                task("deleted", "Should vanish", created = 10, updated = 400),
+                task("kept", "Cloud newer title", created = 10, updated = 400),
+            ),
+            completions = listOf(
+                done("cloud-old", "deleted", at = 30),
+                done("kept-done", "kept", at = 20),
+            ),
+        )
+        val out = SyncMerge.merge(local, cloud)
+        assertEquals(setOf("kept"), out.tasks.map { it.uuid }.toSet())
+        assertEquals("From backup", out.tasks.single().title)
+        assertEquals(listOf("kept-done"), out.completions.map { it.uuid })
+        assertEquals(marks.tasksGeneration, out.tasksGeneration)
+        assertEquals(marks.historyGeneration, out.historyGeneration)
+        assertEquals(marks.settingsUpdatedAtEpochMs, out.settings.updatedAtEpochMs)
+    }
+
+    @Test
     fun settingsLww_ignoresAppearanceByOmission() {
         val a = snapshot(
             settings = SyncSettings(
@@ -141,6 +200,27 @@ class SyncMergeTest {
         val out = SyncMerge.merge(a, snapshot(), nowEpochMs = now)
         assertEquals(8, out.completions.size)
         assertTrue(out.completions.none { it.uuid == "c9" || it.uuid == "c10" })
+    }
+
+    @Test
+    fun localMoved_taskEditOrNewDone() {
+        val before = snapshot(tasks = listOf(task("t1", "Filters", updated = 10)))
+        assertTrue(
+            SyncMerge.localMoved(
+                before,
+                snapshot(tasks = listOf(task("t1", "Filters", updated = 20))),
+            ),
+        )
+        assertTrue(
+            SyncMerge.localMoved(
+                before,
+                snapshot(
+                    tasks = listOf(task("t1", "Filters", updated = 10)),
+                    completions = listOf(done("c1", "t1", 11)),
+                ),
+            ),
+        )
+        assertTrue(!SyncMerge.localMoved(before, snapshot(tasks = listOf(task("t1", "Filters", updated = 10)))))
     }
 
     private fun snapshot(

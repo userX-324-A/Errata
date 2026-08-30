@@ -24,6 +24,7 @@ data class CloudDocument(
     val snapshot: SyncSnapshot?,
     val fileId: String?,
     val etag: String?,
+    val unreadable: Boolean = false,
 )
 
 sealed class CloudSaveResult {
@@ -59,6 +60,7 @@ object SyncRound {
     ): SyncRoundResult {
         repeat(maxAttempts) {
             val loaded = store.load()
+            if (loaded.unreadable) return SyncRoundResult.Failed("corrupt")
             val remote = loaded.snapshot ?: SyncSnapshot()
             val merged = SyncMerge.merge(local, remote, nowEpochMs)
             when (val saved = store.save(merged, loaded.fileId, loaded.etag)) {

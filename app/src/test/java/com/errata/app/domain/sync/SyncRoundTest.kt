@@ -41,6 +41,26 @@ class SyncRoundTest {
         assertEquals(3, store.saveCalls)
     }
 
+    @Test
+    fun unreadableRemote_failsWithoutSave() = runTest {
+        val store = object : CloudStore {
+            override suspend fun load() = CloudDocument(
+                snapshot = null,
+                fileId = "file1",
+                etag = "e1",
+                unreadable = true,
+            )
+            override suspend fun save(
+                snapshot: SyncSnapshot,
+                fileId: String?,
+                etag: String?,
+            ) = error("must not save")
+            override suspend fun delete(): Boolean = true
+        }
+        val result = SyncRound.run(SyncSnapshot(), store, nowEpochMs = 1)
+        assertEquals("corrupt", (result as SyncRoundResult.Failed).reason)
+    }
+
     private class FakeCloudStore(private val staleCount: Int) : CloudStore {
         var saveCalls: Int = 0
             private set

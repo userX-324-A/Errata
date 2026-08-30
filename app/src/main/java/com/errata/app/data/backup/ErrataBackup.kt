@@ -89,5 +89,5 @@ fun parseScheduleKind(value: String): ScheduleKind =
     try {
         ScheduleKind.valueOf(value)
     } catch (_: IllegalArgumentException) {
-        ScheduleKind.INTERVAL
+        throw BackupFormatException("Unknown schedule kind: $value")
     }
