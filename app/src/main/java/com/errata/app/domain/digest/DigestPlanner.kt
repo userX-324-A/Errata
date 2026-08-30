@@ -1,5 +1,6 @@
 package com.errata.app.domain.digest
 
+import com.errata.app.domain.cadence.CadenceCalculator
 import com.errata.app.domain.due.DueBucket
 import com.errata.app.domain.due.PendingClassifier
 import java.time.Instant
@@ -22,22 +23,37 @@ object DigestPlanner {
         val isArchived: Boolean,
     )
 
+    /**
+     * Effective reminder minutes: per-task override, or the due clock when null.
+     * A task is a digest member only when that time equals the settings default.
+     */
     fun usesDefaultReminder(
         reminderMinutesOfDay: Int?,
         defaultReminderMinutesOfDay: Int,
-    ): Boolean = (reminderMinutesOfDay ?: defaultReminderMinutesOfDay) ==
-        defaultReminderMinutesOfDay
+        nextDueAtEpochMs: Long,
+        zone: ZoneId,
+    ): Boolean {
+        val effective = reminderMinutesOfDay
+            ?: CadenceCalculator.minutesOfDay(nextDueAtEpochMs, zone)
+        return effective == defaultReminderMinutesOfDay
+    }
 
     /** Default-time tasks with no future snooze are covered by the digest alarm, not per-task. */
     fun coveredByDigest(
         candidate: Candidate,
         defaultReminderMinutesOfDay: Int,
         nowEpochMs: Long,
+        zone: ZoneId = ZoneId.systemDefault(),
     ): Boolean {
         if (candidate.isArchived || candidate.isPaused) return false
         val snooze = candidate.snoozedUntilEpochMs
         if (snooze != null && snooze > nowEpochMs) return false
-        return usesDefaultReminder(candidate.reminderMinutesOfDay, defaultReminderMinutesOfDay)
+        return usesDefaultReminder(
+            candidate.reminderMinutesOfDay,
+            defaultReminderMinutesOfDay,
+            candidate.nextDueAtEpochMs,
+            zone,
+        )
     }
 
     fun nextDigestEpochMs(
@@ -92,7 +108,7 @@ object DigestPlanner {
         nowEpochMs: Long,
         zone: ZoneId,
     ): Boolean {
-        if (!coveredByDigest(candidate, defaultReminderMinutesOfDay, nowEpochMs)) return false
+        if (!coveredByDigest(candidate, defaultReminderMinutesOfDay, nowEpochMs, zone)) return false
         val bucket = memberBucket(candidate, nowEpochMs, zone)
         return bucket == DueBucket.OVERDUE || bucket == DueBucket.DUE_TODAY
     }

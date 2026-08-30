@@ -3,7 +3,7 @@ package com.errata.app.domain.area
 object TaskAreas {
     const val MAX_LENGTH = 24
 
-    val PRESETS = listOf("Bathroom", "Body", "Car", "House", "Paper")
+    val PRESETS = listOf("Bathroom", "Body", "Car", "House", "Paper", "Kitchen", "Clothes")
 
     fun normalize(raw: String?): String? {
         val trimmed = raw?.trim()?.take(MAX_LENGTH).orEmpty()

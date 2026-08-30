@@ -38,19 +38,24 @@ import com.errata.app.ui.pending.PendingQueueViewModel
 import com.errata.app.ui.privacy.PrivacyScreen
 import com.errata.app.ui.settings.SettingsScreen
 import com.errata.app.ui.settings.SettingsViewModel
+import com.errata.app.ui.starter.StarterCatalogScreen
 import com.errata.app.ui.task.TaskEditorScreen
 import com.errata.app.ui.task.TaskEditorViewModel
 import com.errata.app.ui.theme.ErrataBottomInsets
 
 object Routes {
     const val PENDING = "pending"
-    const val TASK = "task/{taskId}"
+    const val STARTERS = "starters"
+    const val TASK = "task/{taskId}?starter={starterId}"
     const val BACKUP = "backup"
     const val PRIVACY = "privacy"
     const val LIBRARY = "tasks"
     const val SETTINGS = "settings"
 
-    fun task(taskId: Long) = "task/$taskId"
+    fun task(taskId: Long, starterId: String? = null): String {
+        val base = "task/$taskId"
+        return if (starterId.isNullOrBlank()) base else "$base?starter=$starterId"
+    }
 }
 
 private data class TabDest(
@@ -129,17 +134,32 @@ fun ErrataNavHost(modifier: Modifier = Modifier) {
                 )
                 PendingQueueScreen(
                     viewModel = vm,
-                    onAddTask = { navController.navigate(Routes.task(0L)) },
+                    onAddTask = { navController.navigate(Routes.STARTERS) },
                     onOpenTask = { id -> navController.navigate(Routes.task(id)) },
+                )
+            }
+            composable(Routes.STARTERS) {
+                StarterCatalogScreen(
+                    onBack = { navController.popBackStack() },
+                    onBlankTask = { navController.navigate(Routes.task(0L)) },
+                    onPickStarter = { id -> navController.navigate(Routes.task(0L, id)) },
                 )
             }
             composable(
                 route = Routes.TASK,
-                arguments = listOf(navArgument("taskId") { type = NavType.LongType }),
+                arguments = listOf(
+                    navArgument("taskId") { type = NavType.LongType },
+                    navArgument("starterId") {
+                        type = NavType.StringType
+                        defaultValue = ""
+                    },
+                ),
             ) { entry ->
                 val taskId = entry.arguments?.getLong("taskId") ?: 0L
+                val starterId = entry.arguments?.getString("starterId").orEmpty()
                 val vm: TaskEditorViewModel = viewModel(
-                    factory = TaskEditorViewModel.factory(commands, taskId),
+                    key = "task-$taskId-$starterId",
+                    factory = TaskEditorViewModel.factory(commands, taskId, starterId),
                 )
                 TaskEditorScreen(
                     viewModel = vm,
@@ -153,7 +173,7 @@ fun ErrataNavHost(modifier: Modifier = Modifier) {
                 AllTasksScreen(
                     viewModel = vm,
                     onOpenTask = { id -> navController.navigate(Routes.task(id)) },
-                    onAddTask = { navController.navigate(Routes.task(0L)) },
+                    onAddTask = { navController.navigate(Routes.STARTERS) },
                 )
             }
             composable(Routes.SETTINGS) {

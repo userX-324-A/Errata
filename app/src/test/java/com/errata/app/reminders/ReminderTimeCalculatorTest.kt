@@ -17,6 +17,7 @@ class ReminderTimeCalculatorTest {
         dueDay: LocalDate,
         reminderMinutes: Int? = null,
         snoozeMs: Long? = null,
+        dueMinutes: Int = 0,
     ) = TaskEntity(
         id = 1,
         title = "t",
@@ -24,7 +25,11 @@ class ReminderTimeCalculatorTest {
         intervalDays = 7,
         cadenceMode = CadenceMode.FROM_COMPLETION,
         anchorEpochDay = dueDay.toEpochDay(),
-        nextDueAtEpochMs = CadenceCalculator.startOfDayEpochMs(dueDay.toEpochDay(), zone),
+        nextDueAtEpochMs = CadenceCalculator.atLocalDateMinutes(
+            dueDay.toEpochDay(),
+            dueMinutes,
+            zone,
+        ),
         reminderMinutesOfDay = reminderMinutes,
         snoozedUntilEpochMs = snoozeMs,
         createdAtEpochMs = 0,
@@ -78,12 +83,12 @@ class ReminderTimeCalculatorTest {
     }
 
     @Test
-    fun usesDefaultReminderWhenTaskNull() {
+    fun nullReminder_firesAtDueClock() {
         val due = LocalDate.of(2026, 5, 1)
         val now = LocalDate.of(2026, 4, 1).atTime(8, 0).toInstant(zone).toEpochMilli()
         val fire = ReminderTimeCalculator.nextFireEpochMs(
-            task = task(due, reminderMinutes = null),
-            defaultReminderMinutesOfDay = 18 * 60,
+            task = task(due, reminderMinutes = null, dueMinutes = 18 * 60),
+            defaultReminderMinutesOfDay = 9 * 60,
             nowEpochMs = now,
             zone = zone,
         )!!

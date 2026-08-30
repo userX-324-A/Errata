@@ -21,11 +21,16 @@ class DigestPlannerTest {
         snoozeMs: Long? = null,
         isPaused: Boolean = false,
         isArchived: Boolean = false,
+        dueMinutes: Int = defaultMinutes,
     ) = DigestPlanner.Candidate(
         id = id,
         estimateMinutes = estimateMinutes,
         reminderMinutesOfDay = reminderMinutes,
-        nextDueAtEpochMs = CadenceCalculator.startOfDayEpochMs(dueDay.toEpochDay(), zone),
+        nextDueAtEpochMs = CadenceCalculator.atLocalDateMinutes(
+            dueDay.toEpochDay(),
+            dueMinutes,
+            zone,
+        ),
         snoozedUntilEpochMs = snoozeMs,
         isPaused = isPaused,
         isArchived = isArchived,
@@ -139,13 +144,15 @@ class DigestPlannerTest {
                 candidate(reminderMinutes = null, dueDay = due),
                 defaultMinutes,
                 now,
+                zone,
             ),
         )
         assertTrue(
             DigestPlanner.coveredByDigest(
-                candidate(reminderMinutes = defaultMinutes, dueDay = due),
+                candidate(reminderMinutes = defaultMinutes, dueDay = due, dueMinutes = 0),
                 defaultMinutes,
                 now,
+                zone,
             ),
         )
         assertFalse(
@@ -153,6 +160,7 @@ class DigestPlannerTest {
                 candidate(reminderMinutes = 8 * 60, dueDay = due),
                 defaultMinutes,
                 now,
+                zone,
             ),
         )
         assertFalse(
@@ -160,6 +168,15 @@ class DigestPlannerTest {
                 candidate(dueDay = due, snoozeMs = now + 1_000L),
                 defaultMinutes,
                 now,
+                zone,
+            ),
+        )
+        assertFalse(
+            DigestPlanner.coveredByDigest(
+                candidate(reminderMinutes = null, dueDay = due, dueMinutes = 18 * 60),
+                defaultMinutes,
+                now,
+                zone,
             ),
         )
     }

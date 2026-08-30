@@ -30,16 +30,30 @@ class StarterCatalogTest {
 
     @Test
     fun pack_coversAreasAndCadenceKinds() {
-        assertEquals(8, StarterCatalog.ALL.size)
+        assertTrue(StarterCatalog.ALL.size in 30..50)
         assertEquals(StarterCatalog.ALL.size, StarterCatalog.ALL.map { it.id }.distinct().size)
         val areas = StarterCatalog.ALL.map { it.area }.toSet()
         TaskAreas.PRESETS.forEach { preset ->
             assertTrue("missing area $preset", preset in areas)
         }
-        assertTrue(StarterCatalog.ALL.any { it.scheduleKind == ScheduleKind.WEEKLY })
-        assertTrue(StarterCatalog.ALL.any { it.scheduleKind == ScheduleKind.MONTHLY })
+        ScheduleKind.entries.forEach { kind ->
+            assertTrue("missing kind $kind", StarterCatalog.ALL.any { it.scheduleKind == kind })
+        }
         val bins = StarterCatalog.ALL.single { it.id == "bins" }
         assertEquals(Weekdays.bit(DayOfWeek.TUESDAY), bins.weekdaysMask)
+        assertEquals("bill", StarterCatalog.ALL.single { it.id == "bill" }.id)
+    }
+
+    @Test
+    fun specById_andGroupedByArea() {
+        assertNull(StarterCatalog.specById(null))
+        assertNull(StarterCatalog.specById(""))
+        assertNull(StarterCatalog.specById("nope"))
+        assertEquals("nails", StarterCatalog.specById("nails")?.id)
+        val labels = StarterCatalog.groupedByArea().map { it.first }
+        assertEquals(TaskAreas.PRESETS, labels)
+        val kitchen = StarterCatalog.groupedByArea().single { it.first == "Kitchen" }.second
+        assertTrue(kitchen.any { it.id == "deep_kitchen" })
     }
 
     @Test

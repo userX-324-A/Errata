@@ -13,12 +13,20 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -34,6 +42,8 @@ import com.errata.app.R
 import com.errata.app.domain.starter.StarterCatalog
 import com.errata.app.domain.starter.StarterSpec
 import com.errata.app.reminders.ExactAlarmAccess
+import com.errata.app.ui.theme.ErrataScreenInsets
+import com.errata.app.ui.theme.ErrataTopInsets
 
 @Composable
 fun StarterPackEmpty(
@@ -81,19 +91,21 @@ fun StarterPackEmpty(
                 .fillMaxWidth()
                 .padding(top = 8.dp),
         )
-        StarterCatalog.ALL.forEach { spec ->
-            StarterRow(
-                spec = spec,
-                selected = spec.id in selectedIds,
-                onToggle = {
-                    selectedIds = if (spec.id in selectedIds) {
-                        selectedIds - spec.id
-                    } else {
-                        selectedIds + spec.id
-                    }
-                },
-            )
-        }
+        StarterGroupedList(
+            onRow = { spec ->
+                StarterCheckboxRow(
+                    spec = spec,
+                    selected = spec.id in selectedIds,
+                    onToggle = {
+                        selectedIds = if (spec.id in selectedIds) {
+                            selectedIds - spec.id
+                        } else {
+                            selectedIds + spec.id
+                        }
+                    },
+                )
+            },
+        )
         Button(
             onClick = {
                 val specs = StarterCatalog.specsByIds(selectedIds)
@@ -143,8 +155,91 @@ fun StarterPackEmpty(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun StarterRow(
+fun StarterCatalogScreen(
+    onBack: () -> Unit,
+    onBlankTask: () -> Unit,
+    onPickStarter: (String) -> Unit,
+) {
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text(stringResource(R.string.catalog_title)) },
+                navigationIcon = {
+                    IconButton(onClick = onBack) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Filled.ArrowBack,
+                            contentDescription = stringResource(R.string.action_back),
+                        )
+                    }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.background,
+                ),
+                windowInsets = ErrataTopInsets,
+            )
+        },
+        containerColor = MaterialTheme.colorScheme.background,
+        contentWindowInsets = ErrataScreenInsets,
+    ) { innerPadding ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(innerPadding)
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 20.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable(onClick = onBlankTask)
+                    .padding(vertical = 8.dp),
+            ) {
+                Text(
+                    text = stringResource(R.string.catalog_blank),
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onBackground,
+                )
+                Text(
+                    text = stringResource(R.string.catalog_blank_hint),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            StarterGroupedList(
+                onRow = { spec ->
+                    StarterPickRow(
+                        spec = spec,
+                        onClick = { onPickStarter(spec.id) },
+                    )
+                },
+            )
+            Spacer(modifier = Modifier.height(24.dp))
+        }
+    }
+}
+
+@Composable
+private fun StarterGroupedList(
+    onRow: @Composable (StarterSpec) -> Unit,
+) {
+    StarterCatalog.groupedByArea().forEach { (label, rows) ->
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(top = 12.dp, bottom = 4.dp),
+        )
+        rows.forEach { spec -> onRow(spec) }
+    }
+}
+
+@Composable
+private fun StarterCheckboxRow(
     spec: StarterSpec,
     selected: Boolean,
     onToggle: () -> Unit,
@@ -159,32 +254,55 @@ private fun StarterRow(
             checked = selected,
             onCheckedChange = { onToggle() },
         )
-        Column(
+        StarterRowCopy(
+            spec = spec,
             modifier = Modifier
                 .weight(1f)
                 .clickable(onClick = onToggle),
-        ) {
-            Text(
-                text = spec.title,
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.onBackground,
-            )
-            val area = spec.area.orEmpty()
-            val detail = buildString {
-                if (area.isNotEmpty()) {
-                    append(area)
-                    append(" · ")
-                }
-                append(StarterCatalog.cadenceSummary(spec))
-                append(" · ~")
-                append(spec.estimateMinutes)
-                append(" min")
+        )
+    }
+}
+
+@Composable
+private fun StarterPickRow(
+    spec: StarterSpec,
+    onClick: () -> Unit,
+) {
+    StarterRowCopy(
+        spec = spec,
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(vertical = 8.dp),
+    )
+}
+
+@Composable
+private fun StarterRowCopy(
+    spec: StarterSpec,
+    modifier: Modifier = Modifier,
+) {
+    Column(modifier = modifier) {
+        Text(
+            text = spec.title,
+            style = MaterialTheme.typography.titleMedium,
+            color = MaterialTheme.colorScheme.onBackground,
+        )
+        val area = spec.area.orEmpty()
+        val detail = buildString {
+            if (area.isNotEmpty()) {
+                append(area)
+                append(" · ")
             }
-            Text(
-                text = detail,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+            append(StarterCatalog.cadenceSummary(spec))
+            append(" · ~")
+            append(spec.estimateMinutes)
+            append(" min")
         }
+        Text(
+            text = detail,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
     }
 }

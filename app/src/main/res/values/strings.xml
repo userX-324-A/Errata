@@ -8,6 +8,9 @@
     <string name="starters_body">Pick what you actually do. You can edit them later.</string>
     <string name="starters_pin">Pin selected</string>
     <string name="starters_pinned_hint">Pinned. They’ll show here when due — All tasks lists them now.</string>
+    <string name="catalog_title">Add a task</string>
+    <string name="catalog_blank">Blank task</string>
+    <string name="catalog_blank_hint">Title and cadence from scratch</string>
 
     <string name="section_overdue">Overdue</string>
     <string name="section_due_today">Due today</string>
@@ -123,8 +126,10 @@
     <string name="widget_empty">Nothing due</string>
     <string name="widget_line">%1$d due · ~%2$d min</string>
     <string name="field_reminder">Reminder time</string>
-    <string name="reminder_use_default">Default (%1$s)</string>
-    <string name="reminder_using_default">Using default · %1$s</string>
+    <string name="reminder_when_due">When due</string>
+    <string name="reminder_when_due_summary">When due · %1$s</string>
+    <string name="reminder_use_default">Remind at %1$s</string>
+    <string name="reminder_using_default">Using app default · %1$s</string>
     <string name="reminder_custom">Custom · %1$s</string>
 
     <string name="menu_more">More</string>

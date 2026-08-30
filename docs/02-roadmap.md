@@ -52,7 +52,7 @@ Tier 3 core is in tree. Ask before starting anything under **Later**.
 - [x] Richer cadence (weekly weekday sets + monthly day-of-month)
 - [x] Nth-weekday (“first Saturday”: 1st–4th or last of one weekday)
 - [x] Yearly / seasonal (selected months + northern civil season starts)
-- [x] Templates / starters for empty state
+- [x] Templates / starters as catalog on add (empty-state multi-pin kept)
 - [x] Play Store packaging + privacy text (still local-first)
 - [x] Multi-device via file / optional user-chosen folder (no account)
 - [x] Optional Google Drive App Data (opt-in; needs your OAuth client — [`07-google-sync.md`](./07-google-sync.md))

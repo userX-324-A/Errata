@@ -13,8 +13,11 @@ import java.time.ZoneId
 object ReminderTimeCalculator {
 
     /**
+     * @param defaultReminderMinutesOfDay unused for fire time; kept so callers pass settings.
+     *   Null [TaskEntity.reminderMinutesOfDay] fires at the due clock time.
      * @return epoch millis to fire, or null if the task should not be scheduled
      */
+    @Suppress("UNUSED_PARAMETER")
     fun nextFireEpochMs(
         task: TaskEntity,
         defaultReminderMinutesOfDay: Int,
@@ -28,7 +31,8 @@ object ReminderTimeCalculator {
             return snooze
         }
 
-        val minutes = task.reminderMinutesOfDay ?: defaultReminderMinutesOfDay
+        val minutes = task.reminderMinutesOfDay
+            ?: CadenceCalculator.minutesOfDay(task.nextDueAtEpochMs, zone)
         val dueDay = CadenceCalculator.epochDayOf(task.nextDueAtEpochMs, zone)
         val today = Instant.ofEpochMilli(nowEpochMs).atZone(zone).toLocalDate().toEpochDay()
 

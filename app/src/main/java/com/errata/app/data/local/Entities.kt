@@ -35,6 +35,7 @@ data class TaskEntity(
     val anchorEpochDay: Long,
     val nextDueAtEpochMs: Long,
     val lastCompletedAtEpochMs: Long? = null,
+    /** null = fire at the due clock time */
     val reminderMinutesOfDay: Int? = null,
     val snoozedUntilEpochMs: Long? = null,
     val area: String? = null,

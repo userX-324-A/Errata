@@ -83,7 +83,7 @@ Authority for **what** we build and **why**. Roadmap order lives in [`02-roadmap
 | **Helps** | Remembering without opening the app |
 | **When** | Chosen time-of-day |
 | **Pain removed** | Silent lists; or battery-killing always-on services |
-| **Does** | Global default time + optional per-task time; notification shows title + duration; actions **Done** / **Snooze**; reschedule after boot |
+| **Does** | Fire at the due clock by default; optional per-task time or Settings default; notification shows title + duration; actions **Done** / **Snooze**; reschedule after boot |
 | **Does not** | Sticky foreground service; high-frequency polling |
 
 **Default fire model:** **per-task** (or shared time coalesced when identical). Optional **morning digest** is Tier 2, opt-in.
@@ -240,7 +240,7 @@ Authority for **what** we build and **why**. Roadmap order lives in [`02-roadmap
 | Feature | Purpose |
 |---|---|
 | Richer cadence | Weekly weekday sets, monthly day-of-month, weekday of month (1st–4th / last), yearly months and civil seasons |
-| Templates / starters | Editable seed pack on true empty state; user-chosen pin, not auto-seed |
+| Templates / starters | Catalog on every Add task (area groups + blank); empty-state still multi-check pin; user-chosen, not auto-seed |
 | Multi-device via file | Export/import plus optional user-chosen folder (`errata-backup.json`, last write wins). Drive via the system picker |
 | Optional Google Drive | Opt-in Google sign-in; hidden Drive **appDataFolder**; merge across devices; WorkManager, no FGS. SAF stays |
 | Play Store packaging | Privacy policy + listing/Data safety copy |

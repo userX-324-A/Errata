@@ -15,6 +15,7 @@ import com.errata.app.domain.cadence.Weekdays
 import com.errata.app.domain.cadence.YearMonths
 import com.errata.app.domain.cadence.Yearly
 import com.errata.app.domain.history.HistoryGlance
+import com.errata.app.domain.starter.StarterCatalog
 import java.time.DayOfWeek
 import java.time.LocalDate
 import java.time.Month
@@ -46,7 +47,7 @@ data class TaskEditorUiState(
     val existingUuid: String = "",
     val createdAtEpochMs: Long = 0L,
     val lastCompletedAtEpochMs: Long? = null,
-    /** null = use app default reminder time */
+    /** null = remind at the due clock time */
     val reminderMinutesOfDay: Int? = null,
     val defaultReminderMinutesOfDay: Int = 9 * 60,
     val snoozedUntilEpochMs: Long? = null,
@@ -62,6 +63,7 @@ data class TaskEditorUiState(
 class TaskEditorViewModel(
     private val commands: TaskCommands,
     private val taskId: Long,
+    private val starterId: String? = null,
     private val zone: ZoneId = ZoneId.systemDefault(),
 ) : ViewModel() {
 
@@ -72,19 +74,57 @@ class TaskEditorViewModel(
         viewModelScope.launch {
             val settings = commands.getSettings()
             if (taskId == 0L) {
-                val mode = settings.defaultCadenceMode
-                val today = LocalDate.now(zone).toEpochDay()
-                val dueMinutes = settings.defaultReminderMinutesOfDay
-                _uiState.update {
-                    it.copy(
-                        cadenceMode = mode,
-                        dueEpochDay = today,
-                        dueMinuteOfDay = dueMinutes,
-                        anchorEpochDay = today,
-                        defaultReminderMinutesOfDay = settings.defaultReminderMinutesOfDay,
-                        reminderMinutesOfDay = null,
-                        loaded = true,
+                val spec = StarterCatalog.specById(starterId)
+                if (spec != null) {
+                    val now = System.currentTimeMillis()
+                    val entity = StarterCatalog.materialize(
+                        spec = spec,
+                        cadenceMode = settings.defaultCadenceMode,
+                        reminderMinutesOfDay = settings.defaultReminderMinutesOfDay,
+                        nowEpochMs = now,
+                        zone = zone,
                     )
+                    _uiState.update {
+                        it.copy(
+                            cadenceMode = entity.cadenceMode,
+                            title = entity.title,
+                            estimateMinutes = entity.estimateMinutes.toString(),
+                            intervalDays = entity.intervalDays.toString(),
+                            scheduleKind = entity.scheduleKind,
+                            weekdaysMask = entity.weekdaysMask,
+                            monthDay = entity.monthDay.takeIf { day -> day in 1..31 }?.toString()
+                                ?: "15",
+                            weekdayOrdinal = entity.weekdayOrdinal.takeIf { NthWeekday.isValid(it) }
+                                ?: 1,
+                            yearMonthsMask = entity.yearMonthsMask,
+                            seasonMask = entity.seasonMask,
+                            dueEpochDay = CadenceCalculator.epochDayOf(entity.nextDueAtEpochMs, zone),
+                            dueMinuteOfDay = CadenceCalculator.minutesOfDay(
+                                entity.nextDueAtEpochMs,
+                                zone,
+                            ),
+                            anchorEpochDay = entity.anchorEpochDay,
+                            defaultReminderMinutesOfDay = settings.defaultReminderMinutesOfDay,
+                            reminderMinutesOfDay = null,
+                            area = entity.area,
+                            loaded = true,
+                        )
+                    }
+                } else {
+                    val mode = settings.defaultCadenceMode
+                    val today = LocalDate.now(zone).toEpochDay()
+                    val dueMinutes = settings.defaultReminderMinutesOfDay
+                    _uiState.update {
+                        it.copy(
+                            cadenceMode = mode,
+                            dueEpochDay = today,
+                            dueMinuteOfDay = dueMinutes,
+                            anchorEpochDay = today,
+                            defaultReminderMinutesOfDay = settings.defaultReminderMinutesOfDay,
+                            reminderMinutesOfDay = null,
+                            loaded = true,
+                        )
+                    }
                 }
             } else {
                 val task = commands.getTask(taskId)
@@ -229,7 +269,10 @@ class TaskEditorViewModel(
     fun updateDueMinuteOfDay(minutes: Int) = _uiState.update {
         it.copy(dueMinuteOfDay = minutes.coerceIn(0, 24 * 60 - 1))
     }
-    fun useDefaultReminder() = _uiState.update { it.copy(reminderMinutesOfDay = null) }
+    fun useWhenDueReminder() = _uiState.update { it.copy(reminderMinutesOfDay = null) }
+    fun useAppDefaultReminder() = _uiState.update {
+        it.copy(reminderMinutesOfDay = it.defaultReminderMinutesOfDay)
+    }
     fun updateReminderMinutes(minutes: Int) = _uiState.update {
         it.copy(reminderMinutesOfDay = minutes.coerceIn(0, 24 * 60 - 1))
     }
@@ -332,11 +375,15 @@ class TaskEditorViewModel(
     }
 
     companion object {
-        fun factory(commands: TaskCommands, taskId: Long): ViewModelProvider.Factory =
+        fun factory(
+            commands: TaskCommands,
+            taskId: Long,
+            starterId: String = "",
+        ): ViewModelProvider.Factory =
             object : ViewModelProvider.Factory {
                 @Suppress("UNCHECKED_CAST")
                 override fun <T : ViewModel> create(modelClass: Class<T>): T =
-                    TaskEditorViewModel(commands, taskId) as T
+                    TaskEditorViewModel(commands, taskId, starterId) as T
             }
     }
 }

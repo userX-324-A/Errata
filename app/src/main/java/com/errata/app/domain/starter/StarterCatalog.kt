@@ -6,10 +6,13 @@ import com.errata.app.domain.cadence.CadenceCalculator
 import com.errata.app.domain.cadence.CadenceMode
 import com.errata.app.domain.cadence.NthWeekday
 import com.errata.app.domain.cadence.ScheduleKind
+import com.errata.app.domain.cadence.Seasons
 import com.errata.app.domain.cadence.Weekdays
+import com.errata.app.domain.cadence.YearMonths
 import com.errata.app.domain.cadence.Yearly
 import java.time.DayOfWeek
 import java.time.Instant
+import java.time.Month
 import java.time.ZoneId
 
 data class StarterSpec(
@@ -27,76 +30,142 @@ data class StarterSpec(
 )
 
 /**
- * In-app seed pack for true empty state. User-chosen; never auto-inserted.
+ * In-app seed pack. User-chosen; never auto-inserted.
  */
 object StarterCatalog {
 
     val ALL: List<StarterSpec> = listOf(
+        StarterSpec("nails", "Trim nails", 10, ScheduleKind.INTERVAL, intervalDays = 14, area = "Body"),
+        StarterSpec("beard", "Trim beard", 15, ScheduleKind.INTERVAL, intervalDays = 7, area = "Body"),
+        StarterSpec("haircut", "Haircut", 45, ScheduleKind.INTERVAL, intervalDays = 42, area = "Body"),
+        StarterSpec("glasses", "Clean glasses", 5, ScheduleKind.INTERVAL, intervalDays = 7, area = "Body"),
+        StarterSpec("bathroom", "Clean bathroom", 25, ScheduleKind.INTERVAL, intervalDays = 7, area = "Bathroom"),
+        StarterSpec("towels", "Wash towels", 20, ScheduleKind.INTERVAL, intervalDays = 7, area = "Bathroom"),
+        StarterSpec("drain", "Clear shower drain", 15, ScheduleKind.INTERVAL, intervalDays = 30, area = "Bathroom"),
+        StarterSpec("grout", "Scrub grout", 30, ScheduleKind.INTERVAL, intervalDays = 90, area = "Bathroom"),
+        StarterSpec("fridge", "Wipe the fridge", 20, ScheduleKind.INTERVAL, intervalDays = 14, area = "Kitchen"),
+        StarterSpec("dishwasher", "Clean dishwasher filter", 15, ScheduleKind.INTERVAL, intervalDays = 30, area = "Kitchen"),
+        StarterSpec("counters", "Wipe kitchen counters", 10, ScheduleKind.INTERVAL, intervalDays = 7, area = "Kitchen"),
         StarterSpec(
-            id = "nails",
-            title = "Trim nails",
-            estimateMinutes = 10,
-            scheduleKind = ScheduleKind.INTERVAL,
-            intervalDays = 14,
-            area = "Body",
+            id = "compost",
+            title = "Empty compost caddy",
+            estimateMinutes = 5,
+            scheduleKind = ScheduleKind.WEEKLY,
+            weekdaysMask = Weekdays.bit(DayOfWeek.SUNDAY),
+            area = "Kitchen",
         ),
         StarterSpec(
-            id = "bathroom",
-            title = "Clean bathroom",
-            estimateMinutes = 25,
-            scheduleKind = ScheduleKind.INTERVAL,
-            intervalDays = 7,
-            area = "Bathroom",
+            id = "deep_kitchen",
+            title = "Deep-clean kitchen",
+            estimateMinutes = 45,
+            scheduleKind = ScheduleKind.NTH_WEEKDAY,
+            weekdaysMask = Weekdays.bit(DayOfWeek.SATURDAY),
+            weekdayOrdinal = 1,
+            area = "Kitchen",
         ),
-        StarterSpec(
-            id = "hvac",
-            title = "Change HVAC filter",
-            estimateMinutes = 20,
-            scheduleKind = ScheduleKind.INTERVAL,
-            intervalDays = 90,
-            area = "House",
-        ),
-        StarterSpec(
-            id = "car",
-            title = "Vacuum the car",
-            estimateMinutes = 20,
-            scheduleKind = ScheduleKind.INTERVAL,
-            intervalDays = 30,
-            area = "Car",
-        ),
-        StarterSpec(
-            id = "paper",
-            title = "Sort the paper pile",
-            estimateMinutes = 15,
-            scheduleKind = ScheduleKind.INTERVAL,
-            intervalDays = 7,
-            area = "Paper",
-        ),
-        StarterSpec(
-            id = "bedding",
-            title = "Wash bedding",
-            estimateMinutes = 20,
-            scheduleKind = ScheduleKind.INTERVAL,
-            intervalDays = 14,
-            area = "House",
-        ),
+        StarterSpec("hvac", "Change HVAC filter", 20, ScheduleKind.INTERVAL, intervalDays = 90, area = "House"),
+        StarterSpec("bedding", "Wash bedding", 20, ScheduleKind.INTERVAL, intervalDays = 14, area = "House"),
         StarterSpec(
             id = "bins",
             title = "Put the bins out",
             estimateMinutes = 10,
             scheduleKind = ScheduleKind.WEEKLY,
-            intervalDays = CadenceCalculator.GRID_INTERVAL_DAYS,
             weekdaysMask = Weekdays.bit(DayOfWeek.TUESDAY),
             area = "House",
         ),
+        StarterSpec("vacuum", "Vacuum living space", 25, ScheduleKind.INTERVAL, intervalDays = 7, area = "House"),
+        StarterSpec("cobwebs", "Dust high corners", 15, ScheduleKind.INTERVAL, intervalDays = 30, area = "House"),
+        StarterSpec("windows", "Wash windows", 40, ScheduleKind.INTERVAL, intervalDays = 180, area = "House"),
+        StarterSpec("mattress", "Rotate the mattress", 15, ScheduleKind.INTERVAL, intervalDays = 180, area = "House"),
+        StarterSpec(
+            id = "gutters",
+            title = "Clear the gutters",
+            estimateMinutes = 60,
+            scheduleKind = ScheduleKind.YEARLY,
+            seasonMask = Seasons.AUTUMN,
+            area = "House",
+        ),
+        StarterSpec(
+            id = "detectors",
+            title = "Replace detector batteries",
+            estimateMinutes = 20,
+            scheduleKind = ScheduleKind.YEARLY,
+            yearMonthsMask = YearMonths.bit(Month.MARCH),
+            monthDay = 1,
+            area = "House",
+        ),
+        StarterSpec("laundry", "Do laundry", 30, ScheduleKind.INTERVAL, intervalDays = 7, area = "Clothes"),
+        StarterSpec("lint", "Empty dryer lint", 5, ScheduleKind.INTERVAL, intervalDays = 7, area = "Clothes"),
+        StarterSpec(
+            id = "coats",
+            title = "Wash winter coats",
+            estimateMinutes = 30,
+            scheduleKind = ScheduleKind.YEARLY,
+            seasonMask = Seasons.SPRING,
+            area = "Clothes",
+        ),
+        StarterSpec("car", "Vacuum the car", 20, ScheduleKind.INTERVAL, intervalDays = 30, area = "Car"),
+        StarterSpec("tires", "Check tire pressure", 10, ScheduleKind.INTERVAL, intervalDays = 30, area = "Car"),
+        StarterSpec("oil", "Oil-change reminder", 10, ScheduleKind.INTERVAL, intervalDays = 90, area = "Car"),
+        StarterSpec("wipers", "Replace wiper blades", 20, ScheduleKind.INTERVAL, intervalDays = 180, area = "Car"),
+        StarterSpec("paper", "Sort the paper pile", 15, ScheduleKind.INTERVAL, intervalDays = 7, area = "Paper"),
         StarterSpec(
             id = "bill",
             title = "Review a bill",
             estimateMinutes = 15,
             scheduleKind = ScheduleKind.MONTHLY,
-            intervalDays = CadenceCalculator.GRID_INTERVAL_DAYS,
             monthDay = 1,
             area = "Paper",
+        ),
+        StarterSpec(
+            id = "insurance",
+            title = "Review insurance",
+            estimateMinutes = 30,
+            scheduleKind = ScheduleKind.YEARLY,
+            yearMonthsMask = YearMonths.bit(Month.JANUARY),
+            monthDay = 15,
+            area = "Paper",
+        ),
+        StarterSpec(
+            id = "taxes",
+            title = "Gather tax papers",
+            estimateMinutes = 45,
+            scheduleKind = ScheduleKind.YEARLY,
+            yearMonthsMask = YearMonths.bit(Month.FEBRUARY),
+            monthDay = 1,
+            area = "Paper",
+        ),
+        StarterSpec(
+            id = "recycling",
+            title = "Recycling day",
+            estimateMinutes = 10,
+            scheduleKind = ScheduleKind.WEEKLY,
+            weekdaysMask = Weekdays.bit(DayOfWeek.WEDNESDAY),
+            area = "House",
+        ),
+        StarterSpec(
+            id = "plants",
+            title = "Water the plants",
+            estimateMinutes = 10,
+            scheduleKind = ScheduleKind.INTERVAL,
+            intervalDays = 7,
+            area = "House",
+        ),
+        StarterSpec(
+            id = "lights",
+            title = "Pack holiday lights",
+            estimateMinutes = 20,
+            scheduleKind = ScheduleKind.YEARLY,
+            seasonMask = Seasons.WINTER,
+            area = "House",
+        ),
+        StarterSpec(
+            id = "ac_cover",
+            title = "Store the AC cover",
+            estimateMinutes = 15,
+            scheduleKind = ScheduleKind.YEARLY,
+            seasonMask = Seasons.SPRING,
+            area = "House",
         ),
     )
 
@@ -104,6 +173,25 @@ object StarterCatalog {
         if (ids.isEmpty()) return emptyList()
         val wanted = ids.toSet()
         return ALL.filter { it.id in wanted }
+    }
+
+    fun specById(id: String?): StarterSpec? {
+        if (id.isNullOrBlank()) return null
+        return ALL.firstOrNull { it.id == id }
+    }
+
+    /** Preset area order, then any other labels, unnamed last. */
+    fun groupedByArea(): List<Pair<String, List<StarterSpec>>> {
+        val groups = ALL.groupBy { it.area?.takeIf { label -> label.isNotBlank() } ?: "" }
+        val extra = groups.keys
+            .filter { it.isNotEmpty() && it !in TaskAreas.PRESETS }
+            .sortedBy { it.lowercase() }
+        val order = TaskAreas.PRESETS + extra + listOf("")
+        return order.mapNotNull { key ->
+            val rows = groups[key] ?: return@mapNotNull null
+            val label = key.ifEmpty { "Other" }
+            label to rows
+        }
     }
 
     fun cadenceSummary(spec: StarterSpec): String = when (spec.scheduleKind) {

@@ -142,9 +142,8 @@ fun TaskEditorScreen(
         val dueDateLabel = DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM)
             .format(LocalDate.ofEpochDay(state.dueEpochDay))
         val dueTimeLabel = formatMinutes(state.dueMinuteOfDay)
-        val reminderLabel = formatMinutes(
-            state.reminderMinutesOfDay ?: state.defaultReminderMinutesOfDay,
-        )
+        val reminderMinutes = state.reminderMinutesOfDay ?: state.dueMinuteOfDay
+        val reminderLabel = formatMinutes(reminderMinutes)
 
         Column(
             modifier = Modifier
@@ -505,10 +504,13 @@ fun TaskEditorScreen(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             Text(
-                text = if (state.reminderMinutesOfDay == null) {
-                    stringResource(R.string.reminder_using_default, reminderLabel)
-                } else {
-                    stringResource(R.string.reminder_custom, reminderLabel)
+                text = when {
+                    state.reminderMinutesOfDay == null ->
+                        stringResource(R.string.reminder_when_due_summary, reminderLabel)
+                    state.reminderMinutesOfDay == state.defaultReminderMinutesOfDay ->
+                        stringResource(R.string.reminder_using_default, reminderLabel)
+                    else ->
+                        stringResource(R.string.reminder_custom, reminderLabel)
                 },
                 style = MaterialTheme.typography.bodyLarge,
             )
@@ -518,7 +520,12 @@ fun TaskEditorScreen(
             ) {
                 FilterChip(
                     selected = state.reminderMinutesOfDay == null,
-                    onClick = viewModel::useDefaultReminder,
+                    onClick = viewModel::useWhenDueReminder,
+                    label = { Text(stringResource(R.string.reminder_when_due)) },
+                )
+                FilterChip(
+                    selected = state.reminderMinutesOfDay == state.defaultReminderMinutesOfDay,
+                    onClick = viewModel::useAppDefaultReminder,
                     label = {
                         Text(
                             stringResource(
@@ -612,7 +619,7 @@ fun TaskEditorScreen(
         val initialMinutes = when (target) {
             TimePickerTarget.DUE -> state.dueMinuteOfDay
             TimePickerTarget.REMINDER ->
-                state.reminderMinutesOfDay ?: state.defaultReminderMinutesOfDay
+                state.reminderMinutesOfDay ?: state.dueMinuteOfDay
         }
         val timeState = rememberTimePickerState(
             initialHour = initialMinutes / 60,

@@ -96,7 +96,7 @@ Existing installs migrate 7→8 with generated UUIDs. Calendar-grid rows keep a 
 - Optional area filter when any library row has an area; same quiet card label as pending  
 - Row → editor; Pause / Resume; Archive (confirm) hides from library; no archived browser yet  
 - Done / Snooze stay on pending only  
-- **Empty state:** in-app starter pack (`StarterCatalog`) when there are zero active tasks. User checks what they actually do and pins; rows become normal tasks. First due is the next slot (interval = tomorrow at the default reminder time; weekly/monthly/nth-weekday/yearly = next matching local day). Not shown once any task is pinned. Pending “nothing due” with existing later tasks stays the caught-up copy. No download, no new permission.  
+- **Empty state:** in-app starter pack (`StarterCatalog`) when there are zero active tasks. User checks what they actually do and pins; rows become normal tasks. First due is the next slot (interval = tomorrow at the default reminder time; weekly/monthly/nth-weekday/yearly = next matching local day). **Add task** (pending/library FAB, and empty-state Add task) opens the same catalog grouped by area; **Blank task** is a scratch editor. Tapping one starter pre-fills the editor (`task/0?starter=`). Same starter may be pinned more than once. Multi-check Pin selected stays on the true empty state only. Pending “nothing due” with existing later tasks stays the caught-up copy. No download, no new permission.  
 
 ## Home widget
 
@@ -123,9 +123,9 @@ Existing installs migrate 7→8 with generated UUIDs. Calendar-grid rows keep a 
 ## Reminder policy
 
 - **In tree:** `AlarmManager` one-shot per active task; `BootReceiver` + launch `rescheduleAll`  
-- Global default time-of-day + optional per-task override (editor chips)  
+- Global default time-of-day seeds **new blank** due times and the optional morning digest. Per-task `reminderMinutesOfDay` null means fire at the **due clock**; an editor override stores a minute-of-day. Changing due time does not require touching reminder when “When due” is selected.  
 - **Default:** per-task fires — not digest  
-- **Opt-in digest:** Settings toggle (off by default). One standing alarm at the default reminder time. Coalesces overdue + due-today tasks that use the default time. Custom reminder times and future snoozes stay per-task. At fire: N=0 silent; N=1 existing per-task card (Done/Snooze); N≥2 one notification (count + total minutes, tap pending). Cadence math unchanged if a digest is missed.  
+- **Opt-in digest:** Settings toggle (off by default). One standing alarm at the default reminder time. Coalesces overdue + due-today tasks whose **effective** fire minutes equal that default (due clock when reminder is null, else the override). A 2pm-due task on “When due” does not join a 9am digest. Custom reminder times and future snoozes stay per-task. At fire: N=0 silent; N=1 existing per-task card (Done/Snooze); N≥2 one notification (count + total minutes, tap pending). Cadence math unchanged if a digest is missed.  
 - Notification: title + duration hint; actions Done / Snooze (notification snooze = 1 hour)  
 - In-app snooze: 1h / later today / tomorrow / pick clock time (past → tomorrow)  
 - Exact when `canScheduleExactAlarms()`; otherwise `setAndAllowWhileIdle`  
@@ -151,4 +151,4 @@ Existing installs migrate 7→8 with generated UUIDs. Calendar-grid rows keep a 
 
 ## Battery budget
 
-**Reminders:** Each task gets at most one `AlarmManager` RTC wakeup at a time (due-day reminder time, or snooze instant, or next-day nudge while still open), except when **morning digest** is on: then there is one standing wakeup at the default reminder time covering default-time overdue/due-today tasks, plus per-task alarms only for custom times and future snoozes. **Widget:** while pinned, one additional inexact midnight wakeup so “due today” stays honest. **Google sync (linked only):** one unique WorkManager job, 45s debounce after writes, plus a 24h CONNECTED catch-up; also on process start and app foreground. No foreground service, no wake lock held across UI. Boot and cold start only reschedule alarms (and refresh the widget), then release; if linked, enqueue one sync. Justification: user-expected due reminders without continuous background work; opt-in Drive merge without polling.
+**Reminders:** Each task gets at most one `AlarmManager` RTC wakeup at a time (due-clock or override reminder time, or snooze instant, or next-day nudge while still open), except when **morning digest** is on: then there is one standing wakeup at the default reminder time covering overdue/due-today tasks whose effective fire minutes equal that default, plus per-task alarms only for other times and future snoozes. **Widget:** while pinned, one additional inexact midnight wakeup so “due today” stays honest. **Google sync (linked only):** one unique WorkManager job, 45s debounce after writes, plus a 24h CONNECTED catch-up; also on process start and app foreground. No foreground service, no wake lock held across UI. Boot and cold start only reschedule alarms (and refresh the widget), then release; if linked, enqueue one sync. Justification: user-expected due reminders without continuous background work; opt-in Drive merge without polling.
