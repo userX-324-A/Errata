@@ -6,12 +6,14 @@
     <string name="pending_empty_body">When something’s due, it’ll show up here with how long it should take.</string>
     <string name="starters_empty_title">Pin a few tasks</string>
     <string name="starters_heading">Starters</string>
-    <string name="starters_body">Pick what you actually do. Tap a row to change minutes, or check several and pin. Pending uses those minutes.</string>
+    <string name="starters_body">Check a few you actually do, then pin. Tap a row to check it. Minutes changes the estimate.</string>
+    <string name="starters_while_editing">Continue in the other pane, or go Back to pin several.</string>
     <string name="starters_pin">Pin selected</string>
     <string name="starters_pinned_hint">Pinned. Due today or soon shows here; the rest are in All tasks. Edit minutes there if a duration feels off.</string>
     <string name="catalog_title">Add a task</string>
     <string name="catalog_blank">Blank task</string>
     <string name="catalog_blank_hint">Title, minutes, and cadence from scratch</string>
+    <string name="catalog_edit_minutes">Minutes</string>
 
     <string name="section_overdue">Overdue</string>
     <string name="section_due_today">Due today</string>
@@ -22,8 +24,8 @@
     <string name="free_window_until_work">Until work</string>
     <string name="free_window_custom">Custom</string>
     <string name="free_window_show_all">Show all</string>
-    <string name="free_window_header_fits">Each %1$d min or less · %2$d left after the longest that fits</string>
-    <string name="free_window_header_empty">Nothing fits in %1$d min</string>
+    <string name="free_window_header_fits">Fits in %1$d min · ~%2$d left after the longest.</string>
+    <string name="free_window_header_empty">Nothing in this window.</string>
     <string name="free_window_header_clock_passed">That clock has passed</string>
     <string name="free_window_empty">Nothing on the list fits this window. Widen it or show all.</string>
     <string name="free_window_empty_clock_passed">Show all to see what’s due, or pick another window.</string>
@@ -44,7 +46,9 @@
     <string name="honesty_shorter">Shorter</string>
     <string name="honesty_same">About right</string>
     <string name="honesty_longer">Longer</string>
+    <string name="honesty_not_now">Not now</string>
     <string name="action_save">Save</string>
+    <string name="action_change">Change</string>
     <string name="action_back">Back</string>
     <string name="action_ok">OK</string>
     <string name="action_cancel">Cancel</string>
@@ -70,7 +74,7 @@
     <string name="area_filter_empty">Nothing in %1$s.</string>
     <string name="field_estimate">Estimated minutes</string>
     <string name="field_estimate_hint">Used for Pending and time chips.</string>
-    <string name="estimate_chip">%1$d min</string>
+    <string name="estimate_chip">%1$d</string>
     <string name="field_schedule">Schedule</string>
     <string name="schedule_interval">Every N days</string>
     <string name="schedule_weekly">Weekly</string>
@@ -100,10 +104,10 @@
     <string name="pick_reminder_time">Reminder time</string>
     <string name="due_today">Today</string>
     <string name="due_tomorrow">Tomorrow</string>
-    <string name="cadence_from_completion">From completion</string>
-    <string name="cadence_fixed">Fixed schedule</string>
+    <string name="cadence_from_completion">Last time</string>
+    <string name="cadence_fixed">Fixed</string>
     <string name="cadence_catch_up">Catch-up</string>
-    <string name="cadence_applies_after_done">Cadence mode and interval apply after the next Done. You can still set the next due date and time.</string>
+    <string name="cadence_applies_after_done">Applies after the next Done. You can still set the next due date and time.</string>
 
     <string name="error_title">Add a title</string>
     <string name="error_estimate">Estimate at least 1 minute</string>
@@ -138,9 +142,10 @@
     <string name="reminder_none_hint">No notification. Still shows on the pending list when due.</string>
     <string name="reminder_when_due">When due</string>
     <string name="reminder_when_due_summary">When due · %1$s</string>
-    <string name="reminder_when_due_hint">Fires at the due clock. Settings sets the default for new tasks and the morning digest.</string>
-    <string name="reminder_custom_hint">Fires at this clock, not the due time.</string>
-    <string name="reminder_custom">Custom · %1$s</string>
+    <string name="reminder_when_due_hint">Notifies at the due time.</string>
+    <string name="reminder_custom_hint">Notifies at this time, not when the task is due.</string>
+    <string name="reminder_custom">At a clock · %1$s</string>
+    <string name="reminder_clock">At a clock</string>
     <string name="reminder_at_clock">At %1$s</string>
     <string name="editor_discard_title">Discard changes?</string>
     <string name="editor_discard_body_new">This task will not be created.</string>
@@ -151,8 +156,11 @@
     <string name="nav_pending">Pending</string>
     <string name="nav_library">All tasks</string>
     <string name="nav_settings">Settings</string>
-    <string name="pane_empty_task">Select a task, or add one.</string>
-    <string name="pane_empty_settings">Backup and privacy open here.</string>
+    <string name="pane_empty_task">Tap a card to edit it here.</string>
+    <string name="pane_empty_starters">Tap a starter to set minutes, or check several and pin.</string>
+    <string name="pane_empty_pending">%1$d on the list · ~%2$d min.\nDone, Snooze, and Skip stay on the list. Tap a card to edit it here.</string>
+    <string name="pane_empty_caught_up">Nothing due right now.\nTap All tasks to edit a pin.</string>
+    <string name="pane_empty_settings">Backup and Privacy open beside Settings.</string>
     <string name="menu_all_tasks">All tasks</string>
     <string name="menu_settings">Settings</string>
     <string name="menu_backup">Backup</string>
@@ -164,14 +172,14 @@
     <string name="appearance_dark">Dark</string>
     <string name="settings_section_defaults">Defaults for new tasks</string>
     <string name="settings_default_reminder_kind">Default reminder</string>
-    <string name="settings_default_reminder_kind_hint">New tasks only. None stays on the pending list with no notification. Changing this does not retarget existing tasks.</string>
+    <string name="settings_default_reminder_kind_hint">New tasks only. Existing tasks keep their reminder.</string>
     <string name="settings_default_reminder">Default due time</string>
-    <string name="settings_default_reminder_hint">Seeds the due clock on a new task. Morning digest uses this time. Clock reminder uses it too.</string>
+    <string name="settings_default_reminder_hint">Due time for new tasks and the morning digest.</string>
     <string name="settings_digest">Morning digest</string>
-    <string name="settings_digest_hint">One notification at the default time instead of one per task. None never joins. Custom clocks stay per-task on the due day, then join while overdue. Something pinned after that still reminds the same day, once.</string>
+    <string name="settings_digest_hint">One morning notification instead of one per task.</string>
     <string name="settings_notifications">Notifications</string>
-    <string name="settings_notifications_on">Reminders can show on this device.</string>
-    <string name="settings_notifications_off">Due reminders stay silent until this is allowed. The device will not wake for them.</string>
+    <string name="settings_notifications_on">Allowed on this device.</string>
+    <string name="settings_notifications_off">Silent until allowed.</string>
     <string name="settings_notifications_open">Open notification settings</string>
     <string name="notify_prompt_title">Due reminders</string>
     <string name="notify_prompt_body">Errata can notify you when something is due. Optional — the list still works if you skip.</string>
@@ -179,31 +187,34 @@
     <string name="pending_notifications_off">Reminders are silent on this device until notifications are allowed.</string>
     <string name="pending_notifications_allow">Allow reminders</string>
     <string name="settings_exact_alarms">On-time reminders</string>
-    <string name="settings_exact_on">Reminders can fire at the time you picked.</string>
-    <string name="settings_exact_off">Without this, reminders may arrive a few minutes late. Nothing else changes.</string>
+    <string name="settings_exact_on">Arrives at the time you picked.</string>
+    <string name="settings_exact_off">May arrive a few minutes late.</string>
     <string name="settings_exact_open">Open system settings</string>
     <string name="exact_prompt_title">Reminders at the time you picked</string>
     <string name="exact_prompt_body">Android can delay them by a few minutes unless you allow exact alarms. Optional — the list still works.</string>
     <string name="exact_prompt_not_now">Not now</string>
     <string name="exact_prompt_allow">Allow</string>
     <string name="settings_default_cadence">Default after Done</string>
-    <string name="settings_cadence_hint">Applies to new tasks. Existing tasks keep their own cadence.</string>
+    <string name="settings_cadence_hint_last">New tasks only. Next due counts from when you last finished.</string>
+    <string name="settings_cadence_hint_fixed">New tasks only. Next due stays on the original calendar grid.</string>
+    <string name="settings_cadence_hint_catch_up">New tasks only. Counts from when you last finished, and shortens the wait a little if it was long overdue.</string>
     <string name="settings_work_start">Work start</string>
     <string name="settings_work_start_unset">Not set</string>
-    <string name="settings_work_start_hint">Optional. Powers the Pending Until work chip when that time is still ahead today.</string>
+    <string name="settings_work_start_hint">Optional. Powers Until work on Pending.</string>
     <string name="settings_set_time">Set time</string>
     <string name="settings_clear">Clear</string>
     <string name="settings_pick_work_start">Work start time</string>
     <string name="settings_section_data">On this device</string>
+    <string name="settings_section_remove">Remove</string>
     <string name="settings_history_retention">Completion history</string>
-    <string name="settings_history_retention_hint">Older Dones are dropped automatically. The last eight per task are always kept so typical lateness still works.</string>
+    <string name="settings_history_retention_hint">Older completions are dropped. The last eight per task stay.</string>
     <string name="settings_retention_90">90 days</string>
     <string name="settings_retention_1y">1 year</string>
     <string name="settings_retention_2y">2 years</string>
     <string name="settings_retention_all">Keep all</string>
     <string name="settings_purge_history">Clear all history</string>
     <string name="settings_purge_history_title">Clear completion history?</string>
-    <string name="settings_purge_history_body">Deletes every Done record. Tasks, next due, and last-completed stay. Typical lateness will be empty until you mark Done again.</string>
+    <string name="settings_purge_history_body">Deletes every completion. Tasks, next due, and last-completed stay. Typical lateness will be empty until you mark Done again.</string>
     <string name="settings_purge_history_confirm">Clear history</string>
     <string name="settings_reset_tasks">Delete all tasks</string>
     <string name="settings_reset_tasks_title">Delete all tasks?</string>
@@ -218,14 +229,21 @@
     <string name="privacy_heading_not">What isn’t collected</string>
     <string name="privacy_not">No ads, analytics, or crash reporters. There is no Errata server. If you link Google, task titles, notes, and history are sent to Google Drive app data over HTTPS. Unlink stops that. Uninstall does not delete the Drive copy unless you choose to delete it in Settings.</string>
     <string name="privacy_heading_permissions">Permissions</string>
-    <string name="privacy_permissions">Internet only to talk to Google when you opt in to Drive app data. Network state so background sync can wait for a connection. Notifications for reminders. Boot completed so reminders can be rescheduled after reboot. Optional exact alarms on Android 12+ so they can fire at the time you picked. Files and folders through the system picker when you export, import, or choose a folder.</string>
+    <string-array name="privacy_permission_items">
+        <item>Internet — only when you link Google Drive.</item>
+        <item>Network state — so sync can wait for a connection.</item>
+        <item>Notifications — for reminders.</item>
+        <item>Boot completed — to reschedule reminders after reboot.</item>
+        <item>Exact alarms — optional on Android 12+ so they can arrive at the time you picked.</item>
+        <item>Files — through the system picker when you export, import, or choose a folder.</item>
+    </string-array>
     <string name="privacy_heading_copies">Copies you make</string>
     <string name="privacy_copies">Export, import, and folder write/read are things you start. Import replaces all data here after you confirm. If Google is linked, import then uploads so the Drive copy follows this device. Optional Google link stores a hidden app file in your Drive — not a file you pick in the sheet.</string>
     <string name="privacy_heading_system">System backup</string>
     <string name="privacy_system">Android cloud backup of Errata data is off. Move to another phone or tablet with Backup export or the folder file. Reminders are local. Errata is not a medical device.</string>
     <string name="settings_footer">No Errata account. Link Google only if you want phone and tablet to share a hidden Drive copy.</string>
     <string name="settings_google">Google</string>
-    <string name="settings_google_hint">Optional. Sign in with Google to keep this list in a hidden Drive app folder. Errata has no account of its own.</string>
+    <string name="settings_google_hint">Optional. A hidden Drive copy — Errata has no account.</string>
     <string name="settings_google_link">Link Google</string>
     <string name="settings_google_sync_now">Sync now</string>
     <string name="settings_google_unlink">Unlink</string>
@@ -236,7 +254,7 @@
     <string name="settings_google_wipe_title">Delete the Google copy?</string>
     <string name="settings_google_wipe_body">Removes Errata’s hidden file from your Drive and unlinks this device. Tasks here stay. Uninstalling the app does not delete that file unless you do this.</string>
     <string name="settings_google_wipe_confirm">Delete Google copy</string>
-    <string name="settings_google_not_configured">Google sync is not set up in this build. Add the OAuth client id — see docs/07-google-sync.md.</string>
+    <string name="settings_google_not_configured">Google isn’t set up in this build. Folder export still works.</string>
     <string name="settings_google_no_play">Google Play services are required to link. Folder export still works.</string>
     <string name="settings_google_sync_pending">Waiting for the first sync.</string>
     <string name="settings_google_last_sync">Last sync %1$s</string>
@@ -244,7 +262,7 @@
     <string name="settings_google_error_wipe">Couldn’t delete the Google copy. Stay linked and try again when online.</string>
     <string name="settings_google_error_sign_in">Couldn’t open Google sign-in. Try again, or check that this Google account is a test user in Cloud Console.</string>
     <string name="settings_google_error_network">Couldn’t reach Google. Will try again later.</string>
-    <string name="settings_google_error_conflict">Both devices wrote at once. Will retry.</string>
+    <string name="settings_google_error_conflict">Couldn’t update the Google copy this time. Will retry.</string>
     <string name="settings_google_error_corrupt">Google copy is unreadable. It was not overwritten.</string>
     <string name="settings_reset_also_cloud">Also clear the Google copy so the other device empties too. Off: this device only — Google will restore the list.</string>
     <string name="backup_confirm_body_linked">This clears every task and setting on this device, then loads the backup file. Because Google is linked, the Drive copy will be replaced with this import.</string>
@@ -259,7 +277,7 @@
     <string name="archive_confirm_title">Archive this task?</string>
     <string name="archive_confirm_body">It won’t appear on pending or in All tasks. History stays on device.</string>
     <string name="backup_title">Backup</string>
-    <string name="backup_body">Export or import an Errata JSON file. Import replaces all tasks and settings here. No Errata account. Optional Google link (Settings) is a separate hidden Drive copy with merge.</string>
+    <string name="backup_body">Export or import a JSON file. Import replaces what’s on this device.</string>
     <string name="backup_export">Export to file</string>
     <string name="backup_import">Import from file</string>
     <string name="backup_export_ok">Export finished.</string>
@@ -270,7 +288,7 @@
     <string name="backup_confirm_minted">This older file has no stable ids. Prefer a current export if you’ll Link Google on more than one device.</string>
     <string name="backup_confirm_action">Replace</string>
     <string name="backup_folder_heading">This folder</string>
-    <string name="backup_folder_body">Optional. One errata-backup.json you write and read when you choose. Last write wins. For Drive, Export and pick Drive — folder pickers often omit it.</string>
+    <string name="backup_folder_body">Optional. Saves a backup file in a folder you pick. A newer save replaces the previous one. Google Drive usually isn’t in the folder picker — use Export and choose Drive there.</string>
     <string name="backup_choose_folder">Choose folder</string>
     <string name="backup_folder_chosen">Folder chosen</string>
     <string name="backup_write_folder">Write to folder</string>

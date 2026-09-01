@@ -109,7 +109,7 @@ Authority for **what** we build and **why**. Roadmap order lives in [`02-roadmap
 | **Helps** | Finding a task that isn’t on the pending home (completed cycle, later due, paused) |
 | **When** | “Where did that chore go?” after Done, or editing cadence off-queue |
 | **Pain removed** | Pending-only home hides everything that isn’t due soon |
-| **Does** | Browse/edit all pinned tasks; open editor; pause/archive from here |
+| **Does** | Browse/edit all pinned tasks; open editor; pause/archive from here. Tab appears after the first pin. |
 | **Does not** | Replace pending as the morning home; become a mega project list |
 
 ### Free-window / “fit my time”
@@ -180,7 +180,7 @@ Authority for **what** we build and **why**. Roadmap order lives in [`02-roadmap
 | **Helps** | Scanning a longer list on tablet |
 | **When** | Many tasks across house/body/car |
 | **Pain removed** | Visual soup without inventing GTD |
-| **Does** | Optional **area** label (Bathroom, Car, Body, Paper, …); filter/group on pending — **never required** to create |
+| **Does** | Optional **area** label (Bathroom, Car, Body, Paper, …); filter chips on pending/library when 2+ areas and 6+ rows — **never required** to create |
 | **Does not** | Nested projects, multi-tag taxonomies, team boards |
 
 ### Batch / digest reminder
@@ -250,7 +250,7 @@ Authority for **what** we build and **why**. Roadmap order lives in [`02-roadmap
 | Feature | Purpose |
 |---|---|
 | Richer cadence | Weekly weekday sets, monthly day-of-month, weekday of month (1st–4th / last), yearly months and civil seasons |
-| Templates / starters | Catalog on every Add task (area groups + blank); empty-state tap-a-row opens the editor, checkboxes still multi-pin; user-chosen, not auto-seed |
+| Templates / starters | Catalog on every Add task and on zero-pin Pending (area groups + Blank task + checkboxes / Pin selected when checked); tap-a-row checks, Minutes opens the editor; two-pane hides the empty checkbox list while the editor is open |
 | Multi-device via file | Export/import plus optional user-chosen folder (`errata-backup.json`, last write wins). Drive via the system picker |
 | Optional Google Drive | Opt-in Google sign-in; hidden Drive **appDataFolder**; merge across devices; WorkManager, no FGS. SAF stays |
 | Play Store packaging | Privacy policy + listing/Data safety copy |
@@ -261,8 +261,9 @@ Windows / desktop remains **out** until Android is boringly solid (see vision).
 
 | Feature | Purpose |
 |---|---|
-| Host privacy URL | https://userX-324-A.github.io/Errata/privacy.html |
-| Play Console closed beta | Ordinary Tools account, screenshots, AAB, 12 testers — [`08-publish.md`](./08-publish.md) |
+| Play Console closed testing | Ordinary Tools: listing, AAB, 12 testers / 14 days — [`08-publish.md`](./08-publish.md) |
+
+Privacy policy is already hosted: https://userX-324-A.github.io/Errata/privacy.html
 
 ---
 
@@ -298,7 +299,7 @@ Schedule **kind** is orthogonal to after-Done **mode**.
 | **Fixed anchor** | Next slot on the original grid (late Done does not shift the grid). Editing due day, interval, mode, or schedule kind retargets the grid to the saved due day. |
 | **From completion + catch-up** (default) | Like from-completion, but if badly overdue, compress the wait slightly so seasons don’t drift forever |
 
-### Catch-up formula (v1 sketch)
+### Catch-up formula (v1, in `CadenceCalculator`)
 
 Inputs: `intervalDays`, `completedAt`, `scheduledDueAt` (the due that was open), `overdue = completedAt − scheduledDueAt`.
 

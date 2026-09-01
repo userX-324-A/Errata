@@ -1,6 +1,7 @@
 package com.errata.app.ui.common
 
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -17,7 +18,7 @@ fun NotifyPromptDialog(
         title = { Text(stringResource(R.string.notify_prompt_title)) },
         text = { Text(stringResource(R.string.notify_prompt_body)) },
         confirmButton = {
-            TextButton(onClick = onAllow) {
+            Button(onClick = onAllow) {
                 Text(stringResource(R.string.notify_prompt_allow))
             }
         },

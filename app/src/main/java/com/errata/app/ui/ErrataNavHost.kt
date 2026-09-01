@@ -8,15 +8,19 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.adaptive.currentWindowAdaptiveInfo
+import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteDefaults
 import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteScaffold
 import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteScaffoldDefaults
 import androidx.compose.material3.adaptive.navigationsuite.NavigationSuiteType
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.NavGraph.Companion.findStartDestination
@@ -40,6 +44,9 @@ import com.errata.app.ui.settings.SettingsViewModel
 import com.errata.app.ui.starter.StarterCatalogScreen
 import com.errata.app.ui.task.TaskEditorScreen
 import com.errata.app.ui.task.TaskEditorViewModel
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.launch
 
 object Routes {
     const val PENDING = "pending"
@@ -63,6 +70,9 @@ private val Tabs = listOf(
 fun ErrataNavHost(modifier: Modifier = Modifier) {
     val navController = rememberNavController()
     val commands = ErrataApp.instance.taskCommands
+    val hasPinnedTasks by remember {
+        commands.observeActiveTasks.map { it.isNotEmpty() }.distinctUntilChanged()
+    }.collectAsStateWithLifecycle(initialValue = false)
     val backStack by navController.currentBackStackEntryAsState()
     val currentRoute = backStack?.destination?.route
     val compactDetailByTab = remember { mutableStateMapOf<String, Boolean>() }
@@ -74,14 +84,31 @@ fun ErrataNavHost(modifier: Modifier = Modifier) {
     } else {
         defaultSuite
     }
+    val visibleTabs = if (hasPinnedTasks) Tabs else Tabs.filter { it.route != Routes.LIBRARY }
+
+    LaunchedEffect(hasPinnedTasks, currentRoute) {
+        if (!hasPinnedTasks && currentRoute == Routes.LIBRARY) {
+            navController.navigate(Routes.PENDING) {
+                popUpTo(navController.graph.findStartDestination().id) {
+                    saveState = true
+                }
+                launchSingleTop = true
+                restoreState = true
+            }
+        }
+    }
 
     NavigationSuiteScaffold(
         modifier = modifier,
         layoutType = layoutType,
         containerColor = MaterialTheme.colorScheme.background,
+        navigationSuiteColors = NavigationSuiteDefaults.colors(
+            navigationBarContainerColor = MaterialTheme.colorScheme.background,
+            navigationRailContainerColor = MaterialTheme.colorScheme.background,
+        ),
         navigationSuiteItems = {
             val dest = backStack?.destination
-            Tabs.forEach { tab ->
+            visibleTabs.forEach { tab ->
                 val selected = dest?.hierarchy?.any { it.route == tab.route } == true
                 item(
                     selected = selected,
@@ -113,8 +140,19 @@ fun ErrataNavHost(modifier: Modifier = Modifier) {
                 val vm: PendingQueueViewModel = viewModel(
                     factory = PendingQueueViewModel.factory(commands),
                 )
+                val pendingState by vm.uiState.collectAsStateWithLifecycle()
+                val pendingItems = pendingState.overdue + pendingState.dueToday + pendingState.soon
+                val emptyMessage = when {
+                    pendingState.hasNoPinnedTasks -> stringResource(R.string.pane_empty_starters)
+                    pendingState.isEmpty -> stringResource(R.string.pane_empty_caught_up)
+                    else -> stringResource(
+                        R.string.pane_empty_pending,
+                        pendingItems.size,
+                        pendingItems.sumOf { it.task.estimateMinutes },
+                    )
+                }
                 ErrataListDetail(
-                    emptyMessage = stringResource(R.string.pane_empty_task),
+                    emptyMessage = emptyMessage,
                     onCompactDetailChanged = { covered ->
                         compactDetailByTab[Routes.PENDING] = covered
                     },
@@ -122,9 +160,11 @@ fun ErrataNavHost(modifier: Modifier = Modifier) {
                         PendingQueueScreen(
                             viewModel = vm,
                             onAddTask = { actions.open(PaneDest.CATALOG) },
+                            onBlankTask = { actions.open(PaneDest.task(0L)) },
                             onPickStarter = { id -> actions.open(PaneDest.task(0L, id)) },
                             onOpenTask = { id -> actions.open(PaneDest.task(id)) },
                             selectedTaskId = PaneDest.taskId(selectedKey),
+                            detailOpen = selectedKey != null,
                         )
                     },
                     detail = { key, actions ->
@@ -146,8 +186,10 @@ fun ErrataNavHost(modifier: Modifier = Modifier) {
                             viewModel = vm,
                             onOpenTask = { id -> actions.open(PaneDest.task(id)) },
                             onAddTask = { actions.open(PaneDest.CATALOG) },
+                            onBlankTask = { actions.open(PaneDest.task(0L)) },
                             onPickStarter = { id -> actions.open(PaneDest.task(0L, id)) },
                             selectedTaskId = PaneDest.taskId(selectedKey),
+                            detailOpen = selectedKey != null,
                         )
                     },
                     detail = { key, actions ->
@@ -208,11 +250,20 @@ private fun TaskPaneDetail(
     commands: com.errata.app.data.TaskCommands,
 ) {
     when {
-        key == PaneDest.CATALOG -> StarterCatalogScreen(
-            onBack = actions.back,
-            onBlankTask = { actions.open(PaneDest.task(0L)) },
-            onPickStarter = { id -> actions.open(PaneDest.task(0L, id)) },
-        )
+        key == PaneDest.CATALOG -> {
+            val scope = rememberCoroutineScope()
+            StarterCatalogScreen(
+                onBack = actions.back,
+                onBlankTask = { actions.open(PaneDest.task(0L)) },
+                onPickStarter = { id -> actions.open(PaneDest.task(0L, id)) },
+                onPin = { specs ->
+                    scope.launch {
+                        commands.pinStarters(specs)
+                        actions.popToList()
+                    }
+                },
+            )
+        }
         PaneDest.isTask(key) -> {
             val (taskId, starterId) = PaneDest.parseTask(key) ?: return
             val vm: TaskEditorViewModel = viewModel(

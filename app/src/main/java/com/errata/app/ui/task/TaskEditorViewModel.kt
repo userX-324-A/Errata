@@ -290,6 +290,14 @@ class TaskEditorViewModel(
     fun useNoneReminder() = _uiState.update {
         it.copy(reminderMinutesOfDay = ReminderPolicy.NONE)
     }
+    fun useClockReminder() = _uiState.update {
+        it.copy(
+            reminderMinutesOfDay = ReminderPolicy.displayMinutes(
+                it.reminderMinutesOfDay,
+                it.dueMinuteOfDay,
+            ),
+        )
+    }
     fun updateReminderMinutes(minutes: Int) = _uiState.update {
         it.copy(reminderMinutesOfDay = minutes.coerceIn(0, 24 * 60 - 1))
     }

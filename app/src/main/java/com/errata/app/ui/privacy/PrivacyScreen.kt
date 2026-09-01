@@ -17,15 +17,16 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringArrayResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.errata.app.R
 import com.errata.app.ui.theme.ErrataScreenInsets
 import com.errata.app.ui.theme.ErrataTopInsets
 import com.errata.app.ui.theme.errataContentWidth
+import com.errata.app.ui.theme.errataTopAppBarColors
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -44,9 +45,7 @@ fun PrivacyScreen(
                         )
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.background,
-                ),
+                colors = errataTopAppBarColors(),
                 windowInsets = ErrataTopInsets,
             )
         },
@@ -68,7 +67,7 @@ fun PrivacyScreen(
             Heading(stringResource(R.string.privacy_heading_not))
             Body(stringResource(R.string.privacy_not))
             Heading(stringResource(R.string.privacy_heading_permissions))
-            Body(stringResource(R.string.privacy_permissions))
+            BulletList(stringArrayResource(R.array.privacy_permission_items).toList())
             Heading(stringResource(R.string.privacy_heading_copies))
             Body(stringResource(R.string.privacy_copies))
             Heading(stringResource(R.string.privacy_heading_system))
@@ -85,6 +84,19 @@ private fun Heading(text: String) {
         style = MaterialTheme.typography.titleMedium,
         color = MaterialTheme.colorScheme.onBackground,
     )
+}
+
+@Composable
+private fun BulletList(items: List<String>) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        items.forEach { item ->
+            Text(
+                text = "· $item",
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
 }
 
 @Composable

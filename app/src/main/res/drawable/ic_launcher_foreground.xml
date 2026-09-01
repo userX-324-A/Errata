@@ -4,8 +4,11 @@
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-    <!-- Simple mark: a quiet check in the safe zone -->
+    <!-- Proofreader caret + underline (safe zone). Not a to-do check. -->
     <path
-        android:fillColor="#E8EEEC"
-        android:pathData="M30,54 L46,70 L78,38 L72,32 L46,58 L36,48 Z" />
+        android:fillColor="#B85C38"
+        android:pathData="M54,28 L80,68 L70,68 L54,42 L38,68 L28,68 Z" />
+    <path
+        android:fillColor="#B85C38"
+        android:pathData="M40,74 L68,74 L68,80 L40,80 Z" />
 </vector>

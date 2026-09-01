@@ -10,7 +10,6 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -22,6 +21,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
@@ -33,11 +33,11 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TimePicker
 import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberTimePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -51,6 +51,7 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.errata.app.R
+import com.errata.app.ui.common.CadenceModeRow
 import com.errata.app.ui.common.formatDeviceClock
 import com.errata.app.ui.common.formatDeviceDateTime
 import com.errata.app.ui.common.isDevice24Hour
@@ -62,6 +63,7 @@ import com.errata.app.reminders.ExactAlarmAccess
 import com.errata.app.reminders.NotificationAccess
 import com.errata.app.ui.theme.ErrataTopInsets
 import com.errata.app.ui.theme.errataContentWidth
+import com.errata.app.ui.theme.errataTopAppBarColors
 
 private enum class TimeTarget {
     REMINDER,
@@ -125,13 +127,13 @@ fun SettingsScreen(
 
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = { Text(stringResource(R.string.settings_title)) },
-                windowInsets = ErrataTopInsets,
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.background,
-                ),
-            )
+            key(state.appearanceMode) {
+                TopAppBar(
+                    title = { Text(stringResource(R.string.settings_title)) },
+                    windowInsets = ErrataTopInsets,
+                    colors = errataTopAppBarColors(),
+                )
+            }
         },
         containerColor = MaterialTheme.colorScheme.background,
         contentWindowInsets = ErrataTopInsets,
@@ -182,17 +184,17 @@ fun SettingsScreen(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                CadenceChip(
+                AppearanceChip(
                     label = stringResource(R.string.reminder_none),
                     selected = state.defaultReminderKind == DefaultReminderKind.NONE,
                     onClick = { viewModel.setDefaultReminderKind(DefaultReminderKind.NONE) },
                 )
-                CadenceChip(
+                AppearanceChip(
                     label = stringResource(R.string.reminder_when_due),
                     selected = state.defaultReminderKind == DefaultReminderKind.WHEN_DUE,
                     onClick = { viewModel.setDefaultReminderKind(DefaultReminderKind.WHEN_DUE) },
                 )
-                CadenceChip(
+                AppearanceChip(
                     label = stringResource(
                         R.string.reminder_at_clock,
                         formatDeviceClock(state.defaultReminderMinutesOfDay),
@@ -207,22 +209,13 @@ fun SettingsScreen(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
 
-            Label(stringResource(R.string.settings_default_reminder))
-            Text(
-                text = formatDeviceClock(state.defaultReminderMinutesOfDay),
-                style = MaterialTheme.typography.bodyLarge,
-            )
-            Text(
-                text = stringResource(R.string.settings_default_reminder_hint),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            TextButton(
+            SettingsNavRow(
+                title = stringResource(R.string.settings_default_reminder),
+                subtitle = stringResource(R.string.settings_default_reminder_hint),
+                value = formatDeviceClock(state.defaultReminderMinutesOfDay),
+                onClickLabel = stringResource(R.string.pick_time),
                 onClick = { timeTarget = TimeTarget.REMINDER },
-                contentPadding = PaddingValues(0.dp),
-            ) {
-                Text(stringResource(R.string.pick_time))
-            }
+            )
 
             Row(
                 modifier = Modifier.fillMaxWidth(),
@@ -234,7 +227,10 @@ fun SettingsScreen(
                         .padding(end = 16.dp),
                     verticalArrangement = Arrangement.spacedBy(4.dp),
                 ) {
-                    Label(stringResource(R.string.settings_digest))
+                    Text(
+                        text = stringResource(R.string.settings_digest),
+                        style = MaterialTheme.typography.bodyLarge,
+                    )
                     Text(
                         text = stringResource(R.string.settings_digest_hint),
                         style = MaterialTheme.typography.bodySmall,
@@ -247,88 +243,61 @@ fun SettingsScreen(
                 )
             }
 
-            Label(stringResource(R.string.settings_notifications))
-            Text(
-                text = stringResource(
+            SettingsNavRow(
+                title = stringResource(R.string.settings_notifications),
+                subtitle = stringResource(
                     if (canNotify) {
                         R.string.settings_notifications_on
                     } else {
                         R.string.settings_notifications_off
                     },
                 ),
-                style = MaterialTheme.typography.bodyLarge,
-            )
-            TextButton(
+                onClickLabel = stringResource(R.string.settings_notifications_open),
                 onClick = { notificationLauncher.launch(NotificationAccess.settingsIntent(context)) },
-                contentPadding = PaddingValues(0.dp),
-            ) {
-                Text(stringResource(R.string.settings_notifications_open))
-            }
+            )
 
             if (ExactAlarmAccess.isRelevantSdk()) {
-                Label(stringResource(R.string.settings_exact_alarms))
-                Text(
-                    text = stringResource(
+                SettingsNavRow(
+                    title = stringResource(R.string.settings_exact_alarms),
+                    subtitle = stringResource(
                         if (canExact) R.string.settings_exact_on else R.string.settings_exact_off,
                     ),
-                    style = MaterialTheme.typography.bodyLarge,
-                )
-                TextButton(
+                    onClickLabel = stringResource(R.string.settings_exact_open),
                     onClick = { exactLauncher.launch(ExactAlarmAccess.requestIntent(context)) },
-                    contentPadding = PaddingValues(0.dp),
-                ) {
-                    Text(stringResource(R.string.settings_exact_open))
-                }
+                )
             }
 
             Label(stringResource(R.string.settings_default_cadence))
-            FlowRow(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                CadenceChip(
-                    label = stringResource(R.string.cadence_from_completion),
-                    selected = state.defaultCadenceMode == CadenceMode.FROM_COMPLETION,
-                    onClick = { viewModel.setDefaultCadenceMode(CadenceMode.FROM_COMPLETION) },
-                )
-                CadenceChip(
-                    label = stringResource(R.string.cadence_fixed),
-                    selected = state.defaultCadenceMode == CadenceMode.FIXED_ANCHOR,
-                    onClick = { viewModel.setDefaultCadenceMode(CadenceMode.FIXED_ANCHOR) },
-                )
-                CadenceChip(
-                    label = stringResource(R.string.cadence_catch_up),
-                    selected = state.defaultCadenceMode == CadenceMode.FROM_COMPLETION_CATCH_UP,
-                    onClick = {
-                        viewModel.setDefaultCadenceMode(CadenceMode.FROM_COMPLETION_CATCH_UP)
-                    },
-                )
-            }
+            CadenceModeRow(
+                selected = state.defaultCadenceMode,
+                onSelect = viewModel::setDefaultCadenceMode,
+            )
             Text(
-                text = stringResource(R.string.settings_cadence_hint),
+                text = stringResource(
+                    when (state.defaultCadenceMode) {
+                        CadenceMode.FROM_COMPLETION -> R.string.settings_cadence_hint_last
+                        CadenceMode.FIXED_ANCHOR -> R.string.settings_cadence_hint_fixed
+                        CadenceMode.FROM_COMPLETION_CATCH_UP ->
+                            R.string.settings_cadence_hint_catch_up
+                    },
+                ),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
 
-            Label(stringResource(R.string.settings_work_start))
-            Text(
-                text = state.defaultWorkStartMinutesOfDay?.let { formatDeviceClock(it) }
+            SettingsNavRow(
+                title = stringResource(R.string.settings_work_start),
+                subtitle = stringResource(R.string.settings_work_start_hint),
+                value = state.defaultWorkStartMinutesOfDay?.let { formatDeviceClock(it) }
                     ?: stringResource(R.string.settings_work_start_unset),
-                style = MaterialTheme.typography.bodyLarge,
+                onClickLabel = stringResource(R.string.settings_set_time),
+                onClick = { timeTarget = TimeTarget.WORK_START },
             )
-            Text(
-                text = stringResource(R.string.settings_work_start_hint),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                TextButton(onClick = { timeTarget = TimeTarget.WORK_START }) {
-                    Text(stringResource(R.string.settings_set_time))
-                }
-                if (state.defaultWorkStartMinutesOfDay != null) {
-                    TextButton(onClick = { viewModel.setWorkStartMinutes(null) }) {
-                        Text(stringResource(R.string.settings_clear))
-                    }
+            if (state.defaultWorkStartMinutesOfDay != null) {
+                TextButton(
+                    onClick = { viewModel.setWorkStartMinutes(null) },
+                ) {
+                    Text(stringResource(R.string.settings_clear))
                 }
             }
 
@@ -385,66 +354,37 @@ fun SettingsScreen(
                     onClick = { viewModel.setHistoryRetentionDays(HistoryRetention.KEEP_ALL) },
                 )
             }
+            SettingsNavRow(
+                title = stringResource(R.string.backup_title),
+                subtitle = stringResource(R.string.settings_backup_hint),
+                onClick = onOpenBackup,
+            )
+            SettingsNavRow(
+                title = stringResource(R.string.privacy_title),
+                subtitle = stringResource(R.string.privacy_hint),
+                onClick = onOpenPrivacy,
+            )
+
+            Text(
+                text = stringResource(R.string.settings_section_remove),
+                style = MaterialTheme.typography.titleMedium,
+                modifier = Modifier.padding(top = 8.dp),
+            )
             TextButton(
                 onClick = { confirmPurgeHistory = true },
-                contentPadding = PaddingValues(0.dp),
+                colors = ButtonDefaults.textButtonColors(
+                    contentColor = MaterialTheme.colorScheme.error,
+                ),
             ) {
                 Text(stringResource(R.string.settings_purge_history))
             }
             TextButton(
                 onClick = { confirmResetTasks = true; alsoClearCloud = true },
-                contentPadding = PaddingValues(0.dp),
+                colors = ButtonDefaults.textButtonColors(
+                    contentColor = MaterialTheme.colorScheme.error,
+                ),
             ) {
                 Text(stringResource(R.string.settings_reset_tasks))
-            }
-
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable(onClick = onOpenBackup)
-                    .padding(vertical = 8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = stringResource(R.string.backup_title),
-                        style = MaterialTheme.typography.bodyLarge,
-                    )
-                    Text(
-                        text = stringResource(R.string.settings_backup_hint),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable(onClick = onOpenPrivacy)
-                    .padding(vertical = 8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = stringResource(R.string.privacy_title),
-                        style = MaterialTheme.typography.bodyLarge,
-                    )
-                    Text(
-                        text = stringResource(R.string.privacy_hint),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
             }
 
             Spacer(modifier = Modifier.height(16.dp))
@@ -508,12 +448,13 @@ fun SettingsScreen(
             title = { Text(stringResource(R.string.settings_purge_history_title)) },
             text = { Text(stringResource(R.string.settings_purge_history_body)) },
             confirmButton = {
-                TextButton(
+                DestructiveTextButton(
+                    text = stringResource(R.string.settings_purge_history_confirm),
                     onClick = {
                         viewModel.purgeHistory()
                         confirmPurgeHistory = false
                     },
-                ) { Text(stringResource(R.string.settings_purge_history_confirm)) }
+                )
             },
             dismissButton = {
                 TextButton(onClick = { confirmPurgeHistory = false }) {
@@ -542,12 +483,13 @@ fun SettingsScreen(
                 }
             },
             confirmButton = {
-                TextButton(
+                DestructiveTextButton(
+                    text = stringResource(R.string.settings_reset_tasks_confirm),
                     onClick = {
                         viewModel.resetTasks(alsoClearCloud = state.googleLinked && alsoClearCloud)
                         confirmResetTasks = false
                     },
-                ) { Text(stringResource(R.string.settings_reset_tasks_confirm)) }
+                )
             },
             dismissButton = {
                 TextButton(onClick = { confirmResetTasks = false }) {
@@ -584,12 +526,13 @@ fun SettingsScreen(
             title = { Text(stringResource(R.string.settings_google_wipe_title)) },
             text = { Text(stringResource(R.string.settings_google_wipe_body)) },
             confirmButton = {
-                TextButton(
+                DestructiveTextButton(
+                    text = stringResource(R.string.settings_google_wipe_confirm),
                     onClick = {
                         viewModel.unlink(context, wipeCloud = true)
                         confirmWipeCloud = false
                     },
-                ) { Text(stringResource(R.string.settings_google_wipe_confirm)) }
+                )
             },
             dismissButton = {
                 TextButton(onClick = { confirmWipeCloud = false }) {
@@ -626,7 +569,6 @@ private fun GoogleSyncBlock(
         !state.googleLinked -> {
             TextButton(
                 onClick = onLink,
-                contentPadding = PaddingValues(0.dp),
             ) {
                 Text(stringResource(R.string.settings_google_link))
             }
@@ -650,19 +592,19 @@ private fun GoogleSyncBlock(
             )
             TextButton(
                 onClick = onSyncNow,
-                contentPadding = PaddingValues(0.dp),
             ) {
                 Text(stringResource(R.string.settings_google_sync_now))
             }
             TextButton(
                 onClick = onUnlink,
-                contentPadding = PaddingValues(0.dp),
             ) {
                 Text(stringResource(R.string.settings_google_unlink))
             }
             TextButton(
                 onClick = onWipe,
-                contentPadding = PaddingValues(0.dp),
+                colors = ButtonDefaults.textButtonColors(
+                    contentColor = MaterialTheme.colorScheme.error,
+                ),
             ) {
                 Text(stringResource(R.string.settings_google_wipe))
             }
@@ -704,12 +646,62 @@ private fun Label(text: String) {
 }
 
 @Composable
-private fun CadenceChip(label: String, selected: Boolean, onClick: () -> Unit) {
-    FilterChip(
-        selected = selected,
+private fun SettingsNavRow(
+    title: String,
+    subtitle: String? = null,
+    value: String? = null,
+    onClickLabel: String? = null,
+    onClick: () -> Unit,
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClickLabel = onClickLabel, onClick = onClick)
+            .padding(vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.bodyLarge,
+            )
+            if (subtitle != null) {
+                Text(
+                    text = subtitle,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+        if (value != null) {
+            Text(
+                text = value,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(end = 4.dp),
+            )
+        }
+        Icon(
+            imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+}
+
+@Composable
+private fun DestructiveTextButton(
+    text: String,
+    onClick: () -> Unit,
+) {
+    TextButton(
         onClick = onClick,
-        label = { Text(label) },
-    )
+        colors = ButtonDefaults.textButtonColors(
+            contentColor = MaterialTheme.colorScheme.error,
+        ),
+    ) {
+        Text(text)
+    }
 }
 
 @Composable

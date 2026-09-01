@@ -2,6 +2,7 @@ package com.errata.app.ui.pending
 
 import com.errata.app.data.local.SettingsEntity
 import com.errata.app.data.local.TaskEntity
+import com.errata.app.domain.area.AreaFilter
 import com.errata.app.domain.area.TaskAreas
 import com.errata.app.domain.due.DueBucket
 import com.errata.app.domain.due.PendingClassifier
@@ -68,7 +69,9 @@ object PendingQueueState {
                 ),
             )
 
-        val availableAreas = TaskAreas.usedAreas(tasks.map { it.area })
+        val usedAreas = TaskAreas.usedAreas(tasks.map { it.area })
+        val showAreaFilter = AreaFilter.shouldShow(usedAreas, items.size)
+        val availableAreas = if (showAreaFilter) usedAreas else emptyList()
         val selectedArea = requestedArea.takeIf { it != null && it in availableAreas }
         val visible = if (selectedArea == null) {
             items

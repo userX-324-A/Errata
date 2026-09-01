@@ -39,11 +39,33 @@ class PendingQueueStateTest {
     )
 
     @Test
-    fun areaFilter_kitchenEmpty_keepsChipsAndEmptyCopy() {
+    fun areaFilter_shortListHidesChipsAndIgnoresRequestedArea() {
         val bathroomDue = task(1, "Bins", "Bathroom", LocalDate.of(2026, 4, 10))
         val kitchenLater = task(2, "Sponge", "Kitchen", LocalDate.of(2026, 5, 1))
         val state = PendingQueueState.build(
             tasks = listOf(bathroomDue, kitchenLater),
+            settings = SettingsEntity(),
+            now = now,
+            window = null,
+            honesty = null,
+            requestedArea = "Kitchen",
+            hint = false,
+        )
+        assertFalse(state.isEmpty)
+        assertTrue(state.availableAreas.isEmpty())
+        assertEquals(null, state.activeArea)
+        assertFalse(state.areaFilterEmpty)
+        assertEquals(listOf("Bins"), state.dueToday.map { it.task.title })
+    }
+
+    @Test
+    fun areaFilter_kitchenEmpty_keepsChipsAndEmptyCopy() {
+        val bathrooms = (1L..6L).map { id ->
+            task(id, "Bath$id", "Bathroom", LocalDate.of(2026, 4, 10))
+        }
+        val kitchenLater = task(7, "Sponge", "Kitchen", LocalDate.of(2026, 5, 1))
+        val state = PendingQueueState.build(
+            tasks = bathrooms + kitchenLater,
             settings = SettingsEntity(),
             now = now,
             window = null,
@@ -60,10 +82,12 @@ class PendingQueueStateTest {
 
     @Test
     fun areaFilter_kitchenEmpty_withWindow_stillAreaEmpty() {
-        val bathroomDue = task(1, "Bins", "Bathroom", LocalDate.of(2026, 4, 10))
-        val kitchenLater = task(2, "Sponge", "Kitchen", LocalDate.of(2026, 5, 1))
+        val bathrooms = (1L..6L).map { id ->
+            task(id, "Bath$id", "Bathroom", LocalDate.of(2026, 4, 10))
+        }
+        val kitchenLater = task(7, "Sponge", "Kitchen", LocalDate.of(2026, 5, 1))
         val state = PendingQueueState.build(
-            tasks = listOf(bathroomDue, kitchenLater),
+            tasks = bathrooms + kitchenLater,
             settings = SettingsEntity(),
             now = now,
             window = FreeWindowSelection.Duration(30),
@@ -80,9 +104,11 @@ class PendingQueueStateTest {
     @Test
     fun areaFilter_paddedAreaStillMatches() {
         val kitchenDue = task(1, "Sponge", " Kitchen ", LocalDate.of(2026, 4, 10))
-        val bathroomDue = task(2, "Bins", "Bathroom", LocalDate.of(2026, 4, 10))
+        val bathrooms = (2L..6L).map { id ->
+            task(id, "Bath$id", "Bathroom", LocalDate.of(2026, 4, 10))
+        }
         val state = PendingQueueState.build(
-            tasks = listOf(kitchenDue, bathroomDue),
+            tasks = listOf(kitchenDue) + bathrooms,
             settings = SettingsEntity(),
             now = now,
             window = null,

@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -22,9 +23,13 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
 import androidx.compose.material3.DatePicker
 import androidx.compose.material3.DatePickerDialog
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ExposedDropdownMenuBox
+import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -35,7 +40,6 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TimePicker
 import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberDatePickerState
 import androidx.compose.material3.rememberTimePickerState
 import androidx.compose.runtime.Composable
@@ -44,6 +48,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.pluralStringResource
@@ -55,7 +60,6 @@ import com.errata.app.R
 import com.errata.app.ui.common.formatDeviceClock
 import com.errata.app.ui.common.isDevice24Hour
 import com.errata.app.domain.area.TaskAreas
-import com.errata.app.domain.cadence.CadenceMode
 import com.errata.app.domain.cadence.NthWeekday
 import com.errata.app.domain.cadence.ScheduleKind
 import com.errata.app.domain.cadence.Seasons
@@ -67,11 +71,13 @@ import com.errata.app.reminders.AfterPinPrompt
 import com.errata.app.reminders.ExactAlarmAccess
 import com.errata.app.reminders.NotificationAccess
 import com.errata.app.reminders.afterPinPrompt
+import com.errata.app.ui.common.CadenceModeRow
 import com.errata.app.ui.common.NotifyPromptDialog
 import com.errata.app.ui.adaptive.ErrataAdaptive
 import com.errata.app.ui.theme.ErrataScreenInsets
 import com.errata.app.ui.theme.ErrataTopInsets
 import com.errata.app.ui.theme.errataContentWidth
+import com.errata.app.ui.theme.errataTopAppBarColors
 import java.time.DayOfWeek
 import java.time.Instant
 import java.time.LocalDate
@@ -94,6 +100,7 @@ fun TaskEditorScreen(
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     var showDatePicker by remember { mutableStateOf(false) }
+    var pickTimeAfterDate by remember { mutableStateOf(false) }
     var timePickerTarget by remember { mutableStateOf<TimePickerTarget?>(null) }
     var showCustomArea by remember { mutableStateOf(false) }
     var customAreaText by remember { mutableStateOf("") }
@@ -180,16 +187,16 @@ fun TaskEditorScreen(
                     }
                 },
                 actions = {
-                    TextButton(
+                    Button(
                         onClick = viewModel::save,
                         enabled = !state.saved && !state.saving,
+                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 6.dp),
+                        modifier = Modifier.padding(end = 8.dp),
                     ) {
                         Text(stringResource(R.string.action_save))
                     }
                 },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.background,
-                ),
+                colors = errataTopAppBarColors(),
                 windowInsets = ErrataTopInsets,
             )
         },
@@ -248,7 +255,7 @@ fun TaskEditorScreen(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             FlowRow(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 listOf(10, 15, 20, 30, 45).forEach { minutes ->
@@ -313,41 +320,10 @@ fun TaskEditorScreen(
                 )
             }
             }, second = {
-            Text(
-                text = stringResource(R.string.field_schedule),
-                style = MaterialTheme.typography.labelLarge,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            ScheduleKindField(
+                selected = state.scheduleKind,
+                onSelect = viewModel::updateScheduleKind,
             )
-            FlowRow(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                CadenceChip(
-                    label = stringResource(R.string.schedule_interval),
-                    selected = state.scheduleKind == ScheduleKind.INTERVAL,
-                    onClick = { viewModel.updateScheduleKind(ScheduleKind.INTERVAL) },
-                )
-                CadenceChip(
-                    label = stringResource(R.string.schedule_weekly),
-                    selected = state.scheduleKind == ScheduleKind.WEEKLY,
-                    onClick = { viewModel.updateScheduleKind(ScheduleKind.WEEKLY) },
-                )
-                CadenceChip(
-                    label = stringResource(R.string.schedule_monthly),
-                    selected = state.scheduleKind == ScheduleKind.MONTHLY,
-                    onClick = { viewModel.updateScheduleKind(ScheduleKind.MONTHLY) },
-                )
-                CadenceChip(
-                    label = stringResource(R.string.schedule_nth_weekday),
-                    selected = state.scheduleKind == ScheduleKind.NTH_WEEKDAY,
-                    onClick = { viewModel.updateScheduleKind(ScheduleKind.NTH_WEEKDAY) },
-                )
-                CadenceChip(
-                    label = stringResource(R.string.schedule_yearly),
-                    selected = state.scheduleKind == ScheduleKind.YEARLY,
-                    onClick = { viewModel.updateScheduleKind(ScheduleKind.YEARLY) },
-                )
-            }
 
             when (state.scheduleKind) {
                 ScheduleKind.INTERVAL -> {
@@ -368,26 +344,10 @@ fun TaskEditorScreen(
                         style = MaterialTheme.typography.labelLarge,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
-                    FlowRow(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
-                    ) {
-                        CadenceChip(
-                            label = stringResource(R.string.cadence_from_completion),
-                            selected = state.cadenceMode == CadenceMode.FROM_COMPLETION,
-                            onClick = { viewModel.updateCadenceMode(CadenceMode.FROM_COMPLETION) },
-                        )
-                        CadenceChip(
-                            label = stringResource(R.string.cadence_fixed),
-                            selected = state.cadenceMode == CadenceMode.FIXED_ANCHOR,
-                            onClick = { viewModel.updateCadenceMode(CadenceMode.FIXED_ANCHOR) },
-                        )
-                        CadenceChip(
-                            label = stringResource(R.string.cadence_catch_up),
-                            selected = state.cadenceMode == CadenceMode.FROM_COMPLETION_CATCH_UP,
-                            onClick = { viewModel.updateCadenceMode(CadenceMode.FROM_COMPLETION_CATCH_UP) },
-                        )
-                    }
+                    CadenceModeRow(
+                        selected = state.cadenceMode,
+                        onSelect = viewModel::updateCadenceMode,
+                    )
                 }
                 ScheduleKind.WEEKLY -> {
                     Text(
@@ -564,26 +524,41 @@ fun TaskEditorScreen(
                 style = MaterialTheme.typography.labelLarge,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-            Text(
-                text = stringResource(R.string.field_due_combined, dueDateLabel, dueTimeLabel),
-                style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.onBackground,
-            )
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                TextButton(onClick = { showDatePicker = true }) {
-                    Text(stringResource(R.string.pick_date))
-                }
-                TextButton(onClick = { timePickerTarget = TimePickerTarget.DUE }) {
-                    Text(stringResource(R.string.pick_time))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    text = stringResource(R.string.field_due_combined, dueDateLabel, dueTimeLabel),
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = MaterialTheme.colorScheme.onBackground,
+                    modifier = Modifier.weight(1f),
+                )
+                TextButton(
+                    onClick = {
+                        pickTimeAfterDate = true
+                        showDatePicker = true
+                    },
+                ) {
+                    Text(stringResource(R.string.action_change))
                 }
             }
-            FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                TextButton(onClick = {
-                    viewModel.updateDueEpochDay(LocalDate.now().toEpochDay())
-                }) { Text(stringResource(R.string.due_today)) }
-                TextButton(onClick = {
-                    viewModel.updateDueEpochDay(LocalDate.now().plusDays(1).toEpochDay())
-                }) { Text(stringResource(R.string.due_tomorrow)) }
+            FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                val today = LocalDate.now().toEpochDay()
+                val tomorrow = LocalDate.now().plusDays(1).toEpochDay()
+                FilterChip(
+                    selected = state.dueEpochDay == today,
+                    onClick = { viewModel.updateDueEpochDay(today) },
+                    label = { Text(stringResource(R.string.due_today)) },
+                )
+                FilterChip(
+                    selected = state.dueEpochDay == tomorrow,
+                    onClick = { viewModel.updateDueEpochDay(tomorrow) },
+                    label = { Text(stringResource(R.string.due_tomorrow)) },
+                )
             }
 
             Text(
@@ -628,14 +603,38 @@ fun TaskEditorScreen(
                     onClick = viewModel::useWhenDueReminder,
                     label = { Text(stringResource(R.string.reminder_when_due)) },
                 )
-                TextButton(onClick = { timePickerTarget = TimePickerTarget.REMINDER }) {
-                    Text(stringResource(R.string.pick_time))
-                }
-                listOf(8 * 60, 9 * 60, 12 * 60, 18 * 60).forEach { minutes ->
+                FilterChip(
+                    selected = ReminderPolicy.isClock(state.reminderMinutesOfDay),
+                    onClick = viewModel::useClockReminder,
+                    label = { Text(stringResource(R.string.reminder_clock)) },
+                )
+            }
+            if (ReminderPolicy.isClock(state.reminderMinutesOfDay)) {
+                val clockMinutes = state.reminderMinutesOfDay
+                val presets = listOf(8 * 60, 9 * 60, 12 * 60, 18 * 60)
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    presets.forEach { minutes ->
+                        FilterChip(
+                            selected = clockMinutes == minutes,
+                            onClick = { viewModel.updateReminderMinutes(minutes) },
+                            label = { Text(formatDeviceClock(minutes)) },
+                        )
+                    }
                     FilterChip(
-                        selected = state.reminderMinutesOfDay == minutes,
-                        onClick = { viewModel.updateReminderMinutes(minutes) },
-                        label = { Text(formatDeviceClock(minutes)) },
+                        selected = clockMinutes !in presets,
+                        onClick = { timePickerTarget = TimePickerTarget.REMINDER },
+                        label = {
+                            Text(
+                                if (clockMinutes != null && clockMinutes !in presets) {
+                                    formatDeviceClock(clockMinutes)
+                                } else {
+                                    stringResource(R.string.pick_time)
+                                },
+                            )
+                        },
                     )
                 }
             }
@@ -685,7 +684,10 @@ fun TaskEditorScreen(
             initialSelectedDateMillis = state.dueEpochDay * 86_400_000L,
         )
         DatePickerDialog(
-            onDismissRequest = { showDatePicker = false },
+            onDismissRequest = {
+                showDatePicker = false
+                pickTimeAfterDate = false
+            },
             confirmButton = {
                 TextButton(
                     onClick = {
@@ -697,11 +699,20 @@ fun TaskEditorScreen(
                             viewModel.updateDueEpochDay(day)
                         }
                         showDatePicker = false
+                        if (pickTimeAfterDate) {
+                            pickTimeAfterDate = false
+                            timePickerTarget = TimePickerTarget.DUE
+                        }
                     },
                 ) { Text(stringResource(R.string.action_ok)) }
             },
             dismissButton = {
-                TextButton(onClick = { showDatePicker = false }) {
+                TextButton(
+                    onClick = {
+                        showDatePicker = false
+                        pickTimeAfterDate = false
+                    },
+                ) {
                     Text(stringResource(R.string.action_cancel))
                 }
             },
@@ -886,6 +897,53 @@ private fun ColumnScope.MaybeTwoColumn(
     } else {
         first()
         second()
+    }
+}
+
+private val ScheduleKindLabels = listOf(
+    ScheduleKind.INTERVAL to R.string.schedule_interval,
+    ScheduleKind.WEEKLY to R.string.schedule_weekly,
+    ScheduleKind.MONTHLY to R.string.schedule_monthly,
+    ScheduleKind.NTH_WEEKDAY to R.string.schedule_nth_weekday,
+    ScheduleKind.YEARLY to R.string.schedule_yearly,
+)
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun ScheduleKindField(
+    selected: ScheduleKind,
+    onSelect: (ScheduleKind) -> Unit,
+) {
+    var expanded by remember { mutableStateOf(false) }
+    val selectedLabel = ScheduleKindLabels.first { it.first == selected }.second
+    ExposedDropdownMenuBox(
+        expanded = expanded,
+        onExpandedChange = { expanded = it },
+    ) {
+        OutlinedTextField(
+            value = stringResource(selectedLabel),
+            onValueChange = {},
+            readOnly = true,
+            label = { Text(stringResource(R.string.field_schedule)) },
+            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded) },
+            modifier = Modifier
+                .menuAnchor()
+                .fillMaxWidth(),
+        )
+        ExposedDropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false },
+        ) {
+            ScheduleKindLabels.forEach { (kind, labelRes) ->
+                DropdownMenuItem(
+                    text = { Text(stringResource(labelRes)) },
+                    onClick = {
+                        onSelect(kind)
+                        expanded = false
+                    },
+                )
+            }
+        }
     }
 }
 

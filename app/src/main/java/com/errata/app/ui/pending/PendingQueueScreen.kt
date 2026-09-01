@@ -5,6 +5,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
@@ -21,6 +22,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -34,7 +36,6 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TimePicker
 import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.material3.rememberTimePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
@@ -70,20 +71,26 @@ import com.errata.app.domain.estimate.EstimateHonesty
 import com.errata.app.domain.freewindow.FreeWindowRanker
 import com.errata.app.ui.snooze.SnoozeSheet
 import com.errata.app.ui.starter.StarterPackEmpty
+import com.errata.app.ui.starter.StarterPackPaused
+import com.errata.app.ui.theme.ERRATA_FAB_LIST_CLEARANCE_DP
 import com.errata.app.ui.theme.ErrataTopInsets
 import com.errata.app.ui.theme.ErrataWordmark
 import com.errata.app.ui.theme.errataContentWidth
+import com.errata.app.ui.theme.errataTaskCardContainer
+import com.errata.app.ui.theme.errataTopAppBarColors
 import java.time.LocalTime
 import kotlinx.coroutines.delay
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun PendingQueueScreen(
     viewModel: PendingQueueViewModel,
     onAddTask: () -> Unit,
+    onBlankTask: () -> Unit,
     onPickStarter: (String) -> Unit,
     onOpenTask: (Long) -> Unit,
     selectedTaskId: Long? = null,
+    detailOpen: Boolean = false,
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     val context = LocalContext.current
@@ -126,7 +133,7 @@ fun PendingQueueScreen(
     var showStopByPicker by remember { mutableStateOf(false) }
     var customMinutesText by remember { mutableStateOf("") }
     var customError by remember { mutableStateOf<String?>(null) }
-    val showNotifyBanner = !canNotify && !state.hasNoPinnedTasks
+    val showNotifyBanner = !canNotify && !state.hasNoPinnedTasks && !showNotifyPrompt
     val onNotifyCta = {
         if (NotificationAccess.shouldPrompt(context)) {
             showNotifyPrompt = true
@@ -140,10 +147,7 @@ fun PendingQueueScreen(
             TopAppBar(
                 title = { ErrataWordmark() },
                 windowInsets = ErrataTopInsets,
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.background,
-                    titleContentColor = MaterialTheme.colorScheme.onBackground,
-                ),
+                colors = errataTopAppBarColors(),
             )
         },
         floatingActionButton = {
@@ -165,15 +169,21 @@ fun PendingQueueScreen(
         contentWindowInsets = ErrataTopInsets,
     ) { innerPadding ->
         if (state.hasNoPinnedTasks) {
-            StarterPackEmpty(
-                title = stringResource(R.string.starters_empty_title),
-                body = stringResource(R.string.starters_body),
-                onAddTask = onAddTask,
-                onPickStarter = onPickStarter,
-                onPin = viewModel::pinStarters,
-                onRescheduleReminders = viewModel::rescheduleReminders,
-                modifier = Modifier.padding(innerPadding).errataContentWidth(),
-            )
+            if (detailOpen) {
+                StarterPackPaused(
+                    modifier = Modifier.padding(innerPadding).errataContentWidth(),
+                )
+            } else {
+                StarterPackEmpty(
+                    title = stringResource(R.string.starters_empty_title),
+                    body = stringResource(R.string.starters_body),
+                    onBlankTask = onBlankTask,
+                    onPickStarter = onPickStarter,
+                    onPin = viewModel::pinStarters,
+                    onRescheduleReminders = viewModel::rescheduleReminders,
+                    modifier = Modifier.padding(innerPadding).errataContentWidth(),
+                )
+            }
         } else if (state.isEmpty) {
             Column(modifier = Modifier.padding(innerPadding).errataContentWidth()) {
                 if (showNotifyBanner) {
@@ -189,7 +199,12 @@ fun PendingQueueScreen(
                     .fillMaxSize()
                     .padding(innerPadding)
                     .errataContentWidth(),
-                contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 8.dp, bottom = 88.dp),
+                contentPadding = PaddingValues(
+                    start = 20.dp,
+                    end = 20.dp,
+                    top = 8.dp,
+                    bottom = ERRATA_FAB_LIST_CLEARANCE_DP.dp,
+                ),
                 verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
                 if (showNotifyBanner) {
@@ -380,27 +395,39 @@ fun PendingQueueScreen(
             onDismissRequest = viewModel::dismissHonesty,
             title = { Text(stringResource(R.string.honesty_title)) },
             text = {
-                Text(
-                    stringResource(
-                        R.string.honesty_body,
-                        honesty.title,
-                        honesty.estimateMinutes,
-                    ),
-                )
-            },
-            confirmButton = {
-                TextButton(onClick = { viewModel.applyHonesty(EstimateHonesty.SAME) }) {
-                    Text(stringResource(R.string.honesty_same))
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text(
+                        stringResource(
+                            R.string.honesty_body,
+                            honesty.title,
+                            honesty.estimateMinutes,
+                        ),
+                    )
+                    FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        FilterChip(
+                            selected = false,
+                            onClick = { viewModel.applyHonesty(EstimateHonesty.SHORTER) },
+                            label = { Text(stringResource(R.string.honesty_shorter)) },
+                        )
+                        FilterChip(
+                            selected = false,
+                            onClick = { viewModel.applyHonesty(EstimateHonesty.SAME) },
+                            label = { Text(stringResource(R.string.honesty_same)) },
+                        )
+                        FilterChip(
+                            selected = false,
+                            onClick = { viewModel.applyHonesty(EstimateHonesty.LONGER) },
+                            label = { Text(stringResource(R.string.honesty_longer)) },
+                        )
+                    }
                 }
             },
-            dismissButton = {
-                Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                    TextButton(onClick = { viewModel.applyHonesty(EstimateHonesty.SHORTER) }) {
-                        Text(stringResource(R.string.honesty_shorter))
-                    }
-                    TextButton(onClick = { viewModel.applyHonesty(EstimateHonesty.LONGER) }) {
-                        Text(stringResource(R.string.honesty_longer))
-                    }
+            confirmButton = {
+                TextButton(onClick = viewModel::dismissHonesty) {
+                    Text(stringResource(R.string.honesty_not_now))
                 }
             },
         )
@@ -573,10 +600,7 @@ private fun FreeWindowHeader(
                 state.clockWindowPassed ->
                     stringResource(R.string.free_window_header_clock_passed)
                 state.fits.isEmpty() ->
-                    stringResource(
-                        R.string.free_window_header_empty,
-                        state.activeWindowMinutes,
-                    )
+                    stringResource(R.string.free_window_header_empty)
                 else -> {
                     val leftover = state.leftoverAfterBestMinutes ?: 0
                     stringResource(
@@ -618,17 +642,24 @@ private fun PendingRow(
     onSkip: () -> Unit,
 ) {
     val overdue = item.bucket == DueBucket.OVERDUE
-    val mark = MaterialTheme.colorScheme.primary
+    val scheme = MaterialTheme.colorScheme
+    val titleColor = scheme.onSurface
+    val muted = scheme.onSurfaceVariant
+    val edge = when {
+        selected -> scheme.secondary
+        overdue -> scheme.primary
+        else -> null
+    }
     Card(
         modifier = Modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(16.dp))
             .clickable(onClick = onOpen)
             .then(
-                if (overdue) {
+                if (edge != null) {
                     Modifier.drawBehind {
                         drawRect(
-                            color = mark,
+                            color = edge,
                             topLeft = Offset.Zero,
                             size = Size(4.dp.toPx(), size.height),
                         )
@@ -638,41 +669,72 @@ private fun PendingRow(
                 },
             ),
         colors = CardDefaults.cardColors(
-            containerColor = if (selected) {
-                MaterialTheme.colorScheme.primaryContainer
-            } else {
-                MaterialTheme.colorScheme.surfaceContainer
-            },
+            containerColor = errataTaskCardContainer(selected),
+            contentColor = titleColor,
         ),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
         shape = RoundedCornerShape(16.dp),
     ) {
         Column(modifier = Modifier.padding(16.dp)) {
-            TaskAreaLabel(area = item.task.area)
+            TaskAreaLabel(area = item.task.area, color = muted)
             Text(
                 text = item.task.title,
                 style = MaterialTheme.typography.titleLarge,
-                color = MaterialTheme.colorScheme.onSurface,
+                color = titleColor,
             )
             Text(
                 text = item.subtitle,
                 style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                color = muted,
                 modifier = Modifier.padding(top = 4.dp),
             )
-            FlowRow(
-                modifier = Modifier.padding(top = 12.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalArrangement = Arrangement.spacedBy(4.dp),
+            BoxWithConstraints(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(top = 12.dp),
             ) {
-                Button(onClick = onDone, enabled = actionsEnabled) {
-                    Text(stringResource(R.string.action_done))
-                }
-                TextButton(onClick = onSnooze, enabled = actionsEnabled) {
-                    Text(stringResource(R.string.action_snooze))
-                }
-                TextButton(onClick = onSkip, enabled = actionsEnabled) {
-                    Text(stringResource(R.string.action_skip))
+                val narrow = maxWidth < 300.dp
+                if (narrow) {
+                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Button(
+                            onClick = onDone,
+                            enabled = actionsEnabled,
+                            modifier = Modifier.fillMaxWidth(),
+                        ) {
+                            Text(stringResource(R.string.action_done))
+                        }
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            TextButton(onClick = onSnooze, enabled = actionsEnabled) {
+                                Text(stringResource(R.string.action_snooze))
+                            }
+                            TextButton(
+                                onClick = onSkip,
+                                enabled = actionsEnabled,
+                                colors = ButtonDefaults.textButtonColors(contentColor = muted),
+                            ) {
+                                Text(stringResource(R.string.action_skip))
+                            }
+                        }
+                    }
+                } else {
+                    FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp),
+                    ) {
+                        Button(onClick = onDone, enabled = actionsEnabled) {
+                            Text(stringResource(R.string.action_done))
+                        }
+                        TextButton(onClick = onSnooze, enabled = actionsEnabled) {
+                            Text(stringResource(R.string.action_snooze))
+                        }
+                        TextButton(
+                            onClick = onSkip,
+                            enabled = actionsEnabled,
+                            colors = ButtonDefaults.textButtonColors(contentColor = muted),
+                        ) {
+                            Text(stringResource(R.string.action_skip))
+                        }
+                    }
                 }
             }
         }
@@ -736,7 +798,6 @@ private fun NotifyOffBanner(onAllow: () -> Unit) {
             )
             TextButton(
                 onClick = onAllow,
-                contentPadding = PaddingValues(0.dp),
             ) {
                 Text(stringResource(R.string.pending_notifications_allow))
             }

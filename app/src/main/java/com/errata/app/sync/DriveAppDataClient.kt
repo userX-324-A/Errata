@@ -64,7 +64,7 @@ class DriveAppDataClient(
                         downloadMedia(recovered)
                     }
                 }
-                in 200..299 -> documentFromMedia(existingId, response)
+                in 200..299 -> withMetadataEtag(existingId, documentFromMedia(existingId, response))
                 else -> {
                     logDriveFailure("download", response)
                     throw NetworkException()
@@ -82,12 +82,9 @@ class DriveAppDataClient(
         if (fileId.isNullOrBlank()) {
             recoverMissing(bodyJson)
         } else {
-            val match = etag?.takeIf { it.isNotBlank() } ?: fetchEtag(fileId)
-            if (match.isNullOrBlank()) {
-                recoverMissing(bodyJson)
-            } else {
-                updateFile(fileId, match, bodyJson, recovering = false)
-            }
+            val match = DriveEtags.ifMatchValue(etag)
+                ?: DriveEtags.ifMatchValue(fetchEtag(fileId))
+            updateFile(fileId, match, bodyJson, recovering = false)
         }
     }
 
@@ -129,7 +126,7 @@ class DriveAppDataClient(
                     throw AuthRequiredException()
                 }
                 404 -> CloudDocument(null, null, null)
-                in 200..299 -> documentFromMedia(fileId, response)
+                in 200..299 -> withMetadataEtag(fileId, documentFromMedia(fileId, response))
                 else -> {
                     logDriveFailure("download", response)
                     throw NetworkException()
@@ -140,25 +137,29 @@ class DriveAppDataClient(
 
     private fun documentFromMedia(fileId: String, response: Response): CloudDocument {
         val body = response.body?.string().orEmpty()
-        val etag = response.header("ETag") ?: response.header("etag")
         if (DriveSyncFiles.mediaUnreadable(body)) {
             return CloudDocument(
                 snapshot = null,
                 fileId = fileId,
-                etag = etag,
+                etag = null,
                 unreadable = true,
             )
         }
         return try {
-            CloudDocument(SyncCodec.decode(body), fileId, etag)
+            CloudDocument(SyncCodec.decode(body), fileId, etag = null)
         } catch (_: Exception) {
             CloudDocument(
                 snapshot = null,
                 fileId = fileId,
-                etag = etag,
+                etag = null,
                 unreadable = true,
             )
         }
+    }
+
+    private suspend fun withMetadataEtag(fileId: String, doc: CloudDocument): CloudDocument {
+        if (doc.unreadable) return doc
+        return doc.copy(etag = DriveEtags.ifMatchValue(fetchEtag(fileId)))
     }
 
     private suspend fun findFileId(): String? {
@@ -272,7 +273,7 @@ class DriveAppDataClient(
 
     private suspend fun updateFile(
         fileId: String,
-        etag: String,
+        etag: String?,
         bodyJson: String,
         recovering: Boolean,
     ): CloudSaveResult {
@@ -282,16 +283,25 @@ class DriveAppDataClient(
             .addQueryParameter("uploadType", "media")
             .addQueryParameter("fields", "id")
             .build()
+        val match = DriveEtags.ifMatchValue(etag)
         execute { token ->
             Request.Builder()
                 .url(url)
                 .header("Authorization", "Bearer $token")
-                .header("If-Match", etag)
+                .apply { if (match != null) header("If-Match", match) }
                 .patch(bodyJson.toRequestBody(JSON))
                 .build()
         }.use { response ->
             return when (response.code) {
-                412 -> CloudSaveResult.Stale
+                412 -> {
+                    Log.w(TAG, "Drive update HTTP 412")
+                    if (match != null &&
+                        DriveEtags.falsePrecondition(match, fetchEtag(fileId))
+                    ) {
+                        return updateFile(fileId, etag = null, bodyJson, recovering)
+                    }
+                    CloudSaveResult.Stale
+                }
                 401, 403 -> {
                     logDriveFailure("update", response)
                     CloudSaveResult.Failed("auth")
@@ -322,8 +332,7 @@ class DriveAppDataClient(
     private suspend fun recoverMissing(bodyJson: String): CloudSaveResult {
         val existing = findFileId()
         if (existing == null) return createFile(bodyJson)
-        val freshEtag = fetchEtag(existing)
-        if (freshEtag.isNullOrBlank()) return CloudSaveResult.Failed("conflict")
+        val freshEtag = DriveEtags.ifMatchValue(fetchEtag(existing))
         return updateFile(existing, freshEtag, bodyJson, recovering = true)
     }
 
@@ -331,12 +340,12 @@ class DriveAppDataClient(
         val url = DRIVE_API_ROOT.toHttpUrl().newBuilder()
             .addPathSegment("files")
             .addPathSegment(fileId)
-            .addQueryParameter("fields", "id")
             .build()
         execute { token ->
             Request.Builder()
                 .url(url)
                 .header("Authorization", "Bearer $token")
+                .header("Accept-Encoding", "identity")
                 .get()
                 .build()
         }.use { response ->

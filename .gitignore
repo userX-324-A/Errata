@@ -43,3 +43,6 @@ desktop.ini
 .env
 .env.*
 secrets/
+screenshots/
+
+docs/09-paid-testers.md

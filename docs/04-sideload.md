@@ -2,7 +2,17 @@
 
 Personal installs without Play Store. Fine for tablet/phone while USB is flaky.
 
-## Build a debug APK
+## USB install (phone / tablet)
+
+Phone or tablet already authorized for USB debugging:
+
+```powershell
+.\scripts\install-device.ps1
+```
+
+Builds the debug APK, `adb install -r` on every connected device, then opens Errata. One device: `.\scripts\install-device.ps1 -Serial SERIAL`. APK already built: `-SkipBuild`. List serials with `adb devices`.
+
+## Build a debug APK (file only)
 
 From the repo root on Windows:
 
@@ -42,7 +52,7 @@ No app account required — just the APK file.
 2. If Android blocks it, allow installs from that source (Files, Drive, etc.) for this one install.
 3. Confirm install. Open **Errata**.
 
-Debug APKs are signed with the local debug keystore — good enough for personal sideload. Play upload uses a separate keystore (`keystore/`, not in git); see [`06-play.md`](./06-play.md).
+Debug APKs are signed with the local debug keystore — good enough for personal sideload. Play upload uses a separate keystore (`keystore/`, not in git); AAB steps: [`08-publish.md`](./08-publish.md).
 
 ## After install
 
@@ -93,7 +103,7 @@ Unit tests cover cadence, reminder fire times, digest membership, backup, sync m
 ### Catalog Save
 
 - [ ] Compact: Add task → starter → Save returns to Pending, not the catalog. If the notify/exact prompt appears, Back or Not now still returns to Pending. Back from the editor before Save still shows the catalog
-- [ ] Empty state: tap a starter row opens the editor (minutes); checkbox + Pin selected still pins several as-is
+- [ ] Empty state: Blank task at the top; tap a starter row checks it; Minutes opens the editor. Checkbox + Pin selected (bar appears after a check) pins several as-is. After pins exist, FAB Add task uses the same checkboxes. Two-pane idle copy talks about starters; opening a starter or Blank hides the empty checkbox list. Zero pins: All tasks is hidden (Pending + Settings only); it appears after the first pin
 - [ ] Two-pane: same Save keeps the list visible; detail clears. Tap the same row (or Blank / the same starter again) — editor stays open
 
 ### Tablet layout

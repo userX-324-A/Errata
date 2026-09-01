@@ -3,7 +3,7 @@
 Checked history of what shipped, plus **Later** for named leftovers.  
 **Why** for each item: [`03-product-map.md`](./03-product-map.md). Do not add features that lack a map row.
 
-Phase 0–3 **core** is complete: pending daily driver, cadence through yearly/seasons, starters, folder backup, privacy/listing text.
+Phase 0–3 **core** is complete: pending daily driver, cadence through yearly/seasons, starters, folder backup, privacy/listing text. Android is sideload-ready (`0.1.0`); Play closed testing is the remaining human step ([`08-publish.md`](./08-publish.md)).
 
 ## Phase 0 — Trust the list (scaffold → MVP)
 
@@ -62,7 +62,7 @@ Tier 3 core is in tree. Ask before starting anything under **Later**.
 Not holes in the daily driver. Implement only if asked.
 
 - [x] Host privacy policy URL — https://userX-324-A.github.io/Errata/privacy.html
-- [ ] Play Console closed beta (you: listing, AAB, 12 testers) — [`08-publish.md`](./08-publish.md)
+- [ ] Play Console closed testing (you: listing, AAB, 12 testers / 14 days) — [`08-publish.md`](./08-publish.md)
 
 ## Explicitly not on the roadmap
 

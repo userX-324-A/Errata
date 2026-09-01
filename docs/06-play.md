@@ -1,6 +1,6 @@
 # Play listing — Errata
 
-Listing copy and Data safety answers. **Human upload steps:** [`08-publish.md`](./08-publish.md). Sideload: [`04-sideload.md`](./04-sideload.md). Privacy authority: [`05-privacy.md`](./05-privacy.md).
+Listing copy and Data safety answers. **Human upload steps:** [`08-publish.md`](./08-publish.md) (`0.1.0` / `targetSdk` 35). Sideload: [`04-sideload.md`](./04-sideload.md). Privacy authority: [`05-privacy.md`](./05-privacy.md).
 
 **App name:** Errata (not UpKeep)  
 **Developer name:** Ordinary Tools  
@@ -50,7 +50,7 @@ No ads, no full storage permission.
 
 ## Closed beta checklist
 
-Moved to [`08-publish.md`](./08-publish.md) (Play Console, OAuth, paid testers, AAB). Store assets live in [`play/`](../play/README.md).
+Moved to [`08-publish.md`](./08-publish.md) (Play Console, OAuth, testers, AAB). Store assets and screenshot list: [`play/README.md`](../play/README.md).
 
 ## Store claims to avoid
 

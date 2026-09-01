@@ -45,5 +45,5 @@ Full policy: [`03-product-map.md`](./03-product-map.md).
 
 | Phase | Platform |
 |---|---|
-| Now | Android (tablet sideload primary while phone USB is unreliable) |
+| Now | Android (sideload; Play closed testing is the remaining distribution step) |
 | Later | Optional Windows — only after Android is boringly solid |

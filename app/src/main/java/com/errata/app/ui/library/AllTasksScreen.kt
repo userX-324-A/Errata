@@ -31,7 +31,6 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
-import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -39,6 +38,10 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -46,8 +49,12 @@ import com.errata.app.R
 import com.errata.app.ui.common.AreaFilterChips
 import com.errata.app.ui.common.TaskAreaLabel
 import com.errata.app.ui.starter.StarterPackEmpty
+import com.errata.app.ui.starter.StarterPackPaused
+import com.errata.app.ui.theme.ERRATA_FAB_LIST_CLEARANCE_DP
 import com.errata.app.ui.theme.ErrataTopInsets
 import com.errata.app.ui.theme.errataContentWidth
+import com.errata.app.ui.theme.errataTaskCardContainer
+import com.errata.app.ui.theme.errataTopAppBarColors
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -55,8 +62,10 @@ fun AllTasksScreen(
     viewModel: AllTasksViewModel,
     onOpenTask: (Long) -> Unit,
     onAddTask: () -> Unit,
+    onBlankTask: () -> Unit,
     onPickStarter: (String) -> Unit,
     selectedTaskId: Long? = null,
+    detailOpen: Boolean = false,
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
     var archiveTargetId by remember { mutableStateOf<Long?>(null) }
@@ -67,9 +76,7 @@ fun AllTasksScreen(
             TopAppBar(
                 title = { Text(stringResource(R.string.library_title)) },
                 windowInsets = ErrataTopInsets,
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.background,
-                ),
+                colors = errataTopAppBarColors(),
             )
         },
         floatingActionButton = {
@@ -91,22 +98,33 @@ fun AllTasksScreen(
         contentWindowInsets = ErrataTopInsets,
     ) { innerPadding ->
         if (state.isEmpty) {
-            StarterPackEmpty(
-                title = stringResource(R.string.library_empty_title),
-                body = stringResource(R.string.library_empty_body),
-                onAddTask = onAddTask,
-                onPickStarter = onPickStarter,
-                onPin = viewModel::pinStarters,
-                onRescheduleReminders = viewModel::rescheduleReminders,
-                modifier = Modifier.padding(innerPadding).errataContentWidth(),
-            )
+            if (detailOpen) {
+                StarterPackPaused(
+                    modifier = Modifier.padding(innerPadding).errataContentWidth(),
+                )
+            } else {
+                StarterPackEmpty(
+                    title = stringResource(R.string.library_empty_title),
+                    body = stringResource(R.string.library_empty_body),
+                    onBlankTask = onBlankTask,
+                    onPickStarter = onPickStarter,
+                    onPin = viewModel::pinStarters,
+                    onRescheduleReminders = viewModel::rescheduleReminders,
+                    modifier = Modifier.padding(innerPadding).errataContentWidth(),
+                )
+            }
         } else {
             LazyColumn(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(innerPadding)
                     .errataContentWidth(),
-                contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 12.dp, bottom = 88.dp),
+                contentPadding = PaddingValues(
+                    start = 20.dp,
+                    end = 20.dp,
+                    top = 12.dp,
+                    bottom = ERRATA_FAB_LIST_CLEARANCE_DP.dp,
+                ),
                 verticalArrangement = Arrangement.spacedBy(10.dp),
             ) {
                 if (state.availableAreas.isNotEmpty()) {
@@ -203,17 +221,31 @@ private fun LibraryRow(
     onArchive: () -> Unit,
 ) {
     var menuExpanded by remember { mutableStateOf(false) }
+    val scheme = MaterialTheme.colorScheme
+    val titleColor = scheme.onSurface
+    val muted = scheme.onSurfaceVariant
 
     Card(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(onClick = onOpen),
+            .clip(RoundedCornerShape(16.dp))
+            .clickable(onClick = onOpen)
+            .then(
+                if (selected) {
+                    Modifier.drawBehind {
+                        drawRect(
+                            color = scheme.secondary,
+                            topLeft = Offset.Zero,
+                            size = Size(4.dp.toPx(), size.height),
+                        )
+                    }
+                } else {
+                    Modifier
+                },
+            ),
         colors = CardDefaults.cardColors(
-            containerColor = if (selected) {
-                MaterialTheme.colorScheme.primaryContainer
-            } else {
-                MaterialTheme.colorScheme.surfaceContainer
-            },
+            containerColor = errataTaskCardContainer(selected),
+            contentColor = titleColor,
         ),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
         shape = RoundedCornerShape(16.dp),
@@ -227,16 +259,16 @@ private fun LibraryRow(
                     .weight(1f)
                     .padding(vertical = 8.dp),
             ) {
-                TaskAreaLabel(area = item.task.area)
+                TaskAreaLabel(area = item.task.area, color = muted)
                 Text(
                     text = item.task.title,
                     style = MaterialTheme.typography.titleLarge,
-                    color = MaterialTheme.colorScheme.onSurface,
+                    color = titleColor,
                 )
                 Text(
                     text = item.subtitle,
                     style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    color = muted,
                     modifier = Modifier.padding(top = 4.dp),
                 )
             }

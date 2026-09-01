@@ -6,7 +6,7 @@ Android-first. Offline and battery-conscious. No streak guilt, no social feed, n
 
 ## Status
 
-Android daily driver is usable (pending queue, cadence including yearly/seasons, starters, folder backup, history retention, optional Google Drive App Data, offline-first privacy). Sideload: [docs/04-sideload.md](docs/04-sideload.md). Google setup: [docs/07-google-sync.md](docs/07-google-sync.md). Publish: [docs/08-publish.md](docs/08-publish.md) (Ordinary Tools).
+Android daily driver is sideload-ready (`0.1.0`). Remaining human step is Play closed testing: [docs/08-publish.md](docs/08-publish.md) (Ordinary Tools). Sideload: [docs/04-sideload.md](docs/04-sideload.md). Google setup: [docs/07-google-sync.md](docs/07-google-sync.md).
 
 ## Start here
 
@@ -15,7 +15,7 @@ Android daily driver is usable (pending queue, cadence including yearly/seasons,
 | [AGENTS.md](AGENTS.md) | Agent session contract |
 | [docs/README.md](docs/README.md) | Design authority index |
 | [docs/00-vision.md](docs/00-vision.md) | What we are building and why |
-| [docs/01-architecture.md](docs/01-architecture.md) | Planned shape (Android, data, reminders) |
+| [docs/01-architecture.md](docs/01-architecture.md) | Android shape, data, reminders (in tree) |
 | [docs/04-sideload.md](docs/04-sideload.md) | Build and install the APK |
 | [docs/05-privacy.md](docs/05-privacy.md) | Privacy policy |
 | [docs/08-publish.md](docs/08-publish.md) | Play / OAuth / tester steps (human) |
